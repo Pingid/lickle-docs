@@ -1,0 +1,53 @@
+type Fn = (...args: any[]) => any
+export const memo = <F extends Fn>(fn: F): F => {
+  const cache = new Map<string, ReturnType<F>>()
+  return ((...args: any[]) => {
+    const key = JSON.stringify(args)
+    if (cache.has(key)) return cache.get(key)!
+    const result = fn(...args)
+    cache.set(key, result)
+    return result
+  }) as F
+}
+
+/** Cache on the first argument */
+export const memo1 = <F extends Fn>(fn: F): F => {
+  const cache = new Map<any, ReturnType<F>>()
+  return ((...args: any[]) => {
+    const key = args[0]
+    if (cache.has(key)) return cache.get(key)!
+    const result = fn(...args)
+    cache.set(key, result)
+    return result
+  }) as F
+}
+
+/** Serialise overlapping async invocations; if a call arrives mid-run, replay once. */
+export const serial = (fn: () => Promise<any>) => {
+  let busy = false
+  let queued = false
+  const run = async (): Promise<void> => {
+    if (busy) return void (queued = true)
+    busy = true
+    try {
+      await fn()
+    } catch (e) {
+      console.error('[build]', e)
+    }
+    busy = false
+    if (queued) {
+      queued = false
+      await run()
+    }
+  }
+  return run
+}
+
+export const registerNodeCleanup = (fn: () => any) => {
+  const cleanup = async () => {
+    await fn()
+    process.exit(0)
+  }
+  process.on('SIGINT', cleanup)
+  process.on('SIGTERM', cleanup)
+}

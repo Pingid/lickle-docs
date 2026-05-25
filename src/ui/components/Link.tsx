@@ -1,0 +1,43 @@
+import { Show } from 'solid-js'
+import { A } from '@solidjs/router'
+
+import { useSlugFor } from '../hooks/index.ts'
+import { Syntax } from './Syntax.tsx'
+
+export const Link = (props: { href: string; children: string }) => {
+  return (
+    <A href={props.href} class="underline decoration-line underline-offset-[3px] hover:opacity-70">
+      {props.children}
+    </A>
+  )
+}
+
+/**
+ * Link to an in-project declaration by id, with a fallback rendering when
+ * the target isn't resolvable. The `?` prefix marks anonymous external
+ * references the resolver couldn't anchor to anything.
+ */
+Link.Type = (props: { id?: number; name: string; external?: 'stdlib' | 'package' | 'anonymous' | 'type-parameter' }) => {
+  const slugs = useSlugFor()
+  const slug = () => (props.id != null ? slugs.byId(props.id) : undefined)
+  return (
+    <>
+      <Show when={props.external === 'anonymous'}>
+        <Syntax.Punct>?</Syntax.Punct>
+      </Show>
+      <Show when={slug()} fallback={<Syntax.Name>{props.name}</Syntax.Name>}>
+        <Link href={`/${slug()}`}>{props.name}</Link>
+      </Show>
+    </>
+  )
+}
+
+Link.ByName = (props: { name: string }) => {
+  const slugs = useSlugFor()
+  const slug = () => slugs.byName(props.name)
+  return (
+    <Show when={slug()} fallback={<Syntax.Name>{props.name}</Syntax.Name>}>
+      <Link href={`/${slug()}`}>{props.name}</Link>
+    </Show>
+  )
+}

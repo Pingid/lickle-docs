@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "lib": ["DOM"],
+    "types": ["@lickle/docs/client"],
+    "jsx": "preserve",
+    "jsxImportSource": "@lickle/docs/solidjs",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  }
+}
