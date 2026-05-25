@@ -1,0 +1,30 @@
+{
+  "name": "@lickle/docs-client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@lickle/cn": "^0.0.1",
+    "@mlc-ai/web-llm": "^0.2.83",
+    "@orama/orama": "^3.1.18",
+    "@solidjs/router": "^0.16.1",
+    "@tailwindcss/vite": "^4.3.0",
+    "codejar": "^4.3.0",
+    "marked": "^18.0.4",
+    "shiki": "^4.1.0",
+    "solid-js": "^1.9.12",
+    "tailwindcss": "^4.3.0",
+    "typedoc": "^0.28.19"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12",
+    "vite-plugin-solid": "^2.11.12"
+  }
+}

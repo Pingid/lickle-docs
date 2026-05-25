@@ -1,0 +1,7 @@
+packages:
+  - 'client'
+  - 'cli'
+allowBuilds:
+  esbuild: true
+overrides:
+  '@lickle/docs': 'link:'
