@@ -1,5 +1,2 @@
-/* Default CSS entry for the embedded docs app. Consumers may override with
-   `c.docs.css = '<path-to-their-css>'` to take full control of the entry. */
 @import 'tailwindcss';
 @import './theme.css';
-@import '../.lickle/sources.css';

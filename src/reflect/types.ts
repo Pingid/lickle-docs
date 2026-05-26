@@ -1,193 +1,204 @@
-export interface ProjectReflection {
+// ---------------- Pass through for customizing the type registry ----------------
+export interface TypeRegistry {
+  declarations: Record<string, any>
+  types: Record<string, any>
+}
+export type AnyDeclaration<T extends TypeRegistry = Registry> = T['declarations'][keyof T['declarations']]
+export type AnyType<T extends TypeRegistry = Registry> = T['types'][keyof T['types']]
+
+// ---------------- Default registry ----------------
+export interface Registry extends TypeRegistry {
+  declarations: DeclarationMap<Registry>
+  types: TypeMap<Registry>
+}
+
+export interface DeclarationMap<T extends TypeRegistry> {
+  module: Module<T>
+  variable: Variable<T>
+  function: Func<T>
+  class: Class<T>
+  interface: Interface<T>
+  'type-alias': TypeAlias<T>
+  enum: Enum
+  're-export': ReExport
+}
+
+export type TypeMap<T extends TypeRegistry> = {
+  intrinsic: IntrinsicType
+  literal: LiteralType
+  reference: ReferenceType<T>
+  unresolved: UnresolvedType<T>
+  union: UnionType<T>
+  intersection: IntersectionType<T>
+  array: ArrayType<T>
+  tuple: TupleType<T>
+  function: FunctionType<T>
+  typeoperator: TypeOperatorType<T>
+  query: QueryType<T>
+  reflection: ReflectionType<T>
+}
+
+// ---------------- Top level project ----------------
+export interface Project<T extends TypeRegistry = Registry> {
   name: string
   /** Optional top-level package description, e.g. from the package README. */
   comment?: Comment
   /** A project is fundamentally a collection of modules/files. */
-  children: ModuleReflection[]
+  children: T['declarations']['module'][]
 }
 
-export interface BaseReflection {
+// ---------------- Shared types ----------------
+export interface Base {
   /** Stable identifier used by `reference` types to point back at a declaration. */
   id: number
-  name: string
+  /** Doc comment */
   comment?: Comment
-  /** All source locations contributing to this reflection. Multiple when declarations merge (e.g. interface + namespace, function overloads). */
-  sources?: SourceLocation[]
-  /** Modifiers that may apply to many reflection kinds. Empty/absent when none apply. */
-  flags?: ReflectionFlags
+  /** All source locations contributing to this reflection. */
+  sources?: Source[]
+  /** Modifiers that may apply to many reflection kinds. */
+  flags?: Flags
 }
 
-export interface SourceLocation {
+export interface Source {
   file: string
   line: number
   column: number
 }
 
-export interface ReflectionFlags {
-  isReadonly?: boolean
-  isStatic?: boolean
-  isAbstract?: boolean
-  isAsync?: boolean
-  isOptional?: boolean
+export interface Flags {
+  readonly?: boolean
+  static?: boolean
+  abstract?: boolean
+  async?: boolean
+  optional?: boolean
   visibility?: 'public' | 'protected' | 'private'
 }
 
-// ---------------- MODULES & RE-EXPORTS ----------------
+// ---------------- declarations ----------------
 
-export interface ModuleReflection extends BaseReflection {
+export interface Module<T extends TypeRegistry = Registry> extends Base {
   kind: 'module'
-  /** Top-level declarations in this module. */
-  children: DeclarationReflection[]
-  /** Re-exports from other modules. Kept separate from `children` because they don't introduce new declarations. */
-  reExports?: ReExportReflection[]
+  path?: string
+  name?: string
+  children: AnyDeclaration<T>[]
 }
 
-/** Any declaration that can appear at module (or namespace) top level. */
-export type DeclarationReflection =
-  | VariableReflection
-  | FunctionReflection
-  | ClassReflection
-  | InterfaceReflection
-  | TypeAliasReflection
-  | EnumReflection
-  | ModuleReflection
+export interface ReExport extends Base {
+  kind: 're-export'
+  sourceModule: string
+  as?: string
+  named: NamedExport[]
+}
 
-/**
- * Re-exports come in three syntactic forms; splitting them keeps each shape
- * unambiguous instead of relying on which optional fields happen to be set.
- */
-export type ReExportReflection =
-  /** `export * from './x'` */
-  | { kind: 're-export-all'; sourceModule: string; resolvedIds?: number[] }
-  /** `export * as foo from './x'` */
-  | { kind: 're-export-namespace'; sourceModule: string; as: string; resolvedIds?: number[] }
-  /** `export { baz as bar } from './x'` — `as` is set only when aliased. */
-  | { kind: 're-export-named'; sourceModule: string; name: string; as?: string; resolvedIds?: number[] }
+export interface NamedExport {
+  name: string
+  as?: string
+}
 
-// ---------------- DECLARATIONS ----------------
-
-export interface VariableReflection extends BaseReflection {
+export interface Variable<T extends TypeRegistry = Registry> extends Base {
   kind: 'variable'
-  type: TypeReflection
+  type: AnyType<T>
+  name: string
   defaultValue?: string
 }
 
-export interface FunctionReflection extends BaseReflection {
+export interface Func<T extends TypeRegistry = Registry> extends Base {
   kind: 'function'
+  name: string
   /** Multiple entries represent overloads; each carries its own comment. */
-  signatures: SignatureReflection[]
+  signatures: Signature<T>[]
 }
 
-export interface ClassReflection extends BaseReflection {
+export interface Class<T extends TypeRegistry = Registry> extends Base {
   kind: 'class'
-  typeParameters?: TypeParameterReflection[]
-  extends?: TypeReflection
-  implements?: TypeReflection[]
-  constructors: SignatureReflection[]
-  properties: PropertyReflection[]
-  methods: MethodReflection[]
-  /** Index signature, if any: e.g., `[key: string]: unknown`. */
-  indexSignature?: IndexSignatureReflection
+  name: string
+  typeParameters?: TypeParameter<T>[]
+  extends?: AnyType<T>
+  implements?: AnyType<T>[]
+  constructors: Signature<T>[]
+  properties: Property<T>[]
+  methods: Method<T>[]
+  indexSignature?: IndexSignature<T>
 }
 
-export interface InterfaceReflection extends BaseReflection {
+export interface Interface<T extends TypeRegistry = Registry> extends Base {
   kind: 'interface'
-  typeParameters?: TypeParameterReflection[]
-  extends?: TypeReflection[]
-  properties: PropertyReflection[]
-  methods: MethodReflection[]
-  /** Call signatures make the interface itself callable. */
-  callSignatures?: SignatureReflection[]
-  /** Construct signatures make the interface newable. */
-  constructSignatures?: SignatureReflection[]
-  indexSignature?: IndexSignatureReflection
+  name: string
+  typeParameters?: TypeParameter<T>[]
+  extends?: AnyType<T>[]
+  properties: Property<T>[]
+  methods: Method<T>[]
+  callSignatures?: Signature<T>[]
+  constructSignatures?: Signature<T>[]
+  indexSignature?: IndexSignature<T>
 }
 
-export interface TypeAliasReflection extends BaseReflection {
+export interface TypeAlias<T extends TypeRegistry = Registry> extends Base {
   kind: 'type-alias'
-  typeParameters?: TypeParameterReflection[]
-  type: TypeReflection
+  name: string
+  typeParameters?: TypeParameter<T>[]
+  type: AnyType<T>
 }
 
-export interface EnumReflection extends BaseReflection {
+export interface Enum extends Base {
   kind: 'enum'
-  isConst?: boolean
-  members: EnumMemberReflection[]
+  name: string
+  const?: boolean
+  members: EnumMember[]
 }
-
-export interface EnumMemberReflection extends BaseReflection {
+export interface EnumMember extends Base {
   kind: 'enum-member'
-  /** Resolved value when known (numeric or string enums); absent for computed members. */
+  name: string
   value?: string | number
 }
 
 // ---------------- CLASS/INTERFACE MEMBERS ----------------
-
-export interface PropertyReflection extends BaseReflection {
+export interface Property<T extends TypeRegistry = Registry> extends Base {
   kind: 'property'
-  type: TypeReflection
+  name: string
+  type: AnyType<T>
   defaultValue?: string
 }
 
-export interface MethodReflection extends BaseReflection {
+export interface Method<T extends TypeRegistry = Registry> extends Base {
   kind: 'method'
-  signatures: SignatureReflection[]
+  name: string
+  signatures: Signature<T>[]
 }
 
-export interface IndexSignatureReflection extends BaseReflection {
+export interface IndexSignature<T extends TypeRegistry = Registry> extends Base {
   kind: 'index-signature'
-  /** The key type — typically `string` or `number`. */
-  parameter: ParameterReflection
-  /** The value type. */
-  type: TypeReflection
+  parameter: Parameter<T>
+  type: AnyType<T>
 }
 
 // ---------------- SIGNATURES & PARAMETERS ----------------
-
-/**
- * Represents one callable shape — for functions, methods, constructors, and
- * call/construct signatures on interfaces. Extends BaseReflection so each
- * overload can carry its own JSDoc comment.
- */
-export interface SignatureReflection extends BaseReflection {
+export interface Signature<T extends TypeRegistry = Registry> extends Base {
   kind: 'signature'
-  typeParameters?: TypeParameterReflection[]
-  parameters: ParameterReflection[]
-  /** Return type (or constructed type for construct signatures). */
-  type: TypeReflection
+  name?: string
+  typeParameters?: TypeParameter<T>[]
+  parameters: Parameter<T>[]
+  type: AnyType<T>
 }
 
-export interface ParameterReflection extends BaseReflection {
+export interface Parameter<T extends TypeRegistry = Registry> extends Base {
   kind: 'parameter'
-  type: TypeReflection
-  isOptional: boolean
-  isRest?: boolean
-  defaultValue?: string
+  name: string
+  type: AnyType<T>
+  rest?: boolean
+  default?: string
+  optional: boolean
 }
 
-export interface TypeParameterReflection {
+export interface TypeParameter<T extends TypeRegistry = Registry> {
   name: string
   /** `T extends Foo` */
-  constraint?: TypeReflection
+  constraint?: AnyType<T>
   /** `T = string` */
-  default?: TypeReflection
+  default?: AnyType<T>
 }
 
 // ---------------- TYPES ----------------
-
-export type TypeReflection =
-  | IntrinsicType
-  | LiteralType
-  | ReferenceType
-  | UnionType
-  | IntersectionType
-  | ArrayType
-  | TupleType
-  | FunctionType
-  | TypeOperatorType
-  | QueryType
-  | ReflectionType
-
 export interface IntrinsicType {
   kind: 'intrinsic'
   name:
@@ -210,93 +221,108 @@ export interface LiteralType {
   value: string | number | boolean | bigint | null
 }
 
-/** A named reference, e.g. `Promise<User>` or a custom declared type. */
-export interface ReferenceType {
+export interface ReferenceType<T extends TypeRegistry = Registry> {
   kind: 'reference'
-  /** Stable id for this reference site. Used by the second-pass resolver. */
   id: number
   name: string
-  /** Resolved id of the target declaration, when in-project. */
-  targetId?: number
-  typeArguments?: TypeReflection[]
-}
-
-export interface UnionType {
-  kind: 'union'
-  types: TypeReflection[]
-}
-
-export interface IntersectionType {
-  kind: 'intersection'
-  types: TypeReflection[]
-}
-
-export interface ArrayType {
-  kind: 'array'
-  elementType: TypeReflection
-}
-
-export interface TupleType {
-  kind: 'tuple'
-  elements: TupleElement[]
-}
-
-export interface TupleElement {
-  type: TypeReflection
-  /** Labeled tuple element name, if any: e.g., `[x: number, y: number]`. */
-  name?: string
-  isOptional?: boolean
-  isRest?: boolean
-}
-
-/** Function/callable types appearing inline, e.g. `(x: number) => string`. */
-export interface FunctionType {
-  kind: 'function-type'
-  signatures: SignatureReflection[]
-}
-
-/** `keyof T`, `readonly T[]`, `unique symbol`. */
-export interface TypeOperatorType {
-  kind: 'type-operator'
-  operator: 'keyof' | 'readonly' | 'unique'
-  target: TypeReflection
-}
-
-/** `typeof foo` */
-export interface QueryType {
-  kind: 'query'
-  queryType: ReferenceType
-}
-
-/** Inline object/type-literal shapes. */
-export interface ReflectionType {
-  kind: 'reflection'
-  declaration: ObjectLiteralReflection
-}
-
-export interface ObjectLiteralReflection extends BaseReflection {
-  kind: 'object-literal'
-  properties: PropertyReflection[]
-  methods?: MethodReflection[]
-  callSignatures?: SignatureReflection[]
-  constructSignatures?: SignatureReflection[]
-  indexSignature?: IndexSignatureReflection
-}
-
-// ---------------- COMMENTS ----------------
-
-export interface Comment {
-  /** Free-form description text (the main JSDoc body). */
-  text: string
-  tags: CommentTag[]
+  typeArguments?: AnyType<T>[]
 }
 
 /**
- * JSDoc tags. Most tags are plain text, but `@param` and `@example` are
- * common enough to warrant dedicated shapes for accurate rendering.
+ * A type the resolver cannot link to a project declaration — typically an
+ * inferred or anonymous type whose symbol has no source location we crawled
+ * (e.g. lib.d.ts internals, intrinsic conditional results). Kept as a
+ * name-only marker so consumers don't mistake it for a resolvable reference.
+ */
+export interface UnresolvedType<T extends TypeRegistry = Registry> {
+  kind: 'unresolved'
+  name: string
+  typeArguments?: AnyType<T>[]
+}
+
+export interface UnionType<T extends TypeRegistry = Registry> {
+  kind: 'union'
+  types: AnyType<T>[]
+}
+
+export interface IntersectionType<T extends TypeRegistry = Registry> {
+  kind: 'intersection'
+  types: AnyType<T>[]
+}
+
+export interface ArrayType<T extends TypeRegistry = Registry> {
+  kind: 'array'
+  elementType: AnyType<T>
+}
+
+export interface TupleType<T extends TypeRegistry = Registry> {
+  kind: 'tuple'
+  elements: TupleElement<T>[]
+}
+
+export interface TupleElement<T extends TypeRegistry = Registry> {
+  type: AnyType<T>
+  name?: string
+  optional?: boolean
+  rest?: boolean
+}
+
+export interface FunctionType<T extends TypeRegistry = Registry> {
+  kind: 'function-type'
+  signatures: Signature<T>[]
+}
+
+export interface TypeOperatorType<T extends TypeRegistry = Registry> {
+  kind: 'type-operator'
+  operator: 'keyof' | 'readonly' | 'unique'
+  target: AnyType<T>
+}
+
+export interface QueryType<T extends TypeRegistry = Registry> {
+  kind: 'query'
+  queryType: ReferenceType<T>
+}
+
+export interface ReflectionType<T extends TypeRegistry = Registry> {
+  kind: 'reflection'
+  declaration: ObjectLiteral<T>
+}
+
+export interface ObjectLiteral<T extends TypeRegistry = Registry> extends Base {
+  kind: 'object-literal'
+  properties: Property<T>[]
+  methods?: Method<T>[]
+  callSignatures?: Signature<T>[]
+  constructSignatures?: Signature<T>[]
+  indexSignature?: IndexSignature<T>
+}
+
+// ---------------- COMMENTS ----------------
+export interface Comment {
+  /** Flat text of the comment body. Inline links are rendered as their display text. */
+  text: string
+  /** Structured body — present only when the comment contains inline `{@link …}` references. */
+  parts?: CommentPart[]
+  tags: CommentTag[]
+}
+
+export type CommentPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'link'; target: string; text?: string; style?: 'code' | 'plain' }
+
+/**
+ * Tagged comment metadata. Known tags carry whatever structured info JSDoc
+ * supplies (types, names, type parameters); unknown tags fall through to a
+ * generic shape. Type-bearing fields default to the base registry — augment if
+ * you need them resolved against a custom one.
  */
 export type CommentTag =
-  | { tag: '@param'; name: string; text: string }
+  | { tag: '@param' | '@property'; name: string; type?: AnyType; optional?: boolean; default?: string; text: string }
+  | { tag: '@returns' | '@throws'; type?: AnyType; text: string }
+  | { tag: '@type' | '@satisfies'; type: AnyType; text: string }
+  | { tag: '@template'; typeParameters: TypeParameter[]; text: string }
+  | { tag: '@see'; target?: string; text: string }
   | { tag: '@example'; caption?: string; code: string }
-  | { tag: '@returns' | '@throws' | '@deprecated' | '@see' | '@remarks' | '@default'; text: string }
+  | { tag: '@extends' | '@augments' | '@implements'; class: AnyType; text: string }
+  | { tag: '@deprecated' | '@remarks' | '@default' | '@author'; text: string }
   | { tag: string; name?: string; text: string }

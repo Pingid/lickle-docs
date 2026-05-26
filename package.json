@@ -62,6 +62,7 @@
   "dependencies": {
     "@lickle/docs": "link:",
     "cmd-ts": "^0.15.0",
+    "fast-glob": "^3.3.3",
     "typedoc": "^0.28.19"
   }
 }

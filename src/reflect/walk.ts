@@ -2,17 +2,16 @@ import type * as T from './types.ts'
 
 export interface Visitor {
   onReference: (ref: T.ReferenceType) => void
-  onReExport: (re: T.ReExportReflection) => void
+  onReExport: (re: T.ReExport) => void
 }
 
-export const Project = (p: T.ProjectReflection, v: Visitor): void => p.children.forEach((m) => Module(m, v))
+export const Project = (p: T.Project, v: Visitor): void => p.children.forEach((m) => Module(m, v))
 
-export const Module = (m: T.ModuleReflection, v: Visitor): void => {
-  m.reExports?.forEach((re) => v.onReExport(re))
+export const Module = (m: T.Module, v: Visitor): void => {
   m.children.forEach((c) => Declaration(c, v))
 }
 
-export const Declaration = (d: T.DeclarationReflection, v: Visitor): void => {
+export const Declaration = (d: T.AnyDeclaration, v: Visitor): void => {
   switch (d.kind) {
     case 'module':
       return Module(d, v)
@@ -28,14 +27,16 @@ export const Declaration = (d: T.DeclarationReflection, v: Visitor): void => {
       return TypeAlias(d, v)
     case 'enum':
       return Enum(d, v)
+    case 're-export':
+      return v.onReExport(d)
   }
 }
 
-export const Variable = (n: T.VariableReflection, v: Visitor): void => Type(n.type, v)
+export const Variable = (n: T.Variable, v: Visitor): void => Type(n.type, v)
 
-export const Function = (n: T.FunctionReflection, v: Visitor): void => n.signatures.forEach((s) => Signature(s, v))
+export const Function = (n: T.Func, v: Visitor): void => n.signatures.forEach((s) => Signature(s, v))
 
-export const Class = (n: T.ClassReflection, v: Visitor): void => {
+export const Class = (n: T.Class, v: Visitor): void => {
   n.typeParameters?.forEach((tp) => TypeParameter(tp, v))
   if (n.extends) Type(n.extends, v)
   n.implements?.forEach((t) => Type(t, v))
@@ -45,7 +46,7 @@ export const Class = (n: T.ClassReflection, v: Visitor): void => {
   if (n.indexSignature) IndexSignature(n.indexSignature, v)
 }
 
-export const Interface = (n: T.InterfaceReflection, v: Visitor): void => {
+export const Interface = (n: T.Interface, v: Visitor): void => {
   n.typeParameters?.forEach((tp) => TypeParameter(tp, v))
   n.extends?.forEach((t) => Type(t, v))
   n.properties.forEach((p) => Property(p, v))
@@ -55,38 +56,38 @@ export const Interface = (n: T.InterfaceReflection, v: Visitor): void => {
   if (n.indexSignature) IndexSignature(n.indexSignature, v)
 }
 
-export const TypeAlias = (n: T.TypeAliasReflection, v: Visitor): void => {
+export const TypeAlias = (n: T.TypeAlias, v: Visitor): void => {
   n.typeParameters?.forEach((tp) => TypeParameter(tp, v))
   Type(n.type, v)
 }
 
-export const Enum = (_: T.EnumReflection, _v: Visitor): void => {
+export const Enum = (_: T.Enum, _v: Visitor): void => {
   // Enum members carry no TypeReflections in our schema.
 }
 
-export const Property = (n: T.PropertyReflection, v: Visitor): void => Type(n.type, v)
+export const Property = (n: T.Property, v: Visitor): void => Type(n.type, v)
 
-export const Method = (n: T.MethodReflection, v: Visitor): void => n.signatures.forEach((s) => Signature(s, v))
+export const Method = (n: T.Method, v: Visitor): void => n.signatures.forEach((s) => Signature(s, v))
 
-export const IndexSignature = (n: T.IndexSignatureReflection, v: Visitor): void => {
+export const IndexSignature = (n: T.IndexSignature, v: Visitor): void => {
   Parameter(n.parameter, v)
   Type(n.type, v)
 }
 
-export const Signature = (n: T.SignatureReflection, v: Visitor): void => {
+export const Signature = (n: T.Signature, v: Visitor): void => {
   n.typeParameters?.forEach((tp) => TypeParameter(tp, v))
   n.parameters.forEach((p) => Parameter(p, v))
   Type(n.type, v)
 }
 
-export const Parameter = (n: T.ParameterReflection, v: Visitor): void => Type(n.type, v)
+export const Parameter = (n: T.Parameter, v: Visitor): void => Type(n.type, v)
 
-export const TypeParameter = (n: T.TypeParameterReflection, v: Visitor): void => {
+export const TypeParameter = (n: T.TypeParameter, v: Visitor): void => {
   if (n.constraint) Type(n.constraint, v)
   if (n.default) Type(n.default, v)
 }
 
-export const ObjectLiteral = (n: T.ObjectLiteralReflection, v: Visitor): void => {
+export const ObjectLiteral = (n: T.ObjectLiteral, v: Visitor): void => {
   n.properties.forEach((p) => Property(p, v))
   n.methods?.forEach((m) => Method(m, v))
   n.callSignatures?.forEach((s) => Signature(s, v))
@@ -94,12 +95,14 @@ export const ObjectLiteral = (n: T.ObjectLiteralReflection, v: Visitor): void =>
   if (n.indexSignature) IndexSignature(n.indexSignature, v)
 }
 
-export const Type = (t: T.TypeReflection, v: Visitor): void => {
+export const Type = (t: T.AnyType, v: Visitor): void => {
   switch (t.kind) {
     case 'reference':
       v.onReference(t)
       t.typeArguments?.forEach((a) => Type(a, v))
       return
+    case 'unresolved':
+      return t.typeArguments?.forEach((a) => Type(a, v))
     case 'union':
     case 'intersection':
       return t.types.forEach((x) => Type(x, v))

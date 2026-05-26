@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lickle/docs": "workspace:*",
     "@lickle/cn": "^0.0.1",
     "@mlc-ai/web-llm": "^0.2.83",
     "@orama/orama": "^3.1.18",

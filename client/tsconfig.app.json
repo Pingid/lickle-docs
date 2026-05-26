@@ -20,7 +20,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@lickle/docs": ["../src"]
+    }
   },
-  "include": ["src", "../src/jsx-runtime.ts"]
+  "include": ["src"]
 }

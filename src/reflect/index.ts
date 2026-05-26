@@ -1,17 +1,6 @@
-import ts from 'typescript'
-
-import { generateProject, type GenerateOptions } from './generate.ts'
-import type { ProjectReflection } from './types.ts'
-import { resolveReferences } from './resolve.ts'
-
-export const generate = (
-  projectName: string,
-  files: string[],
-  tsconfig: ts.CompilerOptions,
-  options: Partial<GenerateOptions> = {},
-): ProjectReflection => {
-  const { project, resolverContext } = generateProject(files, projectName, tsconfig, options)
-  return resolveReferences(project, resolverContext)
-}
-
+export type { TypeRegistry } from './types.ts'
+export * as resolve from './resolve.ts'
+export * as index from './indexed.ts'
 export * as debug from './debug.ts'
+export * as json from './json.ts'
+export * as scan from './scan.ts'

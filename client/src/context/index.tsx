@@ -7,6 +7,7 @@ import { useTypedoc, TypedocProvider } from './typedoc.js'
 
 export { ThemeProvider, useTheme, type ThemeMode } from './theme.js'
 export { TypedocProvider, useTypedoc } from './typedoc.js'
+export { useProject, ProjectProvider } from './project.js'
 
 const IndexCtx = createContext<() => ReflectionIndex>()
 

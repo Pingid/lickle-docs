@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
 import path from 'node:path'
+import fg from 'fast-glob'
 
 import { reflect, typedoc, workspace } from '../lib.ts'
 
@@ -32,8 +33,13 @@ const json = cmd.command({
   handler: async (args) => {
     const projectName = await workspace.projectName(args.projectName)
     const options = await workspace.tsconfig(args.tsconfig)
-    const files = args.files.length ? args.files.map((f) => path.resolve(f)) : options.fileNames
-    const project = reflect.generate(projectName ?? 'my-project', files, options.options, {})
+    let files: string[] = []
+    if (args.files.length) files = await fg(args.files)
+    else files = options.fileNames
+    const project = reflect.json.build(projectName ?? 'my-project', files, {
+      compilerOptions: options.options,
+      rootDir: process.cwd(),
+    })
     await fs.writeFile('reflect.json', JSON.stringify(project))
   },
 })
