@@ -1,5 +1,6 @@
 import type * as T from './types.js'
 import ts from 'typescript'
+import path from 'node:path'
 
 // ============================================================================
 // CONTEXT
@@ -10,15 +11,18 @@ export interface GenerateOptions {
   exclude?: { sources?: boolean; comments?: boolean; typeParameters?: boolean }
 }
 
-interface Context extends GenerateOptions {
+export interface ResolverContext {
   checker: ts.TypeChecker
-  nextId: () => number
-  /** Records the symbol behind each declaration id. Used by the second pass. */
+  /** For each declaration id, the symbol it came from. */
   symbolsById: Map<number, ts.Symbol>
-  /** Records the syntactic origin of each ReferenceType id. */
+  /** For each reference id, the node it was generated from. */
   referenceOrigins: Map<number, ts.Node>
-  /** Records the syntactic origin of each ReExportReflection (the ExportDeclaration or ExportSpecifier). */
-  reExportOrigins: Map<T.ReExportReflection, ts.Node>
+  /** For each ReExportReflection, the ExportDeclaration / ExportSpecifier it was generated from. */
+  reExportOrigins: Map<T.ReExportReflection<'lazy'>, ts.Node>
+}
+
+interface Context extends GenerateOptions, ResolverContext {
+  nextId: () => number
 }
 
 const makeContext = (checker: ts.TypeChecker, options: Partial<GenerateOptions> = {}): Context => {
@@ -33,38 +37,34 @@ const makeContext = (checker: ts.TypeChecker, options: Partial<GenerateOptions> 
   }
 }
 
+/** Defer a collection until iteration. The factory runs each time iteration starts. */
+const lazy = <T>(gen: () => Generator<T>): Iterable<T> => ({ [Symbol.iterator]: gen })
+
 // ============================================================================
 // ENTRY POINT
 // ============================================================================
 
 export interface GenerateResult {
-  project: T.ProjectReflection
-  /** Pass this to `resolveReferences` to populate `targetId` / `resolvedIds` fields. */
-  resolverContext: {
-    checker: ts.TypeChecker
-    symbolsById: Map<number, ts.Symbol>
-    referenceOrigins: Map<number, ts.Node>
-    reExportOrigins: Map<T.ReExportReflection, ts.Node>
-  }
+  children: Iterable<T.ModuleReflection<'lazy'>>
+  /** Pass to `resolve` to populate `targetId` / `resolvedIds` and materialize to JSON. */
+  context: ResolverContext
 }
 
-export const generateProject = (
+export const generate = (
   rootFiles: string[],
-  projectName: string,
   compilerOptions: ts.CompilerOptions = {},
   options: Partial<GenerateOptions> = {},
 ): GenerateResult => {
   const program = ts.createProgram(rootFiles, compilerOptions)
   const ctx = makeContext(program.getTypeChecker(), options)
-
-  const children = program
-    .getSourceFiles()
-    .filter((sf) => !sf.isDeclarationFile)
-    .map((sf) => convertSourceFile(sf, ctx))
-
   return {
-    project: { name: projectName, children },
-    resolverContext: {
+    children: lazy(function* () {
+      for (const sf of program.getSourceFiles()) {
+        if (sf.isDeclarationFile) continue
+        yield convertSourceFile(sf, ctx)
+      }
+    }),
+    context: {
       checker: ctx.checker,
       symbolsById: ctx.symbolsById,
       referenceOrigins: ctx.referenceOrigins,
@@ -77,30 +77,24 @@ export const generateProject = (
 // MODULE
 // ============================================================================
 
-const convertSourceFile = (sf: ts.SourceFile, ctx: Context): T.ModuleReflection => {
-  const children: T.DeclarationReflection[] = []
-  const reExports: T.ReExportReflection[] = []
-
-  sf.forEachChild((node) => {
-    if (!isExported(node)) return
-    children.push(...convertDeclaration(node, ctx))
-    reExports.push(...convertReExport(node, ctx))
-  })
-
-  return {
-    ...base(sf, sf.fileName, ctx),
-    kind: 'module',
-    children,
-    ...(reExports.length ? { reExports } : {}),
-  }
-}
+const convertSourceFile = (sf: ts.SourceFile, ctx: Context): T.ModuleReflection<'lazy'> => ({
+  ...base(sf, sf.moduleName ?? path.basename(sf.fileName), ctx),
+  kind: 'module',
+  children: lazy(function* () {
+    for (const stmt of sf.statements) {
+      if (!isExported(stmt)) continue
+      yield* convertDeclaration(stmt, ctx)
+      yield* convertReExport(stmt, ctx)
+    }
+  }),
+})
 
 // ============================================================================
 // DECLARATION DISPATCH
 // One small converter per declaration kind, then a dispatch table.
 // ============================================================================
 
-const convertDeclaration = function* (node: ts.Node, ctx: Context): Iterable<T.DeclarationReflection> {
+const convertDeclaration = function* (node: ts.Node, ctx: Context): Iterable<T.DeclarationReflection<'lazy'>> {
   if (ts.isVariableStatement(node)) yield* convertVariableStatement(node, ctx)
   if (ts.isFunctionDeclaration(node) && node.name) return yield convertFunction(node, ctx)
   if (ts.isClassDeclaration(node) && node.name) return yield convertClass(node, ctx)
@@ -121,7 +115,7 @@ const convertDeclaration = function* (node: ts.Node, ctx: Context): Iterable<T.D
 const convertVariableStatement = function* (
   stmt: ts.VariableStatement,
   ctx: Context,
-): Iterable<T.VariableReflection | T.FunctionReflection> {
+): Iterable<T.VariableReflection<'lazy'> | T.FunctionReflection<'lazy'>> {
   for (const d of stmt.declarationList.declarations) {
     if (!ts.isIdentifier(d.name)) continue
     yield isFunctionInitializer(d) ? convertVariableAsFunction(d, stmt, ctx) : convertVariable(d, stmt, ctx)
@@ -135,7 +129,7 @@ const convertVariable = (
   d: ts.VariableDeclaration,
   stmt: ts.VariableStatement,
   ctx: Context,
-): T.VariableReflection => ({
+): T.VariableReflection<'lazy'> => ({
   ...base(d, (d.name as ts.Identifier).text, ctx),
   kind: 'variable',
   type: d.type ? convertTypeNode(d.type, ctx) : convertType(ctx.checker.getTypeAtLocation(d), ctx),
@@ -147,154 +141,128 @@ const convertVariableAsFunction = (
   d: ts.VariableDeclaration,
   stmt: ts.VariableStatement,
   ctx: Context,
-): T.FunctionReflection => ({
+): T.FunctionReflection<'lazy'> => ({
   ...base(d, (d.name as ts.Identifier).text, ctx),
   kind: 'function',
   signatures: collectSignatures(d.initializer as ts.ArrowFunction | ts.FunctionExpression, ctx),
   flags: flagsFromModifiers(stmt.modifiers),
 })
 
-const convertFunction = (node: ts.FunctionDeclaration, ctx: Context): T.FunctionReflection => ({
+const convertFunction = (node: ts.FunctionDeclaration, ctx: Context): T.FunctionReflection<'lazy'> => ({
   ...base(node, node.name!.text, ctx),
   kind: 'function',
   signatures: collectSignatures(node, ctx),
   flags: flagsFromModifiers(node.modifiers),
 })
 
-const convertClass = (node: ts.ClassDeclaration, ctx: Context): T.ClassReflection => {
-  const members = partitionClassMembers(node.members, ctx)
+const convertClass = (node: ts.ClassDeclaration, ctx: Context): T.ClassReflection<'lazy'> => {
+  const tps = node.typeParameters
+  const extendsClause = node.heritageClauses?.find((h) => h.token === ts.SyntaxKind.ExtendsKeyword)
+  const implementsClause = node.heritageClauses?.find((h) => h.token === ts.SyntaxKind.ImplementsKeyword)
+  const members = node.members
   return {
     ...base(node, node.name!.text, ctx),
     kind: 'class',
-    ...(node.typeParameters ? { typeParameters: node.typeParameters.map((tp) => convertTypeParameter(tp, ctx)) } : {}),
-    ...heritage(node, ctx),
-    constructors: members.constructors,
-    properties: members.properties,
-    methods: members.methods,
-    ...(members.indexSignature ? { indexSignature: members.indexSignature } : {}),
+    ...(tps?.length ? { typeParameters: lazyMap(tps, (tp) => convertTypeParameter(tp, ctx)) } : {}),
+    ...(extendsClause?.types[0] ? { extends: convertTypeNode(extendsClause.types[0], ctx) } : {}),
+    ...(implementsClause?.types.length
+      ? { implements: lazyMap(implementsClause.types, (t) => convertTypeNode(t, ctx)) }
+      : {}),
+    constructors: lazy(function* () {
+      for (const m of members) if (ts.isConstructorDeclaration(m)) yield convertSignature(m, ctx)
+    }),
+    properties: lazy(function* () {
+      for (const m of members) if (ts.isPropertyDeclaration(m) && ts.isIdentifier(m.name)) yield convertProperty(m, ctx)
+    }),
+    methods: lazy(function* () {
+      for (const m of members) if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name)) yield convertMethod(m, ctx)
+    }),
+    ...(members.some(ts.isIndexSignatureDeclaration)
+      ? {
+          indexSignature: lazy(function* () {
+            for (const m of members) if (ts.isIndexSignatureDeclaration(m)) yield convertIndexSignature(m, ctx)
+          }),
+        }
+      : {}),
     flags: flagsFromModifiers(node.modifiers),
   }
 }
 
-const convertInterface = (node: ts.InterfaceDeclaration, ctx: Context): T.InterfaceReflection => {
-  const members = partitionInterfaceMembers(node.members, ctx)
-  const extendsTypes = node.heritageClauses
-    ?.filter((h) => h.token === ts.SyntaxKind.ExtendsKeyword)
-    .flatMap((h) => h.types.map((t) => convertTypeNode(t, ctx)))
-
+const convertInterface = (node: ts.InterfaceDeclaration, ctx: Context): T.InterfaceReflection<'lazy'> => {
+  const tps = node.typeParameters
+  const extendsClause = node.heritageClauses?.find((h) => h.token === ts.SyntaxKind.ExtendsKeyword)
+  const members = node.members
+  const idx = members.find(ts.isIndexSignatureDeclaration)
   return {
     ...base(node, node.name.text, ctx),
     kind: 'interface',
-    ...(node.typeParameters ? { typeParameters: node.typeParameters.map((tp) => convertTypeParameter(tp, ctx)) } : {}),
-    ...(extendsTypes?.length ? { extends: extendsTypes } : {}),
-    properties: members.properties,
-    methods: members.methods,
-    ...(members.callSignatures.length ? { callSignatures: members.callSignatures } : {}),
-    ...(members.constructSignatures.length ? { constructSignatures: members.constructSignatures } : {}),
-    ...(members.indexSignature ? { indexSignature: members.indexSignature } : {}),
+    ...(tps?.length ? { typeParameters: lazyMap(tps, (tp) => convertTypeParameter(tp, ctx)) } : {}),
+    ...(extendsClause?.types.length ? { extends: lazyMap(extendsClause.types, (t) => convertTypeNode(t, ctx)) } : {}),
+    properties: lazy(function* () {
+      for (const m of members)
+        if (ts.isPropertySignature(m) && ts.isIdentifier(m.name)) yield convertPropertySignature(m, ctx)
+    }),
+    methods: lazy(function* () {
+      for (const m of members)
+        if (ts.isMethodSignature(m) && ts.isIdentifier(m.name)) yield convertMethodSignature(m, ctx)
+    }),
+    callSignatures: lazy(function* () {
+      for (const m of members) if (ts.isCallSignatureDeclaration(m)) yield convertSignature(m, ctx)
+    }),
+    constructSignatures: lazy(function* () {
+      for (const m of members) if (ts.isConstructSignatureDeclaration(m)) yield convertSignature(m, ctx)
+    }),
+    ...(idx ? { indexSignature: convertIndexSignature(idx, ctx) } : {}),
   }
 }
 
-const convertTypeAlias = (node: ts.TypeAliasDeclaration, ctx: Context): T.TypeAliasReflection => ({
-  ...base(node, node.name.text, ctx),
-  kind: 'type-alias',
-  ...(node.typeParameters ? { typeParameters: node.typeParameters.map((tp) => convertTypeParameter(tp, ctx)) } : {}),
-  type: convertTypeNode(node.type, ctx),
-})
+const convertTypeAlias = (node: ts.TypeAliasDeclaration, ctx: Context): T.TypeAliasReflection<'lazy'> => {
+  const tps = node.typeParameters
+  return {
+    ...base(node, node.name.text, ctx),
+    kind: 'type-alias',
+    ...(tps?.length ? { typeParameters: lazyMap(tps, (tp) => convertTypeParameter(tp, ctx)) } : {}),
+    type: convertTypeNode(node.type, ctx),
+  }
+}
 
-const convertEnum = (node: ts.EnumDeclaration, ctx: Context): T.EnumReflection => ({
+const convertEnum = (node: ts.EnumDeclaration, ctx: Context): T.EnumReflection<'lazy'> => ({
   ...base(node, node.name.text, ctx),
   kind: 'enum',
   isConst: !!node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ConstKeyword),
-  members: node.members.map((m): T.EnumMemberReflection => {
-    const value = ctx.checker.getConstantValue(m)
-    return {
-      ...base(m, m.name.getText(), ctx),
-      kind: 'enum-member',
-      ...(value !== undefined ? { value } : {}),
+  members: lazy(function* () {
+    for (const m of node.members) {
+      const value = ctx.checker.getConstantValue(m)
+      yield {
+        ...base(m, m.name.getText(), ctx),
+        kind: 'enum-member',
+        ...(value !== undefined ? { value } : {}),
+      } satisfies T.EnumMemberReflection<'lazy'>
     }
   }),
 })
 
-const convertNamespace = (node: ts.ModuleDeclaration, ctx: Context): T.ModuleReflection | undefined => {
+const convertNamespace = (node: ts.ModuleDeclaration, ctx: Context): T.ModuleReflection<'lazy'> | undefined => {
   if (!node.body || !ts.isModuleBlock(node.body)) return undefined
-  const children: T.DeclarationReflection[] = []
-  node.body.statements.forEach((stmt) => {
-    if (!isExported(stmt)) return
-    children.push(...convertDeclaration(stmt, ctx))
-  })
+  const body = node.body
   return {
     ...base(node, node.name.getText(), ctx),
     kind: 'module',
-    children,
+    children: lazy(function* () {
+      for (const stmt of body.statements) {
+        if (!isExported(stmt)) continue
+        yield* convertDeclaration(stmt, ctx)
+        yield* convertReExport(stmt, ctx)
+      }
+    }),
   }
 }
 
 // ============================================================================
-// CLASS / INTERFACE MEMBERS
+// CLASS / INTERFACE / OBJECT-LITERAL MEMBERS
 // ============================================================================
 
-interface ClassMemberBuckets {
-  constructors: T.SignatureReflection[]
-  properties: T.PropertyReflection[]
-  methods: T.MethodReflection[]
-  indexSignature?: T.IndexSignatureReflection
-}
-
-const partitionClassMembers = (members: ts.NodeArray<ts.ClassElement>, ctx: Context): ClassMemberBuckets => {
-  const buckets: ClassMemberBuckets = { constructors: [], properties: [], methods: [] }
-
-  for (const m of members) {
-    if (ts.isConstructorDeclaration(m)) {
-      buckets.constructors.push(convertSignature(m, ctx))
-    } else if (ts.isPropertyDeclaration(m) && ts.isIdentifier(m.name)) {
-      buckets.properties.push(convertProperty(m, ctx))
-    } else if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name)) {
-      buckets.methods.push(convertMethod(m, ctx))
-    } else if (ts.isIndexSignatureDeclaration(m)) {
-      buckets.indexSignature = convertIndexSignature(m, ctx)
-    }
-  }
-  return buckets
-}
-
-interface InterfaceMemberBuckets {
-  properties: T.PropertyReflection[]
-  methods: T.MethodReflection[]
-  callSignatures: T.SignatureReflection[]
-  constructSignatures: T.SignatureReflection[]
-  indexSignature?: T.IndexSignatureReflection
-}
-
-const partitionInterfaceMembers = (members: ts.NodeArray<ts.TypeElement>, ctx: Context): InterfaceMemberBuckets => {
-  const buckets: InterfaceMemberBuckets = {
-    properties: [],
-    methods: [],
-    callSignatures: [],
-    constructSignatures: [],
-  }
-
-  for (const m of members) {
-    if (ts.isPropertySignature(m) && ts.isIdentifier(m.name)) {
-      buckets.properties.push(convertPropertySignature(m, ctx))
-    } else if (ts.isMethodSignature(m) && ts.isIdentifier(m.name)) {
-      buckets.methods.push({
-        ...base(m, m.name.text, ctx),
-        kind: 'method',
-        signatures: [convertSignature(m, ctx)],
-      })
-    } else if (ts.isCallSignatureDeclaration(m)) {
-      buckets.callSignatures.push(convertSignature(m, ctx))
-    } else if (ts.isConstructSignatureDeclaration(m)) {
-      buckets.constructSignatures.push(convertSignature(m, ctx))
-    } else if (ts.isIndexSignatureDeclaration(m)) {
-      buckets.indexSignature = convertIndexSignature(m, ctx)
-    }
-  }
-  return buckets
-}
-
-const convertProperty = (node: ts.PropertyDeclaration, ctx: Context): T.PropertyReflection => ({
+const convertProperty = (node: ts.PropertyDeclaration, ctx: Context): T.PropertyReflection<'lazy'> => ({
   ...base(node, (node.name as ts.Identifier).text, ctx),
   kind: 'property',
   type: node.type ? convertTypeNode(node.type, ctx) : convertType(ctx.checker.getTypeAtLocation(node), ctx),
@@ -302,24 +270,35 @@ const convertProperty = (node: ts.PropertyDeclaration, ctx: Context): T.Property
   flags: flagsFromModifiers(node.modifiers, { isOptional: !!node.questionToken }),
 })
 
-const convertPropertySignature = (node: ts.PropertySignature, ctx: Context): T.PropertyReflection => ({
+const convertPropertySignature = (node: ts.PropertySignature, ctx: Context): T.PropertyReflection<'lazy'> => ({
   ...base(node, (node.name as ts.Identifier).text, ctx),
   kind: 'property',
   type: node.type ? convertTypeNode(node.type, ctx) : intrinsic('unknown'),
   flags: flagsFromModifiers(node.modifiers, { isOptional: !!node.questionToken }),
 })
 
-const convertMethod = (node: ts.MethodDeclaration, ctx: Context): T.MethodReflection => ({
+const convertMethod = (node: ts.MethodDeclaration, ctx: Context): T.MethodReflection<'lazy'> => ({
   ...base(node, (node.name as ts.Identifier).text, ctx),
   kind: 'method',
   signatures: collectSignatures(node, ctx),
   flags: flagsFromModifiers(node.modifiers),
 })
 
-const convertIndexSignature = (node: ts.IndexSignatureDeclaration, ctx: Context): T.IndexSignatureReflection => ({
+const convertMethodSignature = (node: ts.MethodSignature, ctx: Context): T.MethodReflection<'lazy'> => ({
+  ...base(node, (node.name as ts.Identifier).text, ctx),
+  kind: 'method',
+  signatures: lazy(function* () {
+    yield convertSignature(node, ctx)
+  }),
+})
+
+const convertIndexSignature = (
+  node: ts.IndexSignatureDeclaration,
+  ctx: Context,
+): T.IndexSignatureReflection<'lazy'> => ({
   ...base(node, '__index', ctx),
   kind: 'index-signature',
-  parameter: convertParameter(node.parameters[0]!, ctx),
+  parameter: lazyMap(node.parameters, (p) => convertParameter(p, ctx)),
   type: node.type ? convertTypeNode(node.type, ctx) : intrinsic('unknown'),
 })
 
@@ -328,41 +307,51 @@ const convertIndexSignature = (node: ts.IndexSignatureDeclaration, ctx: Context)
 // ============================================================================
 
 /** Pull all overload + implementation signatures from a function-like declaration. */
-const collectSignatures = (node: ts.SignatureDeclaration, ctx: Context): T.SignatureReflection[] => {
-  const type = ctx.checker.getTypeAtLocation(node)
-  const sigs = type.getCallSignatures()
-  return sigs.length ? sigs.map((s) => convertCheckerSignature(s, node, ctx)) : [convertSignature(node, ctx)]
-}
+const collectSignatures = (node: ts.SignatureDeclaration, ctx: Context): Iterable<T.SignatureReflection<'lazy'>> =>
+  lazy(function* () {
+    const sigs = ctx.checker.getTypeAtLocation(node).getCallSignatures()
+    if (sigs.length) {
+      for (const s of sigs) yield convertCheckerSignature(s, node, ctx)
+    } else {
+      yield convertSignature(node, ctx)
+    }
+  })
 
 /** Convert a syntactic signature (params + return type node) directly. */
-const convertSignature = (node: ts.SignatureDeclaration, ctx: Context): T.SignatureReflection => ({
-  ...base(node, node.name?.getText() ?? '__signature', ctx),
-  kind: 'signature',
-  ...(node.typeParameters ? { typeParameters: node.typeParameters.map((tp) => convertTypeParameter(tp, ctx)) } : {}),
-  parameters: node.parameters.map((p) => convertParameter(p, ctx)),
-  type: node.type
-    ? convertTypeNode(node.type, ctx)
-    : convertType(ctx.checker.getReturnTypeOfSignature(ctx.checker.getSignatureFromDeclaration(node)!), ctx),
-})
+const convertSignature = (node: ts.SignatureDeclaration, ctx: Context): T.SignatureReflection<'lazy'> => {
+  const tps = node.typeParameters
+  return {
+    ...base(node, node.name?.getText() ?? '__signature', ctx),
+    kind: 'signature',
+    ...(tps?.length ? { typeParameters: lazyMap(tps, (tp) => convertTypeParameter(tp, ctx)) } : {}),
+    parameters: lazyMap(node.parameters, (p) => convertParameter(p, ctx)),
+    type: node.type
+      ? convertTypeNode(node.type, ctx)
+      : convertType(ctx.checker.getReturnTypeOfSignature(ctx.checker.getSignatureFromDeclaration(node)!), ctx),
+  }
+}
 
 /** Convert a checker Signature when we want resolved overload types. */
-const convertCheckerSignature = (sig: ts.Signature, enclosing: ts.Node, ctx: Context): T.SignatureReflection => {
+const convertCheckerSignature = (
+  sig: ts.Signature,
+  enclosing: ts.Node,
+  ctx: Context,
+): T.SignatureReflection<'lazy'> => {
   const decl = sig.getDeclaration()
   // Prefer the syntactic conversion when we have a declaration — it preserves
   // origin nodes for ReferenceTypes, which the resolver needs.
   if (decl) return convertSignature(decl, ctx)
+  const tps = sig.typeParameters
   return {
     ...base(enclosing, '__signature', ctx),
     kind: 'signature',
-    ...(sig.typeParameters?.length
-      ? { typeParameters: sig.typeParameters.map((tp) => convertTypeParameterFromType(tp, ctx)) }
-      : {}),
-    parameters: sig.parameters.map((p) => convertSymbolAsParameter(p, ctx)),
+    ...(tps?.length ? { typeParameters: lazyMap(tps, (tp) => convertTypeParameterFromType(tp, ctx)) } : {}),
+    parameters: lazyMap(sig.parameters, (p) => convertSymbolAsParameter(p, ctx)),
     type: convertType(ctx.checker.getReturnTypeOfSignature(sig), ctx),
   }
 }
 
-const convertParameter = (node: ts.ParameterDeclaration, ctx: Context): T.ParameterReflection => ({
+const convertParameter = (node: ts.ParameterDeclaration, ctx: Context): T.ParameterReflection<'lazy'> => ({
   ...base(node, node.name.getText(), ctx),
   kind: 'parameter',
   type: node.type ? convertTypeNode(node.type, ctx) : convertType(ctx.checker.getTypeAtLocation(node), ctx),
@@ -371,7 +360,7 @@ const convertParameter = (node: ts.ParameterDeclaration, ctx: Context): T.Parame
   ...(node.initializer ? { defaultValue: node.initializer.getText() } : {}),
 })
 
-const convertSymbolAsParameter = (sym: ts.Symbol, ctx: Context): T.ParameterReflection => {
+const convertSymbolAsParameter = (sym: ts.Symbol, ctx: Context): T.ParameterReflection<'lazy'> => {
   const decl = sym.valueDeclaration as ts.ParameterDeclaration | undefined
   if (decl && ts.isParameter(decl)) return convertParameter(decl, ctx)
   return {
@@ -382,13 +371,13 @@ const convertSymbolAsParameter = (sym: ts.Symbol, ctx: Context): T.ParameterRefl
   }
 }
 
-const convertTypeParameter = (node: ts.TypeParameterDeclaration, ctx: Context): T.TypeParameterReflection => ({
+const convertTypeParameter = (node: ts.TypeParameterDeclaration, ctx: Context): T.TypeParameterReflection<'lazy'> => ({
   name: node.name.text,
   ...(node.constraint ? { constraint: convertTypeNode(node.constraint, ctx) } : {}),
   ...(node.default ? { default: convertTypeNode(node.default, ctx) } : {}),
 })
 
-const convertTypeParameterFromType = (tp: ts.TypeParameter, ctx: Context): T.TypeParameterReflection => ({
+const convertTypeParameterFromType = (tp: ts.TypeParameter, ctx: Context): T.TypeParameterReflection<'lazy'> => ({
   name: tp.symbol?.getName() ?? 'T',
   ...(tp.getConstraint() ? { constraint: convertType(tp.getConstraint()!, ctx) } : {}),
   ...(tp.getDefault() ? { default: convertType(tp.getDefault()!, ctx) } : {}),
@@ -401,8 +390,7 @@ const convertTypeParameterFromType = (tp: ts.TypeParameter, ctx: Context): T.Typ
 // semantic is the fallback for inferred types.
 // ============================================================================
 
-const convertTypeNode = (node: ts.TypeNode, ctx: Context): T.TypeReflection => {
-  // Literal types in node form
+const convertTypeNode = (node: ts.TypeNode, ctx: Context): T.TypeReflection<'lazy'> => {
   if (ts.isLiteralTypeNode(node)) {
     const lit = node.literal
     if (lit.kind === ts.SyntaxKind.NullKeyword) return { kind: 'literal', value: null }
@@ -442,38 +430,24 @@ const convertTypeNode = (node: ts.TypeNode, ctx: Context): T.TypeReflection => {
   }
 
   if (ts.isTupleTypeNode(node)) {
-    return {
-      kind: 'tuple',
-      elements: node.elements.map((el): T.TupleElement => {
-        if (ts.isNamedTupleMember(el)) {
-          return {
-            type: convertTypeNode(el.type, ctx),
-            name: el.name.text,
-            ...(el.questionToken ? { isOptional: true } : {}),
-            ...(el.dotDotDotToken ? { isRest: true } : {}),
-          }
-        }
-        if (ts.isOptionalTypeNode(el)) {
-          return { type: convertTypeNode(el.type, ctx), isOptional: true }
-        }
-        if (ts.isRestTypeNode(el)) {
-          return { type: convertTypeNode(el.type, ctx), isRest: true }
-        }
-        return { type: convertTypeNode(el, ctx) }
-      }),
-    }
+    return { kind: 'tuple', elements: lazyMap(node.elements, (el) => convertTupleElement(el, ctx)) }
   }
 
   if (ts.isUnionTypeNode(node)) {
-    return { kind: 'union', types: node.types.map((t) => convertTypeNode(t, ctx)) }
+    return { kind: 'union', types: lazyMap(node.types, (t) => convertTypeNode(t, ctx)) }
   }
 
   if (ts.isIntersectionTypeNode(node)) {
-    return { kind: 'intersection', types: node.types.map((t) => convertTypeNode(t, ctx)) }
+    return { kind: 'intersection', types: lazyMap(node.types, (t) => convertTypeNode(t, ctx)) }
   }
 
   if (ts.isFunctionTypeNode(node) || ts.isConstructorTypeNode(node)) {
-    return { kind: 'function-type', signatures: [convertSignature(node, ctx)] }
+    return {
+      kind: 'function-type',
+      signatures: lazy(function* () {
+        yield convertSignature(node, ctx)
+      }),
+    }
   }
 
   if (ts.isTypeOperatorNode(node)) {
@@ -486,18 +460,16 @@ const convertTypeNode = (node: ts.TypeNode, ctx: Context): T.TypeReflection => {
   }
 
   if (ts.isTypeQueryNode(node)) {
-    return {
-      kind: 'query',
-      queryType: reference(ctx, node.exprName, node.exprName.getText()),
-    }
+    return { kind: 'query', queryType: reference(ctx, node.exprName, node.exprName.getText()) }
   }
 
   if (ts.isTypeReferenceNode(node)) {
+    const args = node.typeArguments
     return reference(
       ctx,
       node,
       node.typeName.getText(),
-      node.typeArguments?.map((a) => convertTypeNode(a, ctx)),
+      args?.length ? lazyMap(args, (a) => convertTypeNode(a, ctx)) : undefined,
     )
   }
 
@@ -505,11 +477,24 @@ const convertTypeNode = (node: ts.TypeNode, ctx: Context): T.TypeReflection => {
     return { kind: 'reflection', declaration: convertTypeLiteral(node, ctx) }
   }
 
-  // Fallback: hand off to the semantic converter.
   return convertType(ctx.checker.getTypeFromTypeNode(node), ctx)
 }
 
-const convertType = (type: ts.Type, ctx: Context): T.TypeReflection => {
+const convertTupleElement = (el: ts.TypeNode, ctx: Context): T.TupleElement<'lazy'> => {
+  if (ts.isNamedTupleMember(el)) {
+    return {
+      type: convertTypeNode(el.type, ctx),
+      name: el.name.text,
+      ...(el.questionToken ? { isOptional: true } : {}),
+      ...(el.dotDotDotToken ? { isRest: true } : {}),
+    }
+  }
+  if (ts.isOptionalTypeNode(el)) return { type: convertTypeNode(el.type, ctx), isOptional: true }
+  if (ts.isRestTypeNode(el)) return { type: convertTypeNode(el.type, ctx), isRest: true }
+  return { type: convertTypeNode(el, ctx) }
+}
+
+const convertType = (type: ts.Type, ctx: Context): T.TypeReflection<'lazy'> => {
   const flags = type.flags
   if (flags & ts.TypeFlags.String) return intrinsic('string')
   if (flags & ts.TypeFlags.Number) return intrinsic('number')
@@ -526,29 +511,46 @@ const convertType = (type: ts.Type, ctx: Context): T.TypeReflection => {
   if (type.isStringLiteral()) return { kind: 'literal', value: type.value }
   if (type.isNumberLiteral()) return { kind: 'literal', value: type.value }
 
-  if (type.isUnion()) return { kind: 'union', types: type.types.map((t) => convertType(t, ctx)) }
-  if (type.isIntersection()) return { kind: 'intersection', types: type.types.map((t) => convertType(t, ctx)) }
+  if (type.isUnion()) return { kind: 'union', types: lazyMap(type.types, (t) => convertType(t, ctx)) }
+  if (type.isIntersection()) return { kind: 'intersection', types: lazyMap(type.types, (t) => convertType(t, ctx)) }
 
   const sym = type.getSymbol() ?? type.aliasSymbol
   const origin = sym?.declarations?.[0]
   const name = sym?.getName() ?? ctx.checker.typeToString(type)
-  const args = type.aliasTypeArguments?.map((a) => convertType(a, ctx))
+  const args = type.aliasTypeArguments
+  const typeArguments = args?.length ? lazyMap(args, (a) => convertType(a, ctx)) : undefined
   // Without an origin we can still emit a reference; it just won't resolve.
   return origin
-    ? reference(ctx, origin, name, args)
-    : { kind: 'reference', id: ctx.nextId(), name, ...(args?.length ? { typeArguments: args } : {}) }
+    ? reference(ctx, origin, name, typeArguments)
+    : { kind: 'reference', id: ctx.nextId(), name, ...(typeArguments ? { typeArguments } : {}) }
 }
 
-const convertTypeLiteral = (node: ts.TypeLiteralNode, ctx: Context): T.ObjectLiteralReflection => {
-  const buckets = partitionInterfaceMembers(node.members, ctx)
+const convertTypeLiteral = (node: ts.TypeLiteralNode, ctx: Context): T.ObjectLiteralReflection<'lazy'> => {
+  const members = node.members
   return {
     ...base(node, '__type', ctx),
     kind: 'object-literal',
-    properties: buckets.properties,
-    ...(buckets.methods.length ? { methods: buckets.methods } : {}),
-    ...(buckets.callSignatures.length ? { callSignatures: buckets.callSignatures } : {}),
-    ...(buckets.constructSignatures.length ? { constructSignatures: buckets.constructSignatures } : {}),
-    ...(buckets.indexSignature ? { indexSignature: buckets.indexSignature } : {}),
+    properties: lazy(function* () {
+      for (const m of members)
+        if (ts.isPropertySignature(m) && ts.isIdentifier(m.name)) yield convertPropertySignature(m, ctx)
+    }),
+    methods: lazy(function* () {
+      for (const m of members)
+        if (ts.isMethodSignature(m) && ts.isIdentifier(m.name)) yield convertMethodSignature(m, ctx)
+    }),
+    callSignatures: lazy(function* () {
+      for (const m of members) if (ts.isCallSignatureDeclaration(m)) yield convertSignature(m, ctx)
+    }),
+    constructSignatures: lazy(function* () {
+      for (const m of members) if (ts.isConstructSignatureDeclaration(m)) yield convertSignature(m, ctx)
+    }),
+    ...(members.some(ts.isIndexSignatureDeclaration)
+      ? {
+          indexSignature: lazy(function* () {
+            for (const m of members) if (ts.isIndexSignatureDeclaration(m)) yield convertIndexSignature(m, ctx)
+          }),
+        }
+      : {}),
   }
 }
 
@@ -562,10 +564,10 @@ const convertTypeLiteral = (node: ts.TypeLiteralNode, ctx: Context): T.ObjectLit
  * node (the declaration itself for `*`/namespace forms, the specifier for named
  * forms) so the resolver can map it back to symbols via the checker.
  */
-const convertReExport = function* (node: ts.Node, ctx: Context): Iterable<T.ReExportReflection> {
+const convertReExport = function* (node: ts.Node, ctx: Context): Iterable<T.ReExportReflection<'lazy'>> {
   if (!ts.isExportDeclaration(node) || !node.moduleSpecifier) return
   const sourceModule = (node.moduleSpecifier as ts.StringLiteral).text
-  const register = <R extends T.ReExportReflection>(re: R, origin: ts.Node): R => {
+  const register = <R extends T.ReExportReflection<'lazy'>>(re: R, origin: ts.Node): R => {
     ctx.reExportOrigins.set(re, origin)
     return re
   }
@@ -595,6 +597,12 @@ const convertReExport = function* (node: ts.Node, ctx: Context): Iterable<T.ReEx
 // HELPERS
 // ============================================================================
 
+/** Lazy `.map`: deferred element transformation that re-runs on each iteration. */
+const lazyMap = <A, B>(src: Iterable<A> | ArrayLike<A>, fn: (a: A) => B): Iterable<B> =>
+  lazy(function* () {
+    for (const x of Array.from(src as ArrayLike<A>)) yield fn(x)
+  })
+
 const intrinsic = (name: T.IntrinsicType['name']): T.IntrinsicType => ({ kind: 'intrinsic', name })
 
 /** Build a ReferenceType, registering its origin node so the resolver can find it. */
@@ -602,24 +610,23 @@ const reference = (
   ctx: Context,
   origin: ts.Node,
   name: string,
-  typeArguments?: T.TypeReflection[],
-): T.ReferenceType => {
+  typeArguments?: Iterable<T.TypeReflection<'lazy'>>,
+): T.ReferenceType<'lazy'> => {
   const id = ctx.nextId()
   ctx.referenceOrigins.set(id, origin)
-  return {
-    kind: 'reference',
-    id,
-    name,
-    ...(typeArguments?.length ? { typeArguments } : {}),
-  }
+  return { kind: 'reference', id, name, ...(typeArguments ? { typeArguments } : {}) }
 }
 
-const base = (node: ts.Node, name: string, ctx: Context): T.BaseReflection => {
+const base = (node: ts.Node, name: string, ctx: Context): T.BaseReflection<'lazy'> => {
   const id = ctx.nextId()
   const sym = ctx.checker.getSymbolAtLocation((node as { name?: ts.Node }).name ?? node)
   if (sym) ctx.symbolsById.set(id, sym)
-  const nd: T.BaseReflection = { id, name, ...(commentFor(node) ? { comment: commentFor(node)! } : {}) }
-  if (!ctx.exclude?.sources) nd.sources = (sym?.declarations?.length ? sym.declarations : [node]).map(sourceOf)
+  const comment = commentFor(node)
+  const nd: T.BaseReflection<'lazy'> = { id, name, ...(comment ? { comment } : {}) }
+  if (!ctx.exclude?.sources) {
+    const decls = sym?.declarations?.length ? sym.declarations : [node]
+    nd.sources = lazyMap(decls, sourceOf)
+  }
   return nd
 }
 
@@ -633,18 +640,6 @@ const isExported = (node: ts.Node): boolean => {
   if (ts.isExportDeclaration(node) || ts.isExportAssignment(node)) return true
   const mods = (node as { modifiers?: ts.NodeArray<ts.ModifierLike> }).modifiers
   return !!mods?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
-}
-
-const heritage = (node: ts.ClassDeclaration, ctx: Context): Pick<T.ClassReflection, 'extends' | 'implements'> => {
-  const result: Pick<T.ClassReflection, 'extends' | 'implements'> = {}
-  node.heritageClauses?.forEach((h) => {
-    if (h.token === ts.SyntaxKind.ExtendsKeyword && h.types[0]) {
-      result.extends = convertTypeNode(h.types[0], ctx)
-    } else if (h.token === ts.SyntaxKind.ImplementsKeyword) {
-      result.implements = h.types.map((t) => convertTypeNode(t, ctx))
-    }
-  })
-  return result
 }
 
 const flagsFromModifiers = (
@@ -682,7 +677,7 @@ const flagsFromModifiers = (
 
 // ---------------- COMMENTS ----------------
 
-const commentFor = (node: ts.Node): T.Comment | undefined => {
+const commentFor = (node: ts.Node): T.Comment<'lazy'> | undefined => {
   const ranges = ts.getLeadingCommentRanges(node.getSourceFile().getFullText(), node.getFullStart())
   const jsdoc = ranges
     ?.slice()
@@ -695,7 +690,7 @@ const commentFor = (node: ts.Node): T.Comment | undefined => {
   return parseJsDoc(raw)
 }
 
-const parseJsDoc = (raw: string): T.Comment => {
+const parseJsDoc = (raw: string): T.Comment<'lazy'> => {
   const stripped = raw
     .replace(/^\/\*\*/, '')
     .replace(/\*\/$/, '')

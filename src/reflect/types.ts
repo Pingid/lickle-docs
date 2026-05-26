@@ -1,18 +1,25 @@
-export interface ProjectReflection {
+export type Mode = 'lazy' | 'json' | 'resolved'
+
+// targetId
+export type Collections<T> = { lazy: Iterable<T>; json: T[]; resolved: T[] }
+
+export type Collection<T, M extends Mode> = Collections<T>[M]
+
+export interface ProjectReflection<M extends Mode> {
   name: string
   /** Optional top-level package description, e.g. from the package README. */
-  comment?: Comment
+  comment?: Comment<M>
   /** A project is fundamentally a collection of modules/files. */
-  children: ModuleReflection[]
+  children: Collection<ModuleReflection<M>, M>
 }
 
-export interface BaseReflection {
+export interface BaseReflection<M extends Mode> {
   /** Stable identifier used by `reference` types to point back at a declaration. */
   id: number
   name: string
-  comment?: Comment
+  comment?: Comment<M>
   /** All source locations contributing to this reflection. Multiple when declarations merge (e.g. interface + namespace, function overloads). */
-  sources?: SourceLocation[]
+  sources?: Collection<SourceLocation, M>
   /** Modifiers that may apply to many reflection kinds. Empty/absent when none apply. */
   flags?: ReflectionFlags
 }
@@ -34,29 +41,29 @@ export interface ReflectionFlags {
 
 // ---------------- MODULES & RE-EXPORTS ----------------
 
-export interface ModuleReflection extends BaseReflection {
+export interface ModuleReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'module'
   /** Top-level declarations in this module. */
-  children: DeclarationReflection[]
-  /** Re-exports from other modules. Kept separate from `children` because they don't introduce new declarations. */
-  reExports?: ReExportReflection[]
+  children: Collection<ModuleMember<M>, M>
 }
 
+export type ModuleMember<M extends Mode> = DeclarationReflection<M> | ReExportReflection<M>
+
 /** Any declaration that can appear at module (or namespace) top level. */
-export type DeclarationReflection =
-  | VariableReflection
-  | FunctionReflection
-  | ClassReflection
-  | InterfaceReflection
-  | TypeAliasReflection
-  | EnumReflection
-  | ModuleReflection
+export type DeclarationReflection<M extends Mode> =
+  | VariableReflection<M>
+  | FunctionReflection<M>
+  | ClassReflection<M>
+  | InterfaceReflection<M>
+  | TypeAliasReflection<M>
+  | EnumReflection<M>
+  | ModuleReflection<M>
 
 /**
  * Re-exports come in three syntactic forms; splitting them keeps each shape
  * unambiguous instead of relying on which optional fields happen to be set.
  */
-export type ReExportReflection =
+export type ReExportReflection<_M extends Mode> =
   /** `export * from './x'` */
   | { kind: 're-export-all'; sourceModule: string; resolvedIds?: number[] }
   /** `export * as foo from './x'` */
@@ -66,56 +73,56 @@ export type ReExportReflection =
 
 // ---------------- DECLARATIONS ----------------
 
-export interface VariableReflection extends BaseReflection {
+export interface VariableReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'variable'
-  type: TypeReflection
+  type: TypeReflection<M>
   defaultValue?: string
 }
 
-export interface FunctionReflection extends BaseReflection {
+export interface FunctionReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'function'
   /** Multiple entries represent overloads; each carries its own comment. */
-  signatures: SignatureReflection[]
+  signatures: Collection<SignatureReflection<M>, M>
 }
 
-export interface ClassReflection extends BaseReflection {
+export interface ClassReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'class'
-  typeParameters?: TypeParameterReflection[]
-  extends?: TypeReflection
-  implements?: TypeReflection[]
-  constructors: SignatureReflection[]
-  properties: PropertyReflection[]
-  methods: MethodReflection[]
+  typeParameters?: Collection<TypeParameterReflection<M>, M>
+  extends?: TypeReflection<M>
+  implements?: Collection<TypeReflection<M>, M>
+  constructors: Collection<SignatureReflection<M>, M>
+  properties: Collection<PropertyReflection<M>, M>
+  methods: Collection<MethodReflection<M>, M>
   /** Index signature, if any: e.g., `[key: string]: unknown`. */
-  indexSignature?: IndexSignatureReflection
+  indexSignature?: Collection<IndexSignatureReflection<M>, M>
 }
 
-export interface InterfaceReflection extends BaseReflection {
+export interface InterfaceReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'interface'
-  typeParameters?: TypeParameterReflection[]
-  extends?: TypeReflection[]
-  properties: PropertyReflection[]
-  methods: MethodReflection[]
+  typeParameters?: Collection<TypeParameterReflection<M>, M>
+  extends?: Collection<TypeReflection<M>, M>
+  properties: Collection<PropertyReflection<M>, M>
+  methods: Collection<MethodReflection<M>, M>
   /** Call signatures make the interface itself callable. */
-  callSignatures?: SignatureReflection[]
+  callSignatures?: Collection<SignatureReflection<M>, M>
   /** Construct signatures make the interface newable. */
-  constructSignatures?: SignatureReflection[]
-  indexSignature?: IndexSignatureReflection
+  constructSignatures?: Collection<SignatureReflection<M>, M>
+  indexSignature?: IndexSignatureReflection<M>
 }
 
-export interface TypeAliasReflection extends BaseReflection {
+export interface TypeAliasReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'type-alias'
-  typeParameters?: TypeParameterReflection[]
-  type: TypeReflection
+  typeParameters?: Collection<TypeParameterReflection<M>, M>
+  type: TypeReflection<M>
 }
 
-export interface EnumReflection extends BaseReflection {
+export interface EnumReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'enum'
   isConst?: boolean
-  members: EnumMemberReflection[]
+  members: Collection<EnumMemberReflection<M>, M>
 }
 
-export interface EnumMemberReflection extends BaseReflection {
+export interface EnumMemberReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'enum-member'
   /** Resolved value when known (numeric or string enums); absent for computed members. */
   value?: string | number
@@ -123,23 +130,23 @@ export interface EnumMemberReflection extends BaseReflection {
 
 // ---------------- CLASS/INTERFACE MEMBERS ----------------
 
-export interface PropertyReflection extends BaseReflection {
+export interface PropertyReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'property'
-  type: TypeReflection
+  type: TypeReflection<M>
   defaultValue?: string
 }
 
-export interface MethodReflection extends BaseReflection {
+export interface MethodReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'method'
-  signatures: SignatureReflection[]
+  signatures: Collection<SignatureReflection<M>, M>
 }
 
-export interface IndexSignatureReflection extends BaseReflection {
+export interface IndexSignatureReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'index-signature'
   /** The key type — typically `string` or `number`. */
-  parameter: ParameterReflection
+  parameter: Collection<ParameterReflection<M>, M>
   /** The value type. */
-  type: TypeReflection
+  type: TypeReflection<M>
 }
 
 // ---------------- SIGNATURES & PARAMETERS ----------------
@@ -149,44 +156,44 @@ export interface IndexSignatureReflection extends BaseReflection {
  * call/construct signatures on interfaces. Extends BaseReflection so each
  * overload can carry its own JSDoc comment.
  */
-export interface SignatureReflection extends BaseReflection {
+export interface SignatureReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'signature'
-  typeParameters?: TypeParameterReflection[]
-  parameters: ParameterReflection[]
+  typeParameters?: Collection<TypeParameterReflection<M>, M>
+  parameters: Collection<ParameterReflection<M>, M>
   /** Return type (or constructed type for construct signatures). */
-  type: TypeReflection
+  type: TypeReflection<M>
 }
 
-export interface ParameterReflection extends BaseReflection {
+export interface ParameterReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'parameter'
-  type: TypeReflection
+  type: TypeReflection<M>
   isOptional: boolean
   isRest?: boolean
   defaultValue?: string
 }
 
-export interface TypeParameterReflection {
+export interface TypeParameterReflection<M extends Mode> {
   name: string
   /** `T extends Foo` */
-  constraint?: TypeReflection
+  constraint?: TypeReflection<M>
   /** `T = string` */
-  default?: TypeReflection
+  default?: TypeReflection<M>
 }
 
 // ---------------- TYPES ----------------
 
-export type TypeReflection =
+export type TypeReflection<M extends Mode> =
   | IntrinsicType
   | LiteralType
-  | ReferenceType
-  | UnionType
-  | IntersectionType
-  | ArrayType
-  | TupleType
-  | FunctionType
-  | TypeOperatorType
-  | QueryType
-  | ReflectionType
+  | ReferenceType<M>
+  | UnionType<M>
+  | IntersectionType<M>
+  | ArrayType<M>
+  | TupleType<M>
+  | FunctionType<M>
+  | TypeOperatorType<M>
+  | QueryType<M>
+  | ReflectionType<M>
 
 export interface IntrinsicType {
   kind: 'intrinsic'
@@ -211,38 +218,38 @@ export interface LiteralType {
 }
 
 /** A named reference, e.g. `Promise<User>` or a custom declared type. */
-export interface ReferenceType {
+export interface ReferenceType<M extends Mode> {
   kind: 'reference'
   /** Stable id for this reference site. Used by the second-pass resolver. */
   id: number
   name: string
   /** Resolved id of the target declaration, when in-project. */
   targetId?: number
-  typeArguments?: TypeReflection[]
+  typeArguments?: Collection<TypeReflection<M>, M>
 }
 
-export interface UnionType {
+export interface UnionType<M extends Mode> {
   kind: 'union'
-  types: TypeReflection[]
+  types: Collection<TypeReflection<M>, M>
 }
 
-export interface IntersectionType {
+export interface IntersectionType<M extends Mode> {
   kind: 'intersection'
-  types: TypeReflection[]
+  types: Collection<TypeReflection<M>, M>
 }
 
-export interface ArrayType {
+export interface ArrayType<M extends Mode> {
   kind: 'array'
-  elementType: TypeReflection
+  elementType: TypeReflection<M>
 }
 
-export interface TupleType {
+export interface TupleType<M extends Mode> {
   kind: 'tuple'
-  elements: TupleElement[]
+  elements: Collection<TupleElement<M>, M>
 }
 
-export interface TupleElement {
-  type: TypeReflection
+export interface TupleElement<M extends Mode> {
+  type: TypeReflection<M>
   /** Labeled tuple element name, if any: e.g., `[x: number, y: number]`. */
   name?: string
   isOptional?: boolean
@@ -250,45 +257,45 @@ export interface TupleElement {
 }
 
 /** Function/callable types appearing inline, e.g. `(x: number) => string`. */
-export interface FunctionType {
+export interface FunctionType<M extends Mode> {
   kind: 'function-type'
-  signatures: SignatureReflection[]
+  signatures: Collection<SignatureReflection<M>, M>
 }
 
 /** `keyof T`, `readonly T[]`, `unique symbol`. */
-export interface TypeOperatorType {
+export interface TypeOperatorType<M extends Mode> {
   kind: 'type-operator'
   operator: 'keyof' | 'readonly' | 'unique'
-  target: TypeReflection
+  target: TypeReflection<M>
 }
 
 /** `typeof foo` */
-export interface QueryType {
+export interface QueryType<M extends Mode> {
   kind: 'query'
-  queryType: ReferenceType
+  queryType: ReferenceType<M>
 }
 
 /** Inline object/type-literal shapes. */
-export interface ReflectionType {
+export interface ReflectionType<M extends Mode> {
   kind: 'reflection'
-  declaration: ObjectLiteralReflection
+  declaration: ObjectLiteralReflection<M>
 }
 
-export interface ObjectLiteralReflection extends BaseReflection {
+export interface ObjectLiteralReflection<M extends Mode> extends BaseReflection<M> {
   kind: 'object-literal'
-  properties: PropertyReflection[]
-  methods?: MethodReflection[]
-  callSignatures?: SignatureReflection[]
-  constructSignatures?: SignatureReflection[]
-  indexSignature?: IndexSignatureReflection
+  properties: Collection<PropertyReflection<M>, M>
+  methods?: Collection<MethodReflection<M>, M>
+  callSignatures?: Collection<SignatureReflection<M>, M>
+  constructSignatures?: Collection<SignatureReflection<M>, M>
+  indexSignature?: Collection<IndexSignatureReflection<M>, M>
 }
 
 // ---------------- COMMENTS ----------------
 
-export interface Comment {
+export interface Comment<M extends Mode> {
   /** Free-form description text (the main JSDoc body). */
   text: string
-  tags: CommentTag[]
+  tags: Collection<CommentTag, M>
 }
 
 /**

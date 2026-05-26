@@ -1,11 +1,11 @@
 import type * as T from './types.ts'
 import path from 'node:path'
 
-export const printStdout = (project: T.ProjectReflection) => {
+export const printStdout = (project: T.ProjectReflection<'json'>) => {
   process.stdout.write(printProject(project))
 }
 
-const printProject = (project: T.ProjectReflection): string => {
+const printProject = (project: T.ProjectReflection<'json'>): string => {
   const ctx = makePrintContext(project)
   const lines = [`Project: ${project.name}`]
   for (const child of project.children) lines.push(...printModule(child, 1, ctx))
@@ -13,21 +13,27 @@ const printProject = (project: T.ProjectReflection): string => {
 }
 
 const printModule = (
-  module: T.ModuleReflection,
+  module: T.ModuleReflection<'json'>,
   depth: number,
   ctx: PrintContext,
   seen: Set<string> = new Set(),
 ): string[] => {
   const lines = [line(depth, `module ${module.name}`)]
-  for (const child of module.children) lines.push(...printDeclaration(child, depth + 1, ctx))
-  for (const re of module.reExports ?? []) {
-    lines.push(line(depth + 1, printReExport(re)))
-    lines.push(...printFollowedReExport(module, re, depth + 2, ctx, seen))
+  for (const child of module.children) {
+    if (isReExport(child)) {
+      lines.push(line(depth + 1, printReExport(child)))
+      lines.push(...printFollowedReExport(module, child, depth + 2, ctx, seen))
+    } else {
+      lines.push(...printDeclaration(child, depth + 1, ctx))
+    }
   }
   return lines
 }
 
-const printDeclaration = (declaration: T.DeclarationReflection, depth: number, ctx: PrintContext): string[] => {
+const isReExport = (n: T.ModuleMember<'json'>): n is T.ReExportReflection<'json'> =>
+  n.kind === 're-export-all' || n.kind === 're-export-namespace' || n.kind === 're-export-named'
+
+const printDeclaration = (declaration: T.DeclarationReflection<'json'>, depth: number, ctx: PrintContext): string[] => {
   switch (declaration.kind) {
     case 'module':
       return printModule(declaration, depth, ctx)
@@ -51,7 +57,7 @@ const printDeclaration = (declaration: T.DeclarationReflection, depth: number, c
   }
 }
 
-const printClass = (declaration: T.ClassReflection, depth: number): string[] => {
+const printClass = (declaration: T.ClassReflection<'json'>, depth: number): string[] => {
   const lines = [
     line(
       depth,
@@ -69,13 +75,13 @@ const printClass = (declaration: T.ClassReflection, depth: number): string[] => 
   for (const method of declaration.methods) {
     lines.push(...printSignatureGroup('method', method.name, method.signatures, depth + 1))
   }
-  if (declaration.indexSignature) {
-    lines.push(line(depth + 1, printIndexSignature(declaration.indexSignature)))
+  if (declaration.indexSignature?.length) {
+    for (const idx of declaration.indexSignature) lines.push(line(depth + 1, printIndexSignature(idx)))
   }
   return lines
 }
 
-const printInterface = (declaration: T.InterfaceReflection, depth: number): string[] => {
+const printInterface = (declaration: T.InterfaceReflection<'json'>, depth: number): string[] => {
   const lines = [
     line(
       depth,
@@ -100,37 +106,37 @@ const printInterface = (declaration: T.InterfaceReflection, depth: number): stri
 const printSignatureGroup = (
   label: 'function' | 'method',
   name: string,
-  signatures: T.SignatureReflection[],
+  signatures: T.SignatureReflection<'json'>[],
   depth: number,
 ): string[] => {
   if (signatures.length === 1) return [line(depth, `${label} ${name}${printCallSignature(signatures[0]!)} `.trimEnd())]
   return signatures.map((signature, idx) => line(depth, `${label} ${name}#${idx + 1}${printCallSignature(signature)}`))
 }
 
-const printCallSignature = (signature: T.SignatureReflection): string => {
+const printCallSignature = (signature: T.SignatureReflection<'json'>): string => {
   const params = signature.parameters.map(printParameter).join(', ')
   return `${printTypeParams(signature.typeParameters)}(${params}): ${printType(signature.type)}`
 }
 
-const printParameter = (parameter: T.ParameterReflection): string => {
+const printParameter = (parameter: T.ParameterReflection<'json'>): string => {
   const rest = parameter.isRest ? '...' : ''
   const optional = parameter.isOptional ? '?' : ''
   const defaultValue = parameter.defaultValue === undefined ? '' : ` = ${parameter.defaultValue}`
   return `${rest}${parameter.name}${optional}: ${printType(parameter.type)}${defaultValue}`
 }
 
-const printTypeParams = (parameters?: T.TypeParameterReflection[]): string => {
+const printTypeParams = (parameters?: T.TypeParameterReflection<'json'>[]): string => {
   if (!parameters?.length) return ''
   return `<${parameters.map(printTypeParam).join(', ')}>`
 }
 
-const printTypeParam = (parameter: T.TypeParameterReflection): string => {
+const printTypeParam = (parameter: T.TypeParameterReflection<'json'>): string => {
   const constraint = parameter.constraint ? ` extends ${printType(parameter.constraint)}` : ''
   const defaultValue = parameter.default ? ` = ${printType(parameter.default)}` : ''
   return `${parameter.name}${constraint}${defaultValue}`
 }
 
-const printType = (type: T.TypeReflection): string => {
+const printType = (type: T.TypeReflection<'json'>): string => {
   switch (type.kind) {
     case 'intrinsic':
       return type.name
@@ -159,35 +165,38 @@ const printType = (type: T.TypeReflection): string => {
   }
 }
 
-const printTupleElement = (element: T.TupleElement): string => {
+const printTupleElement = (element: T.TupleElement<'json'>): string => {
   const rest = element.isRest ? '...' : ''
   const name = element.name ? `${element.name}${element.isOptional ? '?' : ''}: ` : ''
   const optional = element.name || !element.isOptional ? '' : '?'
   return `${rest}${name}${printType(element.type)}${optional}`
 }
 
-const printSignatureLike = (signature: T.SignatureReflection): string => {
+const printSignatureLike = (signature: T.SignatureReflection<'json'>): string => {
   const params = signature.parameters.map(printParameter).join(', ')
   return `${printTypeParams(signature.typeParameters)}(${params}) => ${printType(signature.type)}`
 }
 
-const printObjectLiteral = (declaration: T.ObjectLiteralReflection): string => {
+const printObjectLiteral = (declaration: T.ObjectLiteralReflection<'json'>): string => {
   const parts = declaration.properties.map((property) => `${property.name}: ${printType(property.type)}`)
   for (const method of declaration.methods ?? []) {
     parts.push(...method.signatures.map((signature) => `${method.name}${printCallSignature(signature)}`))
   }
   for (const signature of declaration.callSignatures ?? []) parts.push(printSignatureLike(signature))
   for (const signature of declaration.constructSignatures ?? []) parts.push(`new${printCallSignature(signature)}`)
-  if (declaration.indexSignature) parts.push(printIndexSignature(declaration.indexSignature))
+  if (declaration.indexSignature?.length) {
+    for (const idx of declaration.indexSignature) parts.push(printIndexSignature(idx))
+  }
   return `{ ${parts.join('; ')} }`
 }
 
-const printIndexSignature = (signature: T.IndexSignatureReflection): string => {
-  const key = `${signature.parameter.name}: ${printType(signature.parameter.type)}`
+const printIndexSignature = (signature: T.IndexSignatureReflection<'json'>): string => {
+  const param = signature.parameter[0]
+  const key = param ? `${param.name}: ${printType(param.type)}` : 'key: unknown'
   return `[${key}]: ${printType(signature.type)}`
 }
 
-const printReExport = (reExport: T.ReExportReflection): string => {
+const printReExport = (reExport: T.ReExportReflection<'json'>): string => {
   switch (reExport.kind) {
     case 're-export-all':
       return `re-export * from ${JSON.stringify(reExport.sourceModule)}`
@@ -199,16 +208,16 @@ const printReExport = (reExport: T.ReExportReflection): string => {
 }
 
 interface PrintContext {
-  modulesByName: Map<string, T.ModuleReflection>
+  modulesByName: Map<string, T.ModuleReflection<'json'>>
 }
 
-const makePrintContext = (project: T.ProjectReflection): PrintContext => {
+const makePrintContext = (project: T.ProjectReflection<'json'>): PrintContext => {
   return { modulesByName: new Map(project.children.map((module) => [module.name, module])) }
 }
 
 const printFollowedReExport = (
-  owner: T.ModuleReflection,
-  reExport: T.ReExportReflection,
+  owner: T.ModuleReflection<'json'>,
+  reExport: T.ReExportReflection<'json'>,
   depth: number,
   ctx: PrintContext,
   seen: Set<string>,
@@ -221,25 +230,33 @@ const printFollowedReExport = (
   nextSeen.add(key)
 
   if (reExport.kind === 're-export-named') {
-    const declaration = target.children.find((x) => x.name === reExport.name)
+    const declaration = target.children.find((x) => !isReExport(x) && x.name === reExport.name) as
+      | T.DeclarationReflection<'json'>
+      | undefined
     return declaration ? printDeclaration(declaration, depth, ctx) : [line(depth, `(missing ${reExport.name})`)]
   }
 
-  const lines = [line(depth, `from ${target.name}`)]
   if (reExport.kind === 're-export-namespace') {
     const lines = [line(depth, `namespace ${reExport.as}`)]
-    for (const declaration of target.children) lines.push(...printDeclaration(declaration, depth + 1, ctx))
-    for (const nested of target.reExports ?? []) {
-      lines.push(line(depth + 1, printReExport(nested)))
-      lines.push(...printFollowedReExport(target, nested, depth + 2, ctx, nextSeen))
+    for (const child of target.children) {
+      if (isReExport(child)) {
+        lines.push(line(depth + 1, printReExport(child)))
+        lines.push(...printFollowedReExport(target, child, depth + 2, ctx, nextSeen))
+      } else {
+        lines.push(...printDeclaration(child, depth + 1, ctx))
+      }
     }
     return lines
   }
 
-  for (const declaration of target.children) lines.push(...printDeclaration(declaration, depth + 1, ctx))
-  for (const nested of target.reExports ?? []) {
-    lines.push(line(depth + 1, printReExport(nested)))
-    lines.push(...printFollowedReExport(target, nested, depth + 2, ctx, nextSeen))
+  const lines = [line(depth, `from ${target.name}`)]
+  for (const child of target.children) {
+    if (isReExport(child)) {
+      lines.push(line(depth + 1, printReExport(child)))
+      lines.push(...printFollowedReExport(target, child, depth + 2, ctx, nextSeen))
+    } else {
+      lines.push(...printDeclaration(child, depth + 1, ctx))
+    }
   }
   return lines
 }
@@ -247,8 +264,8 @@ const printFollowedReExport = (
 const resolveReExportModule = (
   ownerName: string,
   sourceModule: string,
-  modulesByName: Map<string, T.ModuleReflection>,
-): T.ModuleReflection | undefined => {
+  modulesByName: Map<string, T.ModuleReflection<'json'>>,
+): T.ModuleReflection<'json'> | undefined => {
   if (path.isAbsolute(sourceModule)) return modulesByName.get(sourceModule)
   const relativeBase = path.isAbsolute(ownerName) ? path.resolve(path.dirname(ownerName), sourceModule) : sourceModule
   const candidates = modulePathCandidates(relativeBase)
@@ -284,7 +301,7 @@ const normalizeModulePath = (name: string): string => {
     .replace(/\/+$/, '')
 }
 
-const wrapIfComplex = (type: T.TypeReflection): string => {
+const wrapIfComplex = (type: T.TypeReflection<'json'>): string => {
   return type.kind === 'union' || type.kind === 'intersection' || type.kind === 'function-type'
     ? `(${printType(type)})`
     : printType(type)

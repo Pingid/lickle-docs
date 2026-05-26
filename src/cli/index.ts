@@ -30,11 +30,12 @@ const json = cmd.command({
     files: cmd.restPositionals({ type: cmd.string, description: 'Files to include in the project' }),
   },
   handler: async (args) => {
-    const projectName = await workspace.projectName(args.projectName)
+    const name = (await workspace.projectName(args.projectName)) ?? 'project'
     const options = await workspace.tsconfig(args.tsconfig)
     const files = args.files.length ? args.files.map((f) => path.resolve(f)) : options.fileNames
-    const project = reflect.generate(projectName ?? 'my-project', files, options.options, {})
-    await fs.writeFile('reflect.json', JSON.stringify(project))
+    const { children, context } = reflect.generate(files, options.options, {})
+    const project = reflect.resolve({ name, children }, context)
+    await fs.writeFile('reflect.json', JSON.stringify(project, null, 2))
   },
 })
 
