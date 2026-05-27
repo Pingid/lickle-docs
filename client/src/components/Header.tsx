@@ -1,7 +1,7 @@
 import { For, Show, createMemo } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { useTypedoc } from '../context/index.js'
+import { useProject } from '../context/index.js'
 import { ThemeToggle } from './ThemeToggle.js'
 
 const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
@@ -21,12 +21,8 @@ const iconFor = (label: string): string | null => {
 }
 
 export const Header = (props: { onMenu?: () => void; onSearch?: () => void }) => {
-  const td = useTypedoc()
-  const links = (): [string, string][] => {
-    const nl = (td as { navigationLinks?: Record<string, string> }).navigationLinks
-    if (!nl) return []
-    return Object.entries(nl)
-  }
+  const { project, meta } = useProject()
+  const links = () => meta.links ?? []
   const searchHint = createMemo(() => (isMac() ? '\u2318K' : 'Ctrl K'))
 
   return (
@@ -51,9 +47,9 @@ export const Header = (props: { onMenu?: () => void; onSearch?: () => void }) =>
           </svg>
         </button>
         <A href="/" class="flex items-baseline gap-2 hover:opacity-70 transition-opacity">
-          <span class="font-semibold text-[0.95rem] tracking-tight">{td.name}</span>
-          <Show when={td.packageVersion}>
-            <span class="text-xs text-mute font-mono">v{td.packageVersion}</span>
+          <span class="font-semibold text-[0.95rem] tracking-tight">{project.name}</span>
+          <Show when={meta.version}>
+            <span class="text-xs text-mute font-mono">v{meta.version}</span>
           </Show>
         </A>
 

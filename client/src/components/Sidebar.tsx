@@ -1,11 +1,11 @@
 import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { useIndex } from '../context/index.js'
+import { useProject } from '../context/index.js'
 import { shortOf } from '../util/kind.js'
 
 export const Sidebar = (props: { onNavigate?: () => void; class?: string }) => {
-  const idx = useIndex()
+  const { navGroups } = useProject()
 
   return (
     <aside class={`text-sm ${props.class ?? ''}`}>
@@ -21,7 +21,7 @@ export const Sidebar = (props: { onNavigate?: () => void; class?: string }) => {
             Overview
           </A>
         </div>
-        <For each={idx.navGroups}>
+        <For each={navGroups}>
           {(g) => (
             <div>
               <h3 class="text-[0.7rem] uppercase text-mute font-semibold mb-1 px-2.5 tracking-wider">{g.title}</h3>

@@ -1,13 +1,11 @@
 import { For, Show, createContext, createEffect, createMemo, createSignal, onCleanup, useContext } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
-import type { JSONOutput } from 'typedoc'
+import type { index } from '@lickle/docs'
 
-import { handlerOf, type TagHandler, type TagPart } from '../api.js'
-import { useIndex } from '../context/index.js'
+import { handlerOf, type Tag, type TagHandler } from '../api.js'
+import { useProject } from '../context/index.js'
 import { Markdown } from './Markdown.js'
 import { Editor } from './Editor.js'
-
-type Part = JSONOutput.CommentDisplayPart
 
 const ReflectionIdCtx = createContext<number>(-1)
 
@@ -16,29 +14,26 @@ export const ReflectionScope = (props: { id: number; children: JSX.Element }) =>
   <ReflectionIdCtx.Provider value={props.id}>{props.children}</ReflectionIdCtx.Provider>
 )
 
-const partsToMarkdown = (parts: Part[] | undefined, slugOf: (id: number) => string | undefined): string => {
-  if (!parts?.length) return ''
+/**
+ * Convert structured `comment.parts` to markdown, resolving inline `{@link}`
+ * references via the slug lookup. Falls back to `comment.text` when `parts`
+ * isn't populated.
+ */
+const commentToMarkdown = (comment: index.Comment, slugOf: (name: string) => string | undefined): string => {
+  if (!comment.parts?.length) return comment.text
   let out = ''
-  for (const p of parts) {
-    if (p.kind === 'text' || p.kind === 'code') {
+  for (const p of comment.parts) {
+    if (p.kind === 'text') {
       out += p.text
-    } else if (p.kind === 'inline-tag') {
-      const text = p.text ?? ''
-      const target = (p as { target?: number | string }).target
-      if (p.tag === '@link' || p.tag === '@linkcode' || p.tag === '@linkplain') {
-        if (typeof target === 'number') {
-          const slug = slugOf(target)
-          if (slug) {
-            const label = text.trim() || String(target)
-            const display = p.tag === '@linkcode' ? `\`${label}\`` : label
-            out += `[${display}](/r/${slug})`
-            continue
-          }
-        }
-        out += text
-      } else {
-        out += text
-      }
+      continue
+    }
+    const label = p.text ?? p.target
+    const slug = slugOf(p.target)
+    if (slug) {
+      const display = p.style === 'code' ? `\`${label}\`` : label
+      out += `[${display}](/r/${slug})`
+    } else {
+      out += p.style === 'code' ? `\`${label}\`` : label
     }
   }
   return out
@@ -53,48 +48,47 @@ const BLOCK_TAG_LABELS: Record<string, string> = {
   '@returns': 'Returns',
 }
 
-const FENCE = /^```(\w+)?\r?\n([\s\S]*?)\r?\n```\s*$/
+/** Tags handled elsewhere (parameter table, type aliases, etc.) — skip in the comment block. */
+const SKIP_IN_BLOCK = new Set(['@param', '@property', '@template', '@type', '@satisfies'])
+
+const FENCE = /```(\w+)?\r?\n([\s\S]*?)\r?\n```/
 
 type Parsed = { code: string; raw: string; title: string; language: string }
 
-/** Pull the first fenced code body + language + leading title out of `@<tag>` content. */
-const parseTagContent = (parts: Part[] | undefined): Parsed => {
-  let raw = ''
-  let titleSoFar = ''
-  let firstCode: string | null = null
-  for (const p of parts ?? []) {
-    if (p.kind === 'text') {
-      raw += p.text
-      if (firstCode === null) titleSoFar += p.text
-    } else if (p.kind === 'code') {
-      raw += p.text
-      if (firstCode === null) firstCode = p.text
-    } else if (p.kind === 'inline-tag') {
-      raw += (p as { text?: string }).text ?? ''
-    }
+/**
+ * Pull body text + fenced code + language out of an arbitrary tag. `@example`
+ * arrives pre-parsed by the schema, so we use its `code`/`caption` directly.
+ * Everything else carries a markdown `text` field that may contain a fence.
+ */
+const parseTag = (tag: Tag): Parsed => {
+  // The unknown-tag catch-all in the schema uses `tag: string`, which prevents
+  // a literal-only narrow. Pair the discriminator with a structural check.
+  if (tag.tag === '@example' && 'code' in tag) {
+    return { code: tag.code, raw: tag.code, title: tag.caption ?? '', language: 'ts' }
   }
-  if (firstCode == null) return { code: raw.trim(), raw, title: '', language: '' }
-  const m = firstCode.match(FENCE)
-  if (!m) return { code: firstCode.trim(), raw, title: titleSoFar.trim(), language: '' }
-  return { code: m[2] ?? '', raw, title: titleSoFar.trim(), language: m[1] || '' }
+  const text = (tag as { text?: string }).text ?? ''
+  const m = text.match(FENCE)
+  if (!m) return { code: text.trim(), raw: text, title: '', language: '' }
+  const title = text.slice(0, m.index).trim()
+  return { code: m[2] ?? '', raw: text, title, language: m[1] || '' }
 }
 
-export const Comment = (props: { comment?: JSONOutput.Comment; class?: string }) => {
-  const idx = useIndex()
-  const slugOf = (id: number) => idx.slugById.get(id)
+export const Comment = (props: { comment?: index.Comment; class?: string }) => {
+  const { slugByName } = useProject()
+  const slugOf = (name: string) => slugByName.get(name)
   const reflectionId = useContext(ReflectionIdCtx)
 
   return (
     <Show when={props.comment}>
       {(c) => {
-        const summary = () => partsToMarkdown(c().summary, slugOf)
-        const tags = () => c().blockTags ?? []
+        const summary = () => commentToMarkdown(c(), slugOf)
+        const tags = () => c().tags.filter((t) => !SKIP_IN_BLOCK.has(t.tag))
         return (
           <div class={props.class}>
             <Show when={summary()}>
               <Markdown source={summary()} />
             </Show>
-            <For each={tags()}>{(t) => <TagBlock tag={t} reflectionId={reflectionId} slugOf={slugOf} />}</For>
+            <For each={tags()}>{(t) => <TagBlock tag={t} reflectionId={reflectionId} />}</For>
           </div>
         )
       }}
@@ -102,12 +96,8 @@ export const Comment = (props: { comment?: JSONOutput.Comment; class?: string })
   )
 }
 
-const TagBlock = (props: {
-  tag: JSONOutput.CommentTag
-  reflectionId: number
-  slugOf: (id: number) => string | undefined
-}) => {
-  const parsed = createMemo(() => parseTagContent(props.tag.content))
+const TagBlock = (props: { tag: Tag; reflectionId: number }) => {
+  const parsed = createMemo(() => parseTag(props.tag))
   const handler = createMemo(() => handlerOf(props.tag.tag))
   const label = () => BLOCK_TAG_LABELS[props.tag.tag]
   const hasFence = () => parsed().language !== ''
@@ -125,7 +115,7 @@ const TagBlock = (props: {
           </h4>
         </Show>
 
-        <Show when={hasFence()} fallback={<NonFenceBody tag={props.tag} parsed={parsed()} slugOf={props.slugOf} />}>
+        <Show when={hasFence()} fallback={<NonFenceBody tag={props.tag} />}>
           <Editor code={parsed().code} language={parsed().language} onChange={setCode} />
         </Show>
 
@@ -140,12 +130,8 @@ const TagBlock = (props: {
 }
 
 /** Tag content without a fenced block — fall back to a parsed markdown rendering. */
-const NonFenceBody = (props: {
-  tag: JSONOutput.CommentTag
-  parsed: Parsed
-  slugOf: (id: number) => string | undefined
-}) => {
-  const md = () => partsToMarkdown(props.tag.content, props.slugOf)
+const NonFenceBody = (props: { tag: Tag }) => {
+  const md = () => (props.tag as { text?: string }).text ?? ''
   return (
     <Show when={md()}>
       <Markdown source={md()} />
@@ -160,7 +146,7 @@ const Preview = (props: {
   /** Live code (re-runs the handler on change). */
   code: () => string
   parsed: Parsed
-  tag: JSONOutput.CommentTag
+  tag: Tag
   reflectionId: number
 }) => {
   let slot!: HTMLDivElement
@@ -182,12 +168,11 @@ const Preview = (props: {
     teardown()
     try {
       cleanup = props.handler(slot, code, {
-        raw: props.parsed.raw,
+        tag: props.tag,
+        reflectionId: props.reflectionId,
         title: props.parsed.title,
         language: props.parsed.language,
-        content: (props.tag.content ?? []) as ReadonlyArray<TagPart>,
-        reflectionId: props.reflectionId,
-        tag: props.tag.tag,
+        raw: props.parsed.raw,
       })
     } catch (err) {
       slot.textContent = String(err)
@@ -210,10 +195,4 @@ const Preview = (props: {
   return <div ref={slot} class="lk-preview" />
 }
 
-export const commentSummaryText = (comment: JSONOutput.Comment | undefined): string => {
-  if (!comment?.summary) return ''
-  return comment.summary
-    .map((p) => (p.kind === 'text' || p.kind === 'code' ? p.text : ((p as { text?: string }).text ?? '')))
-    .join('')
-    .trim()
-}
+export const commentSummaryText = (comment: index.Comment | undefined): string => comment?.text.trim() ?? ''

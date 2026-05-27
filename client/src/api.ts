@@ -2,7 +2,7 @@
  * Tag registry: the contract between the docs runtime and a consumer's
  * `docs/index.ts(x)`. The runner imports `onTag` and registers handlers at
  * module load time; the docs UI looks them up when rendering each
- * `comment.blockTags` entry.
+ * `comment.tags` entry.
  *
  * ```tsx
  * import { onTag } from '@lickle/toolbox/docs/client'
@@ -13,23 +13,22 @@
  * })
  * ```
  */
-import type { JSONOutput } from 'typedoc'
+import type { index } from '@lickle/docs'
 
-export type TagPart = JSONOutput.CommentDisplayPart
+export type TagPart = NonNullable<index.Comment['parts']>[number]
+export type Tag = index.Comment['tags'][number]
 
 export type TagContext = {
-  /** Joined text of every `content` part (text + fenced-code, in order). */
-  raw: string
-  /** Leading text before the first fenced code block, trimmed. */
+  /** The structured tag from the schema. */
+  tag: Tag
+  /** id of the reflection this tag is attached to. */
+  reflectionId: number
+  /** Leading text before the first fenced code block, trimmed. `''` when none. */
   title: string
   /** Fence language tag (e.g. `ts`, `tsx`). `''` when the tag has no fence. */
   language: string
-  /** Raw typedoc content parts (text/code/inline-tag), in order. */
-  content: ReadonlyArray<TagPart>
-  /** id of the reflection this tag is attached to. */
-  reflectionId: number
-  /** The tag name including the leading `@`. */
-  tag: string
+  /** Raw markdown body of the tag (e.g. unknown tag `text`, or `@example` code body). */
+  raw: string
 }
 
 /**

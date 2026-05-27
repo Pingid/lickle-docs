@@ -18,8 +18,8 @@
   },
   "exports": {
     ".": {
-      "types": "./lib/ts/index.d.ts",
-      "import": "./lib/esm/index.js",
+      "types": "./lib/src/index.ts",
+      "import": "./lib/src/index.ts",
       "require": "./lib/cjs/index.js"
     },
     "./micro": {

@@ -1,36 +1,26 @@
 import { For, Show, createMemo, type Component } from 'solid-js'
 import { useParams, A } from '@solidjs/router'
-import type { JSONOutput } from 'typedoc'
+import type { index } from '@lickle/docs'
 import { Dynamic } from 'solid-js/web'
 
-import { Kind, effectiveKind, labelOf, signaturesOf } from '../util/kind.js'
+import { effectiveKind, labelOf, signaturesOf, type Kind } from '../util/kind.js'
 import { Comment, ReflectionScope } from '../components/Comment.js'
 import { References } from '../components/References.js'
 import { Breadcrumb } from '../components/Breadcrumb.js'
 import { Signature } from '../components/Signature.js'
 import { Members } from '../components/Members.js'
-import { useIndex } from '../context/index.js'
+import { useProject } from '../context/index.js'
 import { Type } from '../components/Type.js'
 
-type Decl = JSONOutput.DeclarationReflection
-type SomeType = JSONOutput.SomeType
+type Decl = index.Declaration
 
-const Source = (props: { sources?: JSONOutput.SourceReference[] }) => (
+const Source = (props: { sources?: index.Source[] }) => (
   <Show when={props.sources?.[0]}>
     {(s) => (
       <div class="text-xs text-mute mt-2">
-        <Show
-          when={s().url}
-          fallback={
-            <span class="font-mono">
-              {s().fileName}:{s().line}
-            </span>
-          }
-        >
-          <a href={s().url} target="_blank" rel="noreferrer" class="font-mono hover:text-fg">
-            {s().fileName}:{s().line}
-          </a>
-        </Show>
+        <span class="font-mono">
+          {s().file}:{s().line}
+        </span>
       </div>
     )}
   </Show>
@@ -40,9 +30,9 @@ const Header = (props: { decl: Decl }) => (
   <header class="mb-5">
     <Breadcrumb id={props.decl.id} />
     <div class="flex items-baseline gap-3 flex-wrap">
-      <h1 class="text-2xl font-semibold tracking-tight font-mono">{props.decl.name}</h1>
+      <h1 class="text-2xl font-semibold tracking-tight font-mono">{nameOf(props.decl)}</h1>
       <span class="text-xs uppercase tracking-wider text-mute">{labelOf(effectiveKind(props.decl))}</span>
-      <Show when={props.decl.comment?.blockTags?.some((t) => t.tag === '@deprecated')}>
+      <Show when={props.decl.comment?.tags.some((t: { tag: string }) => t.tag === '@deprecated')}>
         <span class="text-xs uppercase tracking-wider text-mute">· deprecated</span>
       </Show>
     </div>
@@ -50,34 +40,32 @@ const Header = (props: { decl: Decl }) => (
   </header>
 )
 
-const FunctionPage = (props: { decl: Decl }) => (
+const nameOf = (decl: Decl): string => (decl as { name?: string }).name ?? '<anonymous>'
+
+const FunctionPage = (props: { decl: index.Declaration<'function'> | index.Declaration<'variable'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.comment}>
       <Comment comment={props.decl.comment} />
     </Show>
     <div class="mt-5">
-      <For each={signaturesOf<JSONOutput.SignatureReflection>(props.decl)}>
-        {(sig) => <Signature sig={sig} name={props.decl.name} kind="function" />}
-      </For>
+      <For each={signaturesOf(props.decl)}>{(sig) => <Signature sig={sig} name={props.decl.name} kind="function" />}</For>
     </div>
   </article>
 )
 
-const VariablePage = (props: { decl: Decl }) => (
+const VariablePage = (props: { decl: index.Declaration<'variable'> }) => (
   <article>
     <Header decl={props.decl} />
-    <Show when={props.decl.type}>
-      <div class="font-mono text-sm leading-relaxed py-2">
-        <span class="text-accent">const </span>
-        <span class="font-semibold">{props.decl.name}</span>
-        <span class="text-mute">: </span>
-        <Type type={props.decl.type as SomeType} />
-        <Show when={props.decl.defaultValue}>
-          <span class="text-mute"> = {props.decl.defaultValue}</span>
-        </Show>
-      </div>
-    </Show>
+    <div class="font-mono text-sm leading-relaxed py-2">
+      <span class="text-accent">const </span>
+      <span class="font-semibold">{props.decl.name}</span>
+      <span class="text-mute">: </span>
+      <Type type={props.decl.type} />
+      <Show when={props.decl.defaultValue}>
+        <span class="text-mute"> = {props.decl.defaultValue}</span>
+      </Show>
+    </div>
     <Show when={props.decl.comment}>
       <div class="mt-5">
         <Comment comment={props.decl.comment} />
@@ -86,7 +74,7 @@ const VariablePage = (props: { decl: Decl }) => (
   </article>
 )
 
-const TypeAliasPage = (props: { decl: Decl }) => (
+const TypeAliasPage = (props: { decl: index.Declaration<'type-alias'> }) => (
   <article>
     <Header decl={props.decl} />
     <div class="font-mono text-sm leading-relaxed py-2">
@@ -101,10 +89,10 @@ const TypeAliasPage = (props: { decl: Decl }) => (
                 <span class="text-mute">, </span>
               </Show>
               <span>{tp.name}</span>
-              <Show when={tp.type}>
+              <Show when={tp.constraint}>
                 <>
                   <span class="text-accent"> extends </span>
-                  <Type type={tp.type as SomeType} />
+                  <Type type={tp.constraint!} />
                 </>
               </Show>
             </>
@@ -113,9 +101,7 @@ const TypeAliasPage = (props: { decl: Decl }) => (
         <span class="text-mute">{'>'}</span>
       </Show>
       <span class="text-mute"> = </span>
-      <Show when={props.decl.type}>
-        <Type type={props.decl.type as SomeType} />
-      </Show>
+      <Type type={props.decl.type} />
     </div>
     <Show when={props.decl.comment}>
       <div class="mt-5">
@@ -125,34 +111,25 @@ const TypeAliasPage = (props: { decl: Decl }) => (
   </article>
 )
 
-const ClassOrInterfacePage = (props: { decl: Decl }) => (
+const ClassPage = (props: { decl: index.Declaration<'class'> }) => (
   <article>
     <Header decl={props.decl} />
-    <Show when={props.decl.extendedTypes?.length}>
+    <Show when={props.decl.extends}>
       <div class="text-sm text-mute font-mono mt-2">
         <span class="text-accent">extends </span>
-        <For each={props.decl.extendedTypes!}>
-          {(t, i) => (
-            <>
-              <Show when={i() > 0}>
-                <span>, </span>
-              </Show>
-              <Type type={t as SomeType} />
-            </>
-          )}
-        </For>
+        <Type type={props.decl.extends!} />
       </div>
     </Show>
-    <Show when={props.decl.implementedTypes?.length}>
+    <Show when={props.decl.implements?.length}>
       <div class="text-sm text-mute font-mono mt-1">
         <span class="text-accent">implements </span>
-        <For each={props.decl.implementedTypes!}>
+        <For each={props.decl.implements!}>
           {(t, i) => (
             <>
               <Show when={i() > 0}>
                 <span>, </span>
               </Show>
-              <Type type={t as SomeType} />
+              <Type type={t} />
             </>
           )}
         </For>
@@ -167,7 +144,34 @@ const ClassOrInterfacePage = (props: { decl: Decl }) => (
   </article>
 )
 
-const EnumPage = (props: { decl: Decl }) => (
+const InterfacePage = (props: { decl: index.Declaration<'interface'> }) => (
+  <article>
+    <Header decl={props.decl} />
+    <Show when={props.decl.extends?.length}>
+      <div class="text-sm text-mute font-mono mt-2">
+        <span class="text-accent">extends </span>
+        <For each={props.decl.extends!}>
+          {(t, i) => (
+            <>
+              <Show when={i() > 0}>
+                <span>, </span>
+              </Show>
+              <Type type={t} />
+            </>
+          )}
+        </For>
+      </div>
+    </Show>
+    <Show when={props.decl.comment}>
+      <div class="mt-5">
+        <Comment comment={props.decl.comment} />
+      </div>
+    </Show>
+    <Members decl={props.decl} />
+  </article>
+)
+
+const EnumPage = (props: { decl: index.Declaration<'enum'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.comment}>
@@ -175,13 +179,13 @@ const EnumPage = (props: { decl: Decl }) => (
     </Show>
     <section class="mt-8">
       <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Members</h2>
-      <For each={props.decl.children ?? []}>
+      <For each={props.decl.members}>
         {(m) => (
           <div class="border-b border-line py-3 last:border-b-0">
             <div class="flex items-baseline gap-3 flex-wrap">
               <code class="font-mono font-semibold">{m.name}</code>
-              <Show when={m.defaultValue}>
-                <code class="font-mono text-mute text-sm">= {m.defaultValue}</code>
+              <Show when={m.value != null}>
+                <code class="font-mono text-mute text-sm">= {String(m.value)}</code>
               </Show>
             </div>
             <Show when={m.comment}>
@@ -196,7 +200,7 @@ const EnumPage = (props: { decl: Decl }) => (
   </article>
 )
 
-const ModulePage = (props: { decl: Decl }) => (
+const ModulePage = (props: { decl: index.Declaration<'module'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.comment}>
@@ -207,26 +211,26 @@ const ModulePage = (props: { decl: Decl }) => (
 )
 
 /** Map effective kind → page component. Falls back to {@link ModulePage}. */
-const pageFor = (k: number): Component<{ decl: Decl }> => {
-  if (k === Kind.Function) return FunctionPage
-  if (k === Kind.Variable) return VariablePage
-  if (k === Kind.TypeAlias) return TypeAliasPage
-  if (k === Kind.Class || k === Kind.Interface) return ClassOrInterfacePage
-  if (k === Kind.Enum) return EnumPage
+const pageFor = (k: Kind): Component<{ decl: any }> => {
+  if (k === 'function') return FunctionPage
+  if (k === 'variable') return VariablePage
+  if (k === 'type-alias') return TypeAliasPage
+  if (k === 'class') return ClassPage
+  if (k === 'interface') return InterfacePage
+  if (k === 'enum') return EnumPage
   return ModulePage
 }
 
 export const Reflection = () => {
   const params = useParams()
-  const idx = useIndex()
+  const { project, idBySlug } = useProject()
 
   const decl = createMemo<Decl | undefined>(() => {
     const slug = params.slug
     if (!slug) return undefined
-    const id = idx.idBySlug.get(slug)
+    const id = idBySlug.get(slug)
     if (id == null) return undefined
-    const r = idx.byId.get(id)
-    return r as Decl | undefined
+    return project.declarationsById.get(id)
   })
 
   return (

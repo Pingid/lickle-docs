@@ -72,9 +72,6 @@ importers:
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.0
-      typedoc:
-        specifier: ^0.28.19
-        version: 0.28.19(typescript@6.0.3)
     devDependencies:
       '@types/node':
         specifier: ^24.12.3

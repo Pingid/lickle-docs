@@ -1,170 +1,147 @@
-// TypeDoc ReflectionKind values, see typedoc/src/lib/models/reflections/kind.ts
-export const Kind = {
-  Project: 1,
-  Module: 2,
-  Namespace: 4,
-  Enum: 8,
-  EnumMember: 16,
-  Variable: 32,
-  Function: 64,
-  Class: 128,
-  Interface: 256,
-  Constructor: 512,
-  Property: 1024,
-  Method: 2048,
-  CallSignature: 4096,
-  IndexSignature: 8192,
-  ConstructorSignature: 16384,
-  Parameter: 32768,
-  TypeLiteral: 65536,
-  TypeParameter: 131072,
-  Accessor: 262144,
-  GetSignature: 524288,
-  SetSignature: 1048576,
-  TypeAlias: 2097152,
-  Reference: 4194304,
-} as const
-
-export type KindValue = (typeof Kind)[keyof typeof Kind]
+import type { index } from '@lickle/docs'
 
 /**
- * Structural shape used by {@link effectiveKind}. Kept loose to avoid pulling
- * the full `typedoc` types into this module.
+ * String discriminants for everything we care about in the UI. The schema
+ * already gives us declaration kinds; the additional members (`'enum-member'`,
+ * `'property'`, …) come from nested reflections that aren't declarations but
+ * still need labels and icons.
  */
-type DeclLike = {
-  kind: number
-  signatures?: unknown[]
-  type?: { type?: string; declaration?: { signatures?: unknown[] } }
+export type Kind =
+  | 'module'
+  | 'variable'
+  | 'function'
+  | 'class'
+  | 'interface'
+  | 'type-alias'
+  | 'enum'
+  | 're-export'
+  | 'enum-member'
+  | 'property'
+  | 'method'
+  | 'parameter'
+  | 'signature'
+  | 'index-signature'
+  | 'object-literal'
+
+type CallableHost = {
+  type?: { kind?: string; signatures?: unknown[]; declaration?: { callSignatures?: unknown[] } }
 }
 
 /**
- * Promote a callable `const` (TypeDoc reports it as `Variable`) to `Function`.
- * Source-level `const f = () => ...` is semantically a function, so the UI
- * labels and groups it that way. Everything else passes through.
+ * Promote a callable `const` (the resolver reports it as `variable`) to
+ * `function`. Source-level `const f = () => …` is semantically a function, so
+ * the UI labels and groups it that way. Everything else passes through.
  */
-export const effectiveKind = (decl: DeclLike): number => {
-  if (decl.kind !== Kind.Variable) return decl.kind
-  if (decl.signatures?.length) return Kind.Function
-  const d = decl.type
-  if (d?.type === 'reflection' && d.declaration?.signatures?.length) return Kind.Function
-  return decl.kind
+export const effectiveKind = (decl: { kind: string } & CallableHost): Kind => {
+  if (decl.kind !== 'variable') return decl.kind as Kind
+  const t = decl.type
+  if (t?.kind === 'function-type' && (t as { signatures?: unknown[] }).signatures?.length) return 'function'
+  if (t?.kind === 'reflection' && t.declaration?.callSignatures?.length) return 'function'
+  return 'variable'
 }
 
 /**
- * Call signatures for a declaration. Functions/Methods carry them on
- * `decl.signatures`; callable Variables (see {@link effectiveKind}) carry
- * them under `type.declaration.signatures`. Returns `[]` when neither path
- * yields signatures. Generic over `S` so callers keep their typedoc types.
+ * Call signatures for a declaration. `function` and `method` carry them
+ * directly on `signatures`; callable Variables (see {@link effectiveKind})
+ * carry them on `type.signatures` (`function-type`) or
+ * `type.declaration.callSignatures` (`reflection`).
  */
-export const signaturesOf = <S>(decl: {
-  signatures?: S[]
-  type?: { type?: string; declaration?: { signatures?: S[] } }
-}): S[] => {
+export const signaturesOf = (decl: {
+  signatures?: index.Signature[]
+  type?: { kind?: string; signatures?: index.Signature[]; declaration?: { callSignatures?: index.Signature[] } }
+}): index.Signature[] => {
   if (decl.signatures?.length) return decl.signatures
-  const d = decl.type
-  if (d?.type === 'reflection' && d.declaration?.signatures?.length) return d.declaration.signatures
+  const t = decl.type
+  if (t?.kind === 'function-type' && t.signatures?.length) return t.signatures
+  if (t?.kind === 'reflection' && t.declaration?.callSignatures?.length) return t.declaration.callSignatures
   return []
 }
 
-export const labelOf = (kind: number): string => {
-  switch (kind) {
-    case Kind.Project:
-      return 'project'
-    case Kind.Module:
-      return 'module'
-    case Kind.Namespace:
-      return 'namespace'
-    case Kind.Enum:
-      return 'enum'
-    case Kind.EnumMember:
-      return 'member'
-    case Kind.Variable:
-      return 'variable'
-    case Kind.Function:
-      return 'function'
-    case Kind.Class:
-      return 'class'
-    case Kind.Interface:
-      return 'interface'
-    case Kind.Constructor:
-      return 'constructor'
-    case Kind.Property:
-      return 'property'
-    case Kind.Method:
-      return 'method'
-    case Kind.Accessor:
-      return 'accessor'
-    case Kind.TypeAlias:
-      return 'type'
-    case Kind.Reference:
-      return 'reference'
-    default:
-      return 'symbol'
-  }
+const LABELS: Record<Kind, string> = {
+  module: 'module',
+  variable: 'variable',
+  function: 'function',
+  class: 'class',
+  interface: 'interface',
+  'type-alias': 'type',
+  enum: 'enum',
+  're-export': 'reference',
+  'enum-member': 'member',
+  property: 'property',
+  method: 'method',
+  parameter: 'parameter',
+  signature: 'signature',
+  'index-signature': 'index signature',
+  'object-literal': 'object',
 }
 
-export const shortOf = (kind: number): string => {
-  switch (kind) {
-    case Kind.Module:
-      return 'M'
-    case Kind.Namespace:
-      return 'N'
-    case Kind.Enum:
-      return 'E'
-    case Kind.Variable:
-      return 'V'
-    case Kind.Function:
-      return 'ƒ'
-    case Kind.Class:
-      return 'C'
-    case Kind.Interface:
-      return 'I'
-    case Kind.Property:
-      return 'p'
-    case Kind.Method:
-      return 'm'
-    case Kind.TypeAlias:
-      return 'T'
-    default:
-      return '·'
-  }
+export const labelOf = (kind: Kind | string): string => LABELS[kind as Kind] ?? 'symbol'
+
+const SHORTS: Partial<Record<Kind, string>> = {
+  module: 'M',
+  variable: 'V',
+  function: 'ƒ',
+  class: 'C',
+  interface: 'I',
+  'type-alias': 'T',
+  enum: 'E',
+  property: 'p',
+  method: 'm',
+  're-export': 'R',
 }
 
-export const ROUTABLE_KINDS = new Set<number>([
-  Kind.Module,
-  Kind.Namespace,
-  Kind.Class,
-  Kind.Interface,
-  Kind.Function,
-  Kind.Variable,
-  Kind.Enum,
-  Kind.TypeAlias,
+export const shortOf = (kind: Kind | string): string => SHORTS[kind as Kind] ?? '·'
+
+const ROUTABLE: ReadonlySet<Kind> = new Set([
+  'module',
+  'class',
+  'interface',
+  'function',
+  'variable',
+  'enum',
+  'type-alias',
 ])
 
-export const isRoutable = (kind: number): boolean => ROUTABLE_KINDS.has(kind)
+export const isRoutable = (kind: Kind | string): boolean => ROUTABLE.has(kind as Kind)
+
+const PLURAL: Record<Kind, string> = {
+  module: 'modules',
+  variable: 'variables',
+  function: 'functions',
+  class: 'classes',
+  interface: 'interfaces',
+  'type-alias': 'types',
+  enum: 'enums',
+  're-export': 'references',
+  'enum-member': 'members',
+  property: 'properties',
+  method: 'methods',
+  parameter: 'parameters',
+  signature: 'signatures',
+  'index-signature': 'index signatures',
+  'object-literal': 'objects',
+}
+
+export const pluralLabel = (kind: Kind | string): string => PLURAL[kind as Kind] ?? `${labelOf(kind)}s`
 
 /**
  * Canonical group ordering: functions → variables → types → everything else.
- * Accepts both typedoc's titles ("Type Aliases") and our bucket titles ("types").
  * Unknown titles sort to the end.
  */
 const GROUP_ORDER = [
   'functions',
   'variables',
-  'type aliases',
+  'types',
   'classes',
   'interfaces',
-  'enumerations',
-  'namespaces',
+  'enums',
   'modules',
+  'references',
   'properties',
   'methods',
-  'accessors',
 ]
-const GROUP_ALIAS: Record<string, string> = { types: 'type aliases', enums: 'enumerations' }
 
 export const groupOrder = (title: string): number => {
-  const t = title.trim().toLowerCase()
-  const i = GROUP_ORDER.indexOf(GROUP_ALIAS[t] ?? t)
+  const i = GROUP_ORDER.indexOf(title.trim().toLowerCase())
   return i < 0 ? GROUP_ORDER.length : i
 }

@@ -1,11 +1,10 @@
-import type { JSONOutput } from 'typedoc'
+import type { index } from '@lickle/docs'
 import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { useIndex } from '../context/index.js'
+import { useProject } from '../context/index.js'
 
-type T = JSONOutput.SomeType
-type Reflection = JSONOutput.DeclarationReflection | JSONOutput.SignatureReflection
+type T = index.Type
 
 const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
 const Kw = (p: { children: string }) => <span class="text-accent">{p.children}</span>
@@ -32,17 +31,15 @@ const TypeArgs = (props: { args?: T[] }) => (
   </Show>
 )
 
-const ReferenceType = (props: { type: JSONOutput.ReferenceType }) => {
-  const idx = useIndex()
-  const target = (props.type as { target?: number | { qualifiedName?: string } }).target
-  const targetId = typeof target === 'number' ? target : undefined
-  const slug = targetId != null ? idx.slugById.get(targetId) : undefined
-  const name = props.type.name
+const ReferenceType = (props: { type: index.Reference }) => {
+  const { slugById } = useProject()
+  const target = props.type.target
+  const slug = target ? slugById.get(target.id) : undefined
   return (
     <>
-      <Show when={slug} fallback={<Name>{name}</Name>}>
+      <Show when={slug} fallback={<Name>{props.type.name}</Name>}>
         <A href={`/r/${slug}`} class="underline decoration-line underline-offset-[3px] hover:opacity-70">
-          {name}
+          {props.type.name}
         </A>
       </Show>
       <TypeArgs args={props.type.typeArguments} />
@@ -50,31 +47,30 @@ const ReferenceType = (props: { type: JSONOutput.ReferenceType }) => {
   )
 }
 
-const ReflectionType = (props: { type: JSONOutput.ReflectionType }) => {
+const ReflectionType = (props: { type: index.ReflectionType }) => {
   const decl = props.type.declaration
-  // Function-like: only signatures, no children
-  if (decl.signatures?.length && !(decl.children?.length || decl.indexSignatures?.length)) {
-    const sig = decl.signatures[0]
-    return <SignatureExpr sig={sig} arrow />
-  }
-  const children = decl.children ?? []
+  const onlySignatures =
+    decl.callSignatures?.length &&
+    !decl.properties.length &&
+    !decl.methods?.length &&
+    !decl.indexSignature &&
+    !decl.constructSignatures?.length
+  if (onlySignatures) return <SignatureExpr sig={decl.callSignatures![0]!} arrow />
   return (
     <>
       <Punct>{'{ '}</Punct>
-      <For each={children}>
-        {(c, i) => (
+      <For each={decl.properties}>
+        {(p, i) => (
           <>
             <Show when={i() > 0}>
               <Punct>{', '}</Punct>
             </Show>
-            <Name>{c.name}</Name>
-            <Show when={(c.flags as JSONOutput.ReflectionFlags | undefined)?.isOptional}>
+            <Name>{p.name}</Name>
+            <Show when={p.flags?.optional}>
               <Punct>?</Punct>
             </Show>
             <Punct>: </Punct>
-            <Show when={c.type}>
-              <Type type={c.type as T} />
-            </Show>
+            <Type type={p.type} />
           </>
         )}
       </For>
@@ -83,7 +79,28 @@ const ReflectionType = (props: { type: JSONOutput.ReflectionType }) => {
   )
 }
 
-export const SignatureExpr = (props: { sig: JSONOutput.SignatureReflection; arrow?: boolean }) => (
+const TupleElement = (props: { el: index.TupleElement }) => (
+  <>
+    <Show when={props.el.rest}>
+      <Punct>...</Punct>
+    </Show>
+    <Show when={props.el.name}>
+      <>
+        <Name>{props.el.name!}</Name>
+        <Show when={props.el.optional}>
+          <Punct>?</Punct>
+        </Show>
+        <Punct>: </Punct>
+      </>
+    </Show>
+    <Type type={props.el.type} />
+    <Show when={!props.el.name && props.el.optional}>
+      <Punct>?</Punct>
+    </Show>
+  </>
+)
+
+export const SignatureExpr = (props: { sig: index.Signature; arrow?: boolean }) => (
   <>
     <Show when={props.sig.typeParameters?.length}>
       <Punct>{'<'}</Punct>
@@ -94,10 +111,10 @@ export const SignatureExpr = (props: { sig: JSONOutput.SignatureReflection; arro
               <Punct>{', '}</Punct>
             </Show>
             <Name>{tp.name}</Name>
-            <Show when={tp.type}>
+            <Show when={tp.constraint}>
               <>
                 <Kw> extends </Kw>
-                <Type type={tp.type as T} />
+                <Type type={tp.constraint!} />
               </>
             </Show>
           </>
@@ -106,25 +123,21 @@ export const SignatureExpr = (props: { sig: JSONOutput.SignatureReflection; arro
       <Punct>{'>'}</Punct>
     </Show>
     <Punct>(</Punct>
-    <For each={props.sig.parameters ?? []}>
+    <For each={props.sig.parameters}>
       {(p, i) => (
         <>
           <Show when={i() > 0}>
             <Punct>{', '}</Punct>
           </Show>
-          <Show when={(p.flags as JSONOutput.ReflectionFlags | undefined)?.isRest}>
+          <Show when={p.rest}>
             <Punct>...</Punct>
           </Show>
           <Name>{p.name}</Name>
-          <Show when={(p.flags as JSONOutput.ReflectionFlags | undefined)?.isOptional || p.defaultValue}>
+          <Show when={p.optional || p.default != null}>
             <Punct>?</Punct>
           </Show>
-          <Show when={p.type}>
-            <>
-              <Punct>: </Punct>
-              <Type type={p.type as T} />
-            </>
-          </Show>
+          <Punct>: </Punct>
+          <Type type={p.type} />
         </>
       )}
     </For>
@@ -132,7 +145,7 @@ export const SignatureExpr = (props: { sig: JSONOutput.SignatureReflection; arro
     <Show when={props.sig.type}>
       <>
         <Punct>{props.arrow ? ' => ' : ': '}</Punct>
-        <Type type={props.sig.type as T} />
+        <Type type={props.sig.type} />
       </>
     </Show>
   </>
@@ -141,7 +154,7 @@ export const SignatureExpr = (props: { sig: JSONOutput.SignatureReflection; arro
 export const Type = (props: { type: T | undefined }): any => {
   const t = props.type
   if (!t) return null
-  switch (t.type) {
+  switch (t.kind) {
     case 'intrinsic':
       return <Kw>{t.name}</Kw>
     case 'literal':
@@ -150,10 +163,17 @@ export const Type = (props: { type: T | undefined }): any => {
       return <span>{String(t.value)}</span>
     case 'reference':
       return <ReferenceType type={t} />
+    case 'unresolved':
+      return (
+        <>
+          <Name>{t.name}</Name>
+          <TypeArgs args={t.typeArguments} />
+        </>
+      )
     case 'array':
       return (
         <>
-          <Type type={t.elementType as T} />
+          <Type type={t.elementType} />
           <Punct>[]</Punct>
         </>
       )
@@ -161,22 +181,37 @@ export const Type = (props: { type: T | undefined }): any => {
       return (
         <>
           <Punct>[</Punct>
-          <Join sep=", " items={(t.elements ?? []) as T[]} />
+          <For each={t.elements}>
+            {(el, i) => (
+              <>
+                <Show when={i() > 0}>
+                  <Punct>{', '}</Punct>
+                </Show>
+                <TupleElement el={el} />
+              </>
+            )}
+          </For>
           <Punct>]</Punct>
         </>
       )
     case 'union':
-      return <Join sep=" | " items={t.types as T[]} />
+      return <Join sep=" | " items={t.types} />
     case 'intersection':
-      return <Join sep=" & " items={t.types as T[]} />
+      return <Join sep=" & " items={t.types} />
+    case 'function-type':
+      return (
+        <Show when={t.signatures[0]} fallback={<Kw>function</Kw>}>
+          {(sig) => <SignatureExpr sig={sig()} arrow />}
+        </Show>
+      )
     case 'reflection':
       return <ReflectionType type={t} />
-    case 'typeOperator':
+    case 'type-operator':
       return (
         <>
           <Kw>{t.operator}</Kw>
           <span> </span>
-          <Type type={t.target as T} />
+          <Type type={t.target} />
         </>
       )
     case 'query':
@@ -184,112 +219,11 @@ export const Type = (props: { type: T | undefined }): any => {
         <>
           <Kw>typeof</Kw>
           <span> </span>
-          <Type type={t.queryType as T} />
+          <Type type={t.queryType as index.Reference} />
         </>
       )
-    case 'indexedAccess':
-      return (
-        <>
-          <Type type={t.objectType as T} />
-          <Punct>[</Punct>
-          <Type type={t.indexType as T} />
-          <Punct>]</Punct>
-        </>
-      )
-    case 'conditional':
-      return (
-        <>
-          <Type type={t.checkType as T} />
-          <Kw> extends </Kw>
-          <Type type={t.extendsType as T} />
-          <Punct> ? </Punct>
-          <Type type={t.trueType as T} />
-          <Punct> : </Punct>
-          <Type type={t.falseType as T} />
-        </>
-      )
-    case 'predicate':
-      return (
-        <>
-          <Show when={t.asserts}>
-            <Kw>asserts </Kw>
-          </Show>
-          <Name>{t.name}</Name>
-          <Show when={t.targetType}>
-            <>
-              <Kw> is </Kw>
-              <Type type={t.targetType as T} />
-            </>
-          </Show>
-        </>
-      )
-    case 'templateLiteral': {
-      const head = (t as JSONOutput.TemplateLiteralType).head ?? ''
-      const tail = (t as JSONOutput.TemplateLiteralType).tail ?? []
-      return (
-        <span>
-          `{head}
-          <For each={tail}>
-            {(seg) => (
-              <>
-                <Punct>{'${'}</Punct>
-                <Type type={seg[0] as T} />
-                <Punct>{'}'}</Punct>
-                <span>{seg[1]}</span>
-              </>
-            )}
-          </For>
-          `
-        </span>
-      )
-    }
-    case 'mapped': {
-      const m = t as JSONOutput.MappedType
-      return (
-        <>
-          <Punct>{'{ ['}</Punct>
-          <Name>{m.parameter}</Name>
-          <Kw> in </Kw>
-          <Type type={m.parameterType as T} />
-          <Punct>]</Punct>
-          <Show when={m.optionalModifier}>
-            <Punct>{m.optionalModifier === '+' ? '?' : '-?'}</Punct>
-          </Show>
-          <Punct>: </Punct>
-          <Type type={m.templateType as T} />
-          <Punct>{' }'}</Punct>
-        </>
-      )
-    }
-    case 'rest':
-      return (
-        <>
-          <Punct>...</Punct>
-          <Type type={(t as JSONOutput.RestType).elementType as T} />
-        </>
-      )
-    case 'optional':
-      return (
-        <>
-          <Type type={(t as JSONOutput.OptionalType).elementType as T} />
-          <Punct>?</Punct>
-        </>
-      )
-    case 'namedTupleMember':
-      return (
-        <>
-          <Name>{(t as JSONOutput.NamedTupleMemberType).name}</Name>
-          <Show when={(t as JSONOutput.NamedTupleMemberType).isOptional}>
-            <Punct>?</Punct>
-          </Show>
-          <Punct>: </Punct>
-          <Type type={(t as JSONOutput.NamedTupleMemberType).element as T} />
-        </>
-      )
-    case 'unknown':
-      return <Name>{(t as JSONOutput.UnknownType).name}</Name>
     default:
-      return <Name>{(t as { type: string }).type}</Name>
+      return <Name>{(t as { kind: string }).kind}</Name>
   }
 }
 
@@ -304,6 +238,3 @@ export const TypeBox = (props: { type: T | undefined; class?: string }) => (
     <Type type={props.type} />
   </div>
 )
-
-// Helper export to render any reflection's "as expression" type
-export const reflectionLabel = (r: Reflection): string => r.name

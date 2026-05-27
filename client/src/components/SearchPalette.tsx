@@ -3,15 +3,15 @@ import { useNavigate } from '@solidjs/router'
 
 import { createSearchEngine, type SearchHit } from '../util/search.js'
 import { labelOf, shortOf } from '../util/kind.js'
-import { useIndex } from '../context/index.js'
+import { useProject } from '../context/index.js'
 
 const DEBOUNCE_MS = 80
 
 export const SearchPalette = (props: { open: () => boolean; onClose: () => void }) => {
-  const idx = useIndex()
+  const bag = useProject()
   const navigate = useNavigate()
 
-  const [engine] = createResource(props.open, async (isOpen) => (isOpen ? createSearchEngine(idx) : undefined))
+  const [engine] = createResource(props.open, async (isOpen) => (isOpen ? createSearchEngine(bag) : undefined))
 
   const [term, setTerm] = createSignal('')
   const [debounced, setDebounced] = createSignal('')

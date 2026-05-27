@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 /** Anything module-shaped enough to carry a label. Avoids registry variance. */
 interface Labeled {
   path?: string
@@ -14,14 +12,16 @@ export const label = (mod: Labeled): string => mod.path ?? mod.name ?? '<anonymo
  * project, given the label of the owning module. Mirrors the candidate-walking
  * resolver that TypeScript uses for relative imports; returns undefined for
  * unresolvable / external specifiers.
+ *
+ * Uses only string ops — no `node:path` — so this is safe to run in the browser.
  */
 export const resolve = <M extends Labeled>(
   ownerLabel: string,
   sourceModule: string,
   modulesByLabel: Map<string, M>,
 ): M | undefined => {
-  if (path.isAbsolute(sourceModule)) return modulesByLabel.get(sourceModule)
-  const base = path.isAbsolute(ownerLabel) ? path.resolve(path.dirname(ownerLabel), sourceModule) : sourceModule
+  if (isAbsolute(sourceModule)) return modulesByLabel.get(sourceModule)
+  const base = isAbsolute(ownerLabel) ? joinPath(dirname(ownerLabel), sourceModule) : sourceModule
   const candidates = pathCandidates(base)
   for (const c of candidates) {
     const m = modulesByLabel.get(c)
@@ -31,7 +31,7 @@ export const resolve = <M extends Labeled>(
   for (const m of modulesByLabel.values()) {
     const n = normalize(label(m))
     if (wanted.has(n)) return m
-    if ([...wanted].some((x) => n.endsWith(`/${x}`) || n.endsWith(x))) return m
+    for (const x of wanted) if (n.endsWith(`/${x}`) || n.endsWith(x)) return m
   }
   return undefined
 }
@@ -42,9 +42,9 @@ const pathCandidates = (base: string): string[] => [
   `${base}.tsx`,
   `${base}.js`,
   `${base}.mjs`,
-  path.join(base, 'index.ts'),
-  path.join(base, 'index.tsx'),
-  path.join(base, 'index.js'),
+  joinPath(base, 'index.ts'),
+  joinPath(base, 'index.tsx'),
+  joinPath(base, 'index.js'),
 ]
 
 const normalize = (name: string): string =>
@@ -54,3 +54,32 @@ const normalize = (name: string): string =>
     .replace(/\/index\.(ts|tsx|js|mjs)$/, '')
     .replace(/\.(ts|tsx|js|mjs)$/, '')
     .replace(/\/+$/, '')
+
+// ---------------- Path primitives (POSIX-style, no node:path) ----------------
+
+const isAbsolute = (p: string): boolean =>
+  p.startsWith('/') || p.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(p)
+
+const dirname = (p: string): string => {
+  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
+  if (i < 0) return '.'
+  if (i === 0) return '/'
+  return p.slice(0, i)
+}
+
+/** Join two segments and collapse `.` / `..` runs. POSIX output. */
+const joinPath = (a: string, b: string): string => {
+  const abs = isAbsolute(a)
+  const out: string[] = []
+  for (const part of `${a}/${b}`.split(/[\\/]+/)) {
+    if (!part || part === '.') continue
+    if (part === '..') {
+      if (out.length && out[out.length - 1] !== '..') out.pop()
+      else if (!abs) out.push('..')
+      continue
+    }
+    out.push(part)
+  }
+  const joined = out.join('/')
+  return abs ? `/${joined}` : joined || '.'
+}

@@ -1,28 +1,29 @@
 import { create, insert, search } from '@orama/orama'
 
-import { effectiveKind } from './kind.js'
-import type { ReflectionIndex } from './reflection.js'
+import type { ProjectBag } from '../context/project.js'
+import { effectiveKind, type Kind } from './kind.js'
 
-export type SearchHit = { name: string; qualified: string; kind: number; slug: string }
+export type SearchHit = { name: string; qualified: string; kind: Kind; slug: string }
 
 export type SearchEngine = { query: (term: string, limit?: number) => Promise<SearchHit[]> }
 
 /**
- * Build an in-browser Orama index over every routable reflection in `idx`.
+ * Build an in-browser Orama index over every routable reflection in `bag`.
  * Names are boosted above qualified paths so exact-name hits rank first;
  * `tolerance: 1` allows one-character typos.
  */
-export const createSearchEngine = async (idx: ReflectionIndex): Promise<SearchEngine> => {
+export const createSearchEngine = async (bag: ProjectBag): Promise<SearchEngine> => {
   const db = await create({
-    schema: { name: 'string', qualified: 'string', kind: 'number', slug: 'string' },
+    schema: { name: 'string', qualified: 'string', kind: 'string', slug: 'string' },
     components: { tokenizer: { stemming: false } },
   })
-  for (const r of idx.routables) {
-    const slug = idx.slugById.get(r.id)
+  for (const r of bag.routables) {
+    const slug = bag.slugById.get(r.id)
     if (!slug) continue
+    const name = (r as { name?: string }).name ?? ''
     await insert(db, {
-      name: r.name,
-      qualified: idx.qualifiedNameById.get(r.id) ?? r.name,
+      name,
+      qualified: bag.qualifiedNameById.get(r.id) ?? name,
       kind: effectiveKind(r),
       slug,
     })

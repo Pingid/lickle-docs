@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
-import path from 'node:path'
 import fg from 'fast-glob'
 
 import { reflect, typedoc, workspace } from '../lib.ts'

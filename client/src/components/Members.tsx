@@ -1,52 +1,138 @@
-import type { JSONOutput } from 'typedoc'
+import type { index } from '@lickle/docs'
 import { For, Show } from 'solid-js'
+import type { JSX } from 'solid-js/jsx-runtime'
 import { A } from '@solidjs/router'
 
-import { Kind, effectiveKind, groupOrder, labelOf, shortOf, signaturesOf } from '../util/kind.js'
+import { effectiveKind, groupOrder, labelOf, pluralLabel, shortOf, signaturesOf, type Kind } from '../util/kind.js'
 import { SignatureExpr, Type } from './Type.js'
 import { ReflectionScope } from './Comment.js'
-import { useIndex } from '../context/index.js'
+import { useProject } from '../context/index.js'
 
-type Decl = JSONOutput.DeclarationReflection
-type SomeType = JSONOutput.SomeType
+type ChildSection = { title: string; render: () => JSX.Element }
 
-type Group = { title: string; ids: number[] }
-
-const sortGroups = (gs: Group[]): Group[] =>
-  gs.sort((a, b) => groupOrder(a.title) - groupOrder(b.title) || a.title.localeCompare(b.title))
-
-const groupChildren = (decl: Decl): Group[] => {
-  if (decl.categories?.length) {
-    return sortGroups(
-      decl.categories.map((c) => ({ title: c.title, ids: c.children ?? [] })).filter((g) => g.ids.length),
-    )
-  }
-  // Bucket by `effectiveKind` rather than typedoc's `decl.groups`. TypeDoc
-  // groups callable consts (`const f = () => ...`) as Variables; our effective
-  // kind promotes them to Function so they land in the right section.
-  const buckets = new Map<string, number[]>()
-  for (const c of decl.children ?? []) {
-    const key = pluralOf(effectiveKind(c))
-    const arr = buckets.get(key) ?? []
-    arr.push(c.id)
-    buckets.set(key, arr)
-  }
-  return sortGroups([...buckets.entries()].map(([title, ids]) => ({ title, ids })))
+/**
+ * Page-level member rendering. Dispatches per parent kind:
+ * - Module: bucket children by `effectiveKind` and render with {@link MemberCard}.
+ * - Class:  fixed sections — Constructors, Properties, Methods.
+ * - Interface: Properties, Methods, Call signatures, Construct signatures, Index signature.
+ */
+export const Members = (props: { decl: index.Declaration }) => {
+  const sections = () => sectionsFor(props.decl)
+  return (
+    <For each={sections()}>
+      {(s) => {
+        const body = s.render()
+        if (body == null) return null
+        return (
+          <section class="mt-8">
+            <h2 class="font-semibold text-xl mb-3 pb-1.5 border-b border-line capitalize">{s.title}</h2>
+            <div>{body}</div>
+          </section>
+        )
+      }}
+    </For>
+  )
 }
 
-const pluralOf = (kind: number) => {
-  const l = labelOf(kind)
-  if (l.endsWith('s')) return l
-  if (l === 'class') return 'classes'
-  if (l === 'property') return 'properties'
-  return l + 's'
+const sectionsFor = (decl: index.Declaration): ChildSection[] => {
+  if (decl.kind === 'module') return moduleSections(decl)
+  if (decl.kind === 'class') return classSections(decl)
+  if (decl.kind === 'interface') return interfaceSections(decl)
+  return []
 }
 
-const MemberCard = (props: { decl: Decl }) => {
-  const idx = useIndex()
-  const c = props.decl
-  const k = effectiveKind(c)
-  const slug = idx.slugById.get(c.id)
+const moduleSections = (mod: index.Module): ChildSection[] => {
+  const buckets = new Map<string, index.Declaration[]>()
+  for (const c of mod.children) {
+    if (c.kind === 're-export') continue
+    const title = pluralLabel(effectiveKind(c))
+    const arr = buckets.get(title) ?? []
+    arr.push(c)
+    buckets.set(title, arr)
+  }
+  return [...buckets.entries()]
+    .sort(([a], [b]) => groupOrder(a) - groupOrder(b) || a.localeCompare(b))
+    .map(([title, items]) => ({
+      title,
+      render: () => (
+        <For each={items}>{(c) => <MemberCard decl={c} parentKind="module" />}</For>
+      ),
+    }))
+}
+
+const classSections = (cls: index.Class): ChildSection[] => {
+  const out: ChildSection[] = []
+  if (cls.constructors.length) {
+    out.push({
+      title: 'Constructors',
+      render: () => (
+        <For each={cls.constructors}>{(s) => <SignatureRow sig={s} name={cls.name} kind="constructor" />}</For>
+      ),
+    })
+  }
+  if (cls.properties.length) {
+    out.push({
+      title: 'Properties',
+      render: () => <For each={cls.properties}>{(p) => <MemberCard decl={p} parentKind="class" />}</For>,
+    })
+  }
+  if (cls.methods.length) {
+    out.push({
+      title: 'Methods',
+      render: () => <For each={cls.methods}>{(m) => <MemberCard decl={m} parentKind="class" />}</For>,
+    })
+  }
+  if (cls.indexSignature) {
+    out.push({ title: 'Index signature', render: () => <IndexSigRow sig={cls.indexSignature!} /> })
+  }
+  return out
+}
+
+const interfaceSections = (iface: index.Interface): ChildSection[] => {
+  const out: ChildSection[] = []
+  if (iface.properties.length) {
+    out.push({
+      title: 'Properties',
+      render: () => <For each={iface.properties}>{(p) => <MemberCard decl={p} parentKind="interface" />}</For>,
+    })
+  }
+  if (iface.methods.length) {
+    out.push({
+      title: 'Methods',
+      render: () => <For each={iface.methods}>{(m) => <MemberCard decl={m} parentKind="interface" />}</For>,
+    })
+  }
+  if (iface.callSignatures?.length) {
+    out.push({
+      title: 'Call signatures',
+      render: () => <For each={iface.callSignatures!}>{(s) => <SignatureRow sig={s} />}</For>,
+    })
+  }
+  if (iface.constructSignatures?.length) {
+    out.push({
+      title: 'Construct signatures',
+      render: () => <For each={iface.constructSignatures!}>{(s) => <SignatureRow sig={s} kind="constructor" />}</For>,
+    })
+  }
+  if (iface.indexSignature) {
+    out.push({ title: 'Index signature', render: () => <IndexSigRow sig={iface.indexSignature!} /> })
+  }
+  return out
+}
+
+type ChildLike = index.Declaration | index.Property | index.Method | index.EnumMember
+type ParentKind = 'module' | 'class' | 'interface'
+
+/**
+ * Single-row card for a child declaration. Uses {@link effectiveKind} for the
+ * left-rail glyph and dispatches the body by `child.kind` (with a small
+ * parent-context tweak for class methods).
+ */
+const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
+  const { slugById } = useProject()
+  const c = props.decl as ChildLike & { id: number; name?: string; kind: string }
+  const k: Kind = effectiveKind(c as { kind: string })
+  const slug = slugById.get(c.id)
 
   const Name = () => (
     <Show when={slug} fallback={<span class="font-semibold">{c.name}</span>}>
@@ -57,30 +143,36 @@ const MemberCard = (props: { decl: Decl }) => {
   )
 
   const body = () => {
-    if (k === Kind.Property || k === Kind.Variable || k === Kind.EnumMember) {
+    if (c.kind === 'property' || c.kind === 'variable') {
+      const t = (c as index.Property | index.Variable).type
+      const def = (c as index.Property | index.Variable).defaultValue
       return (
         <>
           <Name />
-          <Show when={c.type}>
-            <>
-              <span class="text-mute">: </span>
-              <Type type={c.type as SomeType} />
-            </>
-          </Show>
-          <Show when={c.defaultValue}>
-            <span class="text-mute"> = {c.defaultValue}</span>
+          <span class="text-mute">: </span>
+          <Type type={t} />
+          <Show when={def}>
+            <span class="text-mute"> = {def}</span>
           </Show>
         </>
       )
     }
-    if (k === Kind.Method || k === Kind.Function || k === Kind.Constructor) {
+    if (c.kind === 'enum-member') {
+      const v = (c as index.EnumMember).value
       return (
-        <For each={signaturesOf<JSONOutput.SignatureReflection>(c)}>
+        <>
+          <Name />
+          <Show when={v != null}>
+            <span class="text-mute"> = {String(v)}</span>
+          </Show>
+        </>
+      )
+    }
+    if (c.kind === 'method' || c.kind === 'function') {
+      return (
+        <For each={signaturesOf(c as { signatures?: index.Signature[] })}>
           {(sig) => (
             <div>
-              <Show when={c.kind === Kind.Constructor}>
-                <span class="text-accent">new </span>
-              </Show>
               <Name />
               <SignatureExpr sig={sig} />
             </div>
@@ -88,12 +180,12 @@ const MemberCard = (props: { decl: Decl }) => {
         </For>
       )
     }
-    if (k === Kind.TypeAlias) {
+    if (c.kind === 'type-alias') {
       return (
         <>
           <Name />
           <span class="text-mute"> = </span>
-          <Type type={c.type as SomeType} />
+          <Type type={(c as index.TypeAlias).type} />
         </>
       )
     }
@@ -114,26 +206,31 @@ const MemberCard = (props: { decl: Decl }) => {
   )
 }
 
-export const Members = (props: { decl: Decl }) => {
-  const idx = useIndex()
-  const groups = () => groupChildren(props.decl)
+const SignatureRow = (props: {
+  sig: index.Signature
+  name?: string
+  kind?: 'function' | 'method' | 'constructor'
+}) => (
+  <ReflectionScope id={props.sig.id}>
+    <div class="border-b border-line py-3 last:border-b-0 font-mono text-sm leading-relaxed">
+      <Show when={props.kind === 'constructor'}>
+        <span class="text-accent">new </span>
+      </Show>
+      <Show when={props.name}>
+        <span class="font-semibold">{props.name}</span>
+      </Show>
+      <SignatureExpr sig={props.sig} />
+    </div>
+  </ReflectionScope>
+)
 
-  return (
-    <For each={groups()}>
-      {(g) => {
-        const decls = g.ids
-          .map((id) => idx.byId.get(id))
-          .filter((r): r is Decl => !!r && (r as Decl).kind !== undefined)
-        if (!decls.length) return null
-        return (
-          <section class="mt-8">
-            <h2 class="font-semibold text-xl mb-3 pb-1.5 border-b border-line capitalize">{g.title}</h2>
-            <div>
-              <For each={decls}>{(d) => <MemberCard decl={d} />}</For>
-            </div>
-          </section>
-        )
-      }}
-    </For>
-  )
-}
+const IndexSigRow = (props: { sig: index.IndexSignature }) => (
+  <div class="border-b border-line py-3 last:border-b-0 font-mono text-sm leading-relaxed">
+    <span class="text-mute">[</span>
+    <span class="font-semibold">{props.sig.parameter.name}</span>
+    <span class="text-mute">: </span>
+    <Type type={props.sig.parameter.type} />
+    <span class="text-mute">]: </span>
+    <Type type={props.sig.type} />
+  </div>
+)

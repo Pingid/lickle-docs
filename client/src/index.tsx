@@ -5,6 +5,7 @@ import { ProjectProvider } from './context/index.js'
 import { App } from './App.js'
 
 import reflect from '../reflect.json'
+import './index.css'
 
 const root = document.getElementById('root')
 

@@ -1,15 +1,13 @@
 import { For, Show, createMemo } from 'solid-js'
-import type { JSONOutput } from 'typedoc'
+import type { index } from '@lickle/docs'
 import { A } from '@solidjs/router'
 
-import { effectiveKind, labelOf } from '../util/kind.js'
-import type { Reference } from '../util/references.js'
+import { effectiveKind, isRoutable, labelOf } from '../util/kind.js'
 import { commentSummaryText } from './Comment.js'
-import { useIndex } from '../context/index.js'
+import { useProject } from '../context/index.js'
 
 type Row = {
-  ref: Reference
-  decl: JSONOutput.DeclarationReflection
+  decl: index.Declaration
   slug: string
   /** Everything before the final dot of the qualified name. Empty for top-level symbols. */
   module: string
@@ -18,26 +16,48 @@ type Row = {
   summary: string
 }
 
+/**
+ * Climb `$.module` until we hit a routable declaration. The reference's
+ * enclosing decl is usually that already, but for references that bubble up
+ * through type-aliases or method bodies we may need an extra step.
+ */
+const routableAncestor = (decl: index.Declaration): index.Declaration | undefined => {
+  let cur: index.Declaration | undefined = decl
+  while (cur) {
+    if (isRoutable(cur.kind)) return cur
+    cur = (cur as { $?: { module?: index.Module } }).$?.module
+  }
+  return undefined
+}
+
 export const References = (props: { id: number }) => {
-  const idx = useIndex()
+  const { project, slugById, qualifiedNameById } = useProject()
 
   const rows = createMemo<Row[]>(() => {
-    const list = idx.references.get(props.id) ?? []
+    const target = project.declarationsById.get(props.id)
+    if (!target) return []
+    const queries = (target as { $?: { referencedBy?: () => Iterable<index.Reference> } }).$
+    if (!queries?.referencedBy) return []
+
+    const seen = new Set<number>()
     const out: Row[] = []
-    for (const ref of list) {
-      const slug = idx.slugById.get(ref.referrer)
-      const decl = idx.byId.get(ref.referrer) as JSONOutput.DeclarationReflection | undefined
-      if (!slug || !decl) continue
-      const qualified = idx.qualifiedNameById.get(ref.referrer) ?? decl.name
+    for (const ref of queries.referencedBy()) {
+      const ancestor = routableAncestor(ref.$.enclosingDeclaration)
+      if (!ancestor || ancestor.id === props.id) continue
+      if (seen.has(ancestor.id)) continue
+      seen.add(ancestor.id)
+      const slug = slugById.get(ancestor.id)
+      if (!slug) continue
+      const name = (ancestor as { name?: string }).name ?? ''
+      const qualified = qualifiedNameById.get(ancestor.id) ?? name
       const dot = qualified.lastIndexOf('.')
       out.push({
-        ref,
-        decl,
+        decl: ancestor,
         slug,
         module: dot < 0 ? '' : qualified.slice(0, dot),
         name: dot < 0 ? qualified : qualified.slice(dot + 1),
         qualified,
-        summary: commentSummaryText(decl.comment),
+        summary: commentSummaryText(ancestor.comment),
       })
     }
     return out.sort((a, b) => a.qualified.localeCompare(b.qualified))
