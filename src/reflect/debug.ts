@@ -4,14 +4,16 @@ import * as modulePath from './module-path.ts'
 /** Sink for streamed text output. Compatible with `(chunk) => stream.write(chunk)`. */
 export type Writer = (chunk: string) => void
 
-export const printStdout = <R extends T.TypeRegistry>(project: T.Project<R>): void =>
-  print(project, (chunk) => void process.stdout.write(chunk))
+export const printStdout = <R extends T.TypeRegistry>(modules: T.Module<R>[]): void =>
+  print(modules, (chunk) => void process.stdout.write(chunk))
 
-/** Stream a human-readable project listing through `write`. */
-export const print = <R extends T.TypeRegistry>(project: T.Project<R>, write: Writer): void => {
-  const ctx = makePrintContext(project)
-  write(`Project: ${project.name}\n`)
-  for (const child of project.children) writeModule(child, 1, ctx, write)
+/** Stream a human-readable module listing through `write`. */
+export const print = <R extends T.TypeRegistry>(modules: T.Module<R>[], write: Writer): void => {
+  // The walker doesn't care about the registry shape — it dispatches on `kind`.
+  // Erase R at the boundary so internal helpers stay simple.
+  const mods = modules as unknown as T.Module[]
+  const ctx = makePrintContext(mods)
+  for (const m of mods) writeModule(m, 0, ctx, write)
 }
 
 const writeModule = (mod: T.Module, depth: number, ctx: PrintContext, write: Writer): void => {
@@ -200,8 +202,8 @@ interface PrintContext {
   modulesByName: Map<string, T.Module>
 }
 
-const makePrintContext = <R extends T.TypeRegistry>(project: T.Project<R>): PrintContext => ({
-  modulesByName: new Map(project.children.map((m) => [modulePath.label(m), m] as const)),
+const makePrintContext = (modules: T.Module[]): PrintContext => ({
+  modulesByName: new Map(modules.map((m) => [modulePath.label(m), m] as const)),
 })
 
 /** Per-module map of non-re-export children keyed by name. Cached so each target

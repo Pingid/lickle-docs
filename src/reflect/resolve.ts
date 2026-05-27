@@ -25,7 +25,41 @@ export interface TypeMap extends T.TypeMap<Registry> {
 }
 export type Type = T.AnyType<Registry>
 
-export type Project = T.Project<Registry>
+export type Source = T.Source
+export type Flags = T.Flags
+export type Module = T.Module<Registry>
+export type ReExport = T.ReExport<Registry>
+export type NamedExport = T.NamedExport
+export type Variable = T.Variable<Registry>
+export type Func = T.Func<Registry>
+export type Class = T.Class<Registry>
+export type Interface = T.Interface<Registry>
+export type TypeAlias = T.TypeAlias<Registry>
+export type Enum = T.Enum<Registry>
+export type EnumMember = T.EnumMember
+export type Property = T.Property<Registry>
+export type Method = T.Method<Registry>
+export type IndexSignature = T.IndexSignature<Registry>
+export type Signature = T.Signature<Registry>
+export type Parameter = T.Parameter<Registry>
+export type TypeParameter = T.TypeParameter<Registry>
+export type IntrinsicType = T.IntrinsicType
+export type LiteralType = T.LiteralType
+export type ReferenceType = T.ReferenceType<Registry>
+export type UnresolvedType = T.UnresolvedType<Registry>
+export type UnionType = T.UnionType<Registry>
+export type IntersectionType = T.IntersectionType<Registry>
+export type ArrayType = T.ArrayType<Registry>
+export type TupleType = T.TupleType<Registry>
+export type TupleElement = T.TupleElement<Registry>
+export type FunctionType = T.FunctionType<Registry>
+export type TypeOperatorType = T.TypeOperatorType<Registry>
+export type QueryType = T.QueryType<Registry>
+export type ReflectionType = T.ReflectionType<Registry>
+export type ObjectLiteral = T.ObjectLiteral<Registry>
+export type Comment = T.Comment<Registry>
+export type CommentTag = T.CommentTag<Registry>
+export type CommentPart = T.CommentPart
 
 /**
  * Information the first pass must record so the second pass can resolve names
@@ -45,8 +79,8 @@ export interface ResolverContext {
  * Walk the project and populate `targetId` on every `ReferenceType`, and `ids`
  * on every `Export`, whose declarations we know about. Mutates in place.
  */
-export const project = (generation: Result): Project => {
-  const { project, context: ctx } = generation
+export const generation = (generation: Result): T.AnyDeclaration<Registry>[] => {
+  const { children, context: ctx } = generation
   // Build a lookup from any declaration node belonging to a recorded symbol
   // back to its reflection id. Symbols can have multiple declarations (merged
   // interfaces, namespaces) so we index every one.
@@ -86,9 +120,9 @@ export const project = (generation: Result): Project => {
     if (ids.length) e.ids = ids
   }
 
-  walk.Project(project, { onReference: resolveRef, onReExport: resolveExport })
+  children.forEach((c) => walk.Declaration(c, { onReference: resolveRef, onReExport: resolveExport }))
 
-  return project as unknown as T.Project<Registry>
+  return children as T.AnyDeclaration<Registry>[]
 }
 
 // ============================================================================

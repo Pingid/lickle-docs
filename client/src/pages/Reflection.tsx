@@ -1,10 +1,10 @@
 import { For, Show, createMemo, type Component } from 'solid-js'
 import { useParams, A } from '@solidjs/router'
-import type { index } from '@lickle/docs'
+import type * as docs from '@lickle/docs'
 import { Dynamic } from 'solid-js/web'
 
 import { effectiveKind, labelOf, signaturesOf, type Kind } from '../util/kind.js'
-import { Comment, ReflectionScope } from '../components/Comment.js'
+import { OldComment, ReflectionScope } from '../components/Comment.js'
 import { References } from '../components/References.js'
 import { Breadcrumb } from '../components/Breadcrumb.js'
 import { Signature } from '../components/Signature.js'
@@ -12,9 +12,9 @@ import { Members } from '../components/Members.js'
 import { useProject } from '../context/index.js'
 import { Type } from '../components/Type.js'
 
-type Decl = index.Declaration
+type Decl = docs.Declaration
 
-const Source = (props: { sources?: index.Source[] }) => (
+const Source = (props: { sources?: docs.Source[] }) => (
   <Show when={props.sources?.[0]}>
     {(s) => (
       <div class="text-xs text-mute mt-2">
@@ -42,19 +42,20 @@ const Header = (props: { decl: Decl }) => (
 
 const nameOf = (decl: Decl): string => (decl as { name?: string }).name ?? '<anonymous>'
 
-const FunctionPage = (props: { decl: index.Declaration<'function'> | index.Declaration<'variable'> }) => (
+const FunctionPage = (props: { decl: docs.Declaration<'function'> | docs.Declaration<'variable'> }) => (
   <article>
     <Header decl={props.decl} />
-    <Show when={props.decl.comment}>
-      <Comment comment={props.decl.comment} />
-    </Show>
+    {/* The function decl's comment is repeated on each signature, so
+        skip it here and let `<Signature>` render the per-overload copy. */}
     <div class="mt-5">
-      <For each={signaturesOf(props.decl)}>{(sig) => <Signature sig={sig} name={props.decl.name} kind="function" />}</For>
+      <For each={signaturesOf(props.decl)}>
+        {(sig) => <Signature sig={sig} name={props.decl.name} kind="function" />}
+      </For>
     </div>
   </article>
 )
 
-const VariablePage = (props: { decl: index.Declaration<'variable'> }) => (
+const VariablePage = (props: { decl: docs.Declaration<'variable'> }) => (
   <article>
     <Header decl={props.decl} />
     <div class="font-mono text-sm leading-relaxed py-2">
@@ -68,13 +69,13 @@ const VariablePage = (props: { decl: index.Declaration<'variable'> }) => (
     </div>
     <Show when={props.decl.comment}>
       <div class="mt-5">
-        <Comment comment={props.decl.comment} />
+        <OldComment comment={props.decl.comment} />
       </div>
     </Show>
   </article>
 )
 
-const TypeAliasPage = (props: { decl: index.Declaration<'type-alias'> }) => (
+const TypeAliasPage = (props: { decl: docs.Declaration<'type-alias'> }) => (
   <article>
     <Header decl={props.decl} />
     <div class="font-mono text-sm leading-relaxed py-2">
@@ -105,13 +106,13 @@ const TypeAliasPage = (props: { decl: index.Declaration<'type-alias'> }) => (
     </div>
     <Show when={props.decl.comment}>
       <div class="mt-5">
-        <Comment comment={props.decl.comment} />
+        <OldComment comment={props.decl.comment} />
       </div>
     </Show>
   </article>
 )
 
-const ClassPage = (props: { decl: index.Declaration<'class'> }) => (
+const ClassPage = (props: { decl: docs.Declaration<'class'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.extends}>
@@ -137,14 +138,14 @@ const ClassPage = (props: { decl: index.Declaration<'class'> }) => (
     </Show>
     <Show when={props.decl.comment}>
       <div class="mt-5">
-        <Comment comment={props.decl.comment} />
+        <OldComment comment={props.decl.comment} />
       </div>
     </Show>
     <Members decl={props.decl} />
   </article>
 )
 
-const InterfacePage = (props: { decl: index.Declaration<'interface'> }) => (
+const InterfacePage = (props: { decl: docs.Declaration<'interface'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.extends?.length}>
@@ -164,18 +165,18 @@ const InterfacePage = (props: { decl: index.Declaration<'interface'> }) => (
     </Show>
     <Show when={props.decl.comment}>
       <div class="mt-5">
-        <Comment comment={props.decl.comment} />
+        <OldComment comment={props.decl.comment} />
       </div>
     </Show>
     <Members decl={props.decl} />
   </article>
 )
 
-const EnumPage = (props: { decl: index.Declaration<'enum'> }) => (
+const EnumPage = (props: { decl: docs.Declaration<'enum'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.comment}>
-      <Comment comment={props.decl.comment} />
+      <OldComment comment={props.decl.comment} />
     </Show>
     <section class="mt-8">
       <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Members</h2>
@@ -190,7 +191,7 @@ const EnumPage = (props: { decl: index.Declaration<'enum'> }) => (
             </div>
             <Show when={m.comment}>
               <div class="mt-1 text-sm">
-                <Comment comment={m.comment} />
+                <OldComment comment={m.comment} />
               </div>
             </Show>
           </div>
@@ -200,11 +201,11 @@ const EnumPage = (props: { decl: index.Declaration<'enum'> }) => (
   </article>
 )
 
-const ModulePage = (props: { decl: index.Declaration<'module'> }) => (
+const ModulePage = (props: { decl: docs.Declaration<'module'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.comment}>
-      <Comment comment={props.decl.comment} />
+      <OldComment comment={props.decl.comment} />
     </Show>
     <Members decl={props.decl} />
   </article>

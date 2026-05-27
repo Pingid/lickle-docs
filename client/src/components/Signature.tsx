@@ -1,16 +1,16 @@
-import type { index } from '@lickle/docs'
+import type * as docs from '@lickle/docs'
 import { For, Show } from 'solid-js'
 
-import { Comment } from './Comment.js'
+import { Comment, OldComment } from './Comment.js'
 import { Type } from './Type.js'
 
 const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
 const Kw = (p: { children: string }) => <span class="text-accent">{p.children}</span>
 
-const isOptional = (p: index.Parameter): boolean => p.optional || p.default != null
+const isOptional = (p: docs.Parameter): boolean => p.optional || p.default != null
 
 export const SignatureLine = (props: {
-  sig: index.Signature
+  sig: docs.Signature
   name?: string
   kind?: 'function' | 'method' | 'constructor'
 }) => (
@@ -70,7 +70,7 @@ export const SignatureLine = (props: {
   </div>
 )
 
-const ParameterRow = (props: { param: index.Parameter }) => (
+const ParameterRow = (props: { param: docs.Parameter }) => (
   <div class="grid grid-cols-[auto_1fr] gap-x-3 items-baseline">
     <dt class="font-mono text-sm">
       <span class="font-semibold">{props.param.name}</span>
@@ -80,22 +80,25 @@ const ParameterRow = (props: { param: index.Parameter }) => (
     </dt>
     <dd class="text-sm text-mute min-w-0">
       <Show when={props.param.comment}>
-        <Comment comment={props.param.comment} />
+        <OldComment comment={props.param.comment} />
       </Show>
     </dd>
   </div>
 )
 
 export const Signature = (props: {
-  sig: index.Signature
+  sig: docs.Signature
   name?: string
   kind?: 'function' | 'method' | 'constructor'
 }) => (
   <div class="mb-6">
     <SignatureLine sig={props.sig} name={props.name} kind={props.kind} />
+    <Comment comment={props.sig.comment} />
+
+    <div class="mt-12" />
     <Show when={props.sig.comment}>
       <div class="mt-3">
-        <Comment comment={props.sig.comment} />
+        <OldComment comment={props.sig.comment} />
       </div>
     </Show>
     <Show when={props.sig.parameters.length}>

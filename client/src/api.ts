@@ -13,10 +13,10 @@
  * })
  * ```
  */
-import type { index } from '@lickle/docs'
+import type * as docs from '@lickle/docs'
 
-export type TagPart = NonNullable<index.Comment['parts']>[number]
-export type Tag = index.Comment['tags'][number]
+export type TagPart = NonNullable<docs.Comment['parts']>[number]
+export type Tag = docs.Comment['tags'][number]
 
 export type TagContext = {
   /** The structured tag from the schema. */

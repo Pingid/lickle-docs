@@ -24,7 +24,7 @@ interface DeclarationMap extends T.DeclarationMap<Registry> {
   class: T.Class<Registry> & WithQuery<DeclarationQueries>
   interface: T.Interface<Registry> & WithQuery<DeclarationQueries>
   'type-alias': TypeAlias
-  enum: T.Enum & WithQuery<DeclarationQueries>
+  enum: T.Enum<Registry> & WithQuery<DeclarationQueries>
   're-export': ReExport
 }
 
@@ -113,7 +113,7 @@ export interface Module extends T.Module<Registry>, WithQuery<ModuleQueries> {
    * to global indexes (`module.project.declarationsById`) without threading
    * state through queries.
    */
-  readonly project: Project
+  readonly project: Indexed
 
   /**
    * Set when this module is a TypeScript namespace nested inside another
@@ -133,7 +133,7 @@ export interface TypeAlias extends T.TypeAlias<Registry>, WithQuery<DeclarationQ
   readonly target?: T.AnyDeclaration<Registry>
 }
 
-export interface ReExport extends T.ReExport, WithQuery<DeclarationQueries> {
+export interface ReExport extends T.ReExport<Registry>, WithQuery<DeclarationQueries> {
   /**
    * Resolved declarations this re-export surfaces. For `export *`, every
    * exported declaration from the source module. For `export { a, b }`,
@@ -167,7 +167,7 @@ export type Variable = T.Variable<Registry>
 export type Func = T.Func<Registry>
 export type Class = T.Class<Registry>
 export type Interface = T.Interface<Registry>
-export type Enum = T.Enum
+export type Enum = T.Enum<Registry>
 export type EnumMember = T.EnumMember
 export type Property = T.Property<Registry>
 export type Method = T.Method<Registry>
@@ -189,8 +189,10 @@ export type TypeOperatorType = T.TypeOperatorType<Registry>
 export type QueryType = T.QueryType<Registry>
 export type ReflectionType = T.ReflectionType<Registry>
 export type ObjectLiteral = T.ObjectLiteral<Registry>
-export type Comment = T.Comment
-
+export type Comment = T.Comment<Registry>
+export type CommentTag = T.CommentTag<Registry>
+export type CommentTagMap = T.CommentTagMap<Registry>
+export type CommentPart = T.CommentPart
 // ============================================================================
 // PROJECT HANDLE
 // ============================================================================
@@ -204,7 +206,7 @@ export type Comment = T.Comment
  * The project itself is a `Module`-container, same as in the base registry,
  * but with `Module` children and the global maps attached.
  */
-export interface Project extends T.Project<Registry> {
+export interface Indexed {
   /** Every declaration in the project keyed by its reflection id. */
   readonly declarationsById: ReadonlyMap<number, T.AnyDeclaration<Registry>>
 
@@ -213,6 +215,9 @@ export interface Project extends T.Project<Registry> {
    * because it's the same array that backs `$.referencedBy()` lookups.
    */
   readonly allReferences: ReadonlyArray<Reference>
+
+  /** Top-level modules (one per scanned source file), in input order. */
+  modules(): ReadonlyArray<Module>
 
   /**
    * Find a declaration by stable id. Mostly a convenience over
@@ -242,21 +247,24 @@ export interface Project extends T.Project<Registry> {
  * The forward pass (parent pointers, `declarationsById`, attaching `$`)
  * runs synchronously here. Reverse indexes are built on first access.
  */
-export const build = (input: T.Project<resolve.Registry>): Project => {
-  const proj = input as unknown as Project
+export const build = (modules: T.Module<resolve.Registry>[]): Indexed => {
+  const proj = {} as Indexed
   const state: State = {
     proj,
     declarationsById: new Map(),
     allReferences: [],
+    topModules: [],
     topModulesByLabel: new Map(),
     declByName: new Map(),
   }
-  for (const mod of proj.children) {
+  for (const mod of modules as unknown as Module[]) {
+    state.topModules.push(mod)
     state.topModulesByLabel.set(modulePath.label(mod), mod)
     indexModule(mod, undefined, state)
   }
   resolveForwardEdges(state)
   attachProjectMethods(state)
+  console.log(proj, state)
   return proj
 }
 
@@ -269,9 +277,10 @@ export const build = (input: T.Project<resolve.Registry>): Project => {
 type AnyDecl = T.AnyDeclaration<Registry>
 
 interface State {
-  proj: Project
+  proj: Indexed
   declarationsById: Map<number, AnyDecl>
   allReferences: Reference[]
+  topModules: Module[]
   topModulesByLabel: Map<string, Module>
   declByName: Map<number, Map<string, AnyDecl>>
   referencedBy?: Map<number, Reference[]>
@@ -286,7 +295,7 @@ const hide = (obj: object, key: string, value: unknown): void => {
   Object.defineProperty(obj, key, { value, enumerable: false, configurable: true })
 }
 
-const idOf = (d: AnyDecl): number => (d as T.Base).id
+const idOf = (d: AnyDecl): number => (d as T.Base<any>).id
 
 // ============================================================================
 // FORWARD PASS
@@ -461,6 +470,7 @@ const attachProjectMethods = (state: State): void => {
   const p = state.proj
   hide(p, 'declarationsById', state.declarationsById)
   hide(p, 'allReferences', state.allReferences)
+  hide(p, 'modules', () => state.topModules)
   hide(p, 'declarationById', (id: number) => state.declarationsById.get(id))
   hide(p, 'referenceById', (id: number) => refByIdMap(state).get(id))
   hide(p, 'declarationByQualifiedName', (name: string) => declByQNameMap(state).get(name))

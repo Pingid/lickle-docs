@@ -5,11 +5,7 @@ export interface Visitor {
   onReExport: (re: T.ReExport) => void
 }
 
-export const Project = (p: T.Project, v: Visitor): void => p.children.forEach((m) => Module(m, v))
-
-export const Module = (m: T.Module, v: Visitor): void => {
-  m.children.forEach((c) => Declaration(c, v))
-}
+export const Module = (m: T.Module, v: Visitor): void => m.children.forEach((c) => Declaration(c, v))
 
 export const Declaration = (d: T.AnyDeclaration, v: Visitor): void => {
   switch (d.kind) {

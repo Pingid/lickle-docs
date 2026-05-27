@@ -14,17 +14,11 @@ export interface Options {
   compilerOptions: ts.CompilerOptions
   /** Exclude certain kinds of nodes from the generated project. */
   exclude?: { sources?: boolean; comments?: boolean; typeParameters?: boolean }
-  /**
-   * Decides which source files become modules in the project. The default
-   * skips declaration files and anything under `node_modules` — large projects
-   * with workspace packages or source-distributed deps drown the scanner
-   * otherwise.
-   */
-  includeSourceFile?: (sf: ts.SourceFile) => boolean
+  include?: { file?: (sf: ts.SourceFile) => boolean }
 }
 
 export interface Result {
-  project: T.Project<Registry>
+  children: T.AnyDeclaration<Registry>[]
   /** Pass this to `resolveReferences` to populate `targetId` / `resolvedIds` fields. */
   context: Pick<Context, 'checker' | 'symbolsById' | 'referenceOrigins' | 'exportOrigins'>
 }
@@ -51,16 +45,17 @@ interface Context extends Options {
   relPath: WeakMap<ts.SourceFile, string>
 }
 
-const defaultIncludeSourceFile = (sf: ts.SourceFile): boolean =>
-  !sf.isDeclarationFile && !sf.fileName.includes('/node_modules/')
-
-export const project = (rootFiles: string[], projectName: string, options: Options): Result => {
+export const files = (rootFiles: string[], options: Options): Result => {
   const program = ts.createProgram(rootFiles, options.compilerOptions)
   const ctx = makeContext(program.getTypeChecker(), options)
-  const include = options.includeSourceFile ?? defaultIncludeSourceFile
-  const children: T.Module[] = []
-  for (const sf of program.getSourceFiles()) if (include(sf)) children.push(sourceFile(sf, ctx))
-  return { project: { name: projectName, children }, context: ctx }
+  const children: T.Module<Registry>[] = []
+
+  for (const sf of program.getSourceFiles()) {
+    if (rootFiles.includes(sf.fileName)) {
+      children.push(sourceFile(sf, ctx))
+    }
+  }
+  return { children, context: ctx }
 }
 
 const makeContext = (checker: ts.TypeChecker, options: Options): Context => {
@@ -84,7 +79,9 @@ const makeContext = (checker: ts.TypeChecker, options: Options): Context => {
 
 const sourceFile = (sf: ts.SourceFile, ctx: Context): T.Module => {
   const children: T.AnyDeclaration[] = []
-  for (const stmt of sf.statements) if (isExported(stmt)) appendDeclarations(stmt, ctx, children)
+  for (const stmt of sf.statements) {
+    if (isExported(stmt)) appendDeclarations(stmt, ctx, children)
+  }
   return {
     ...base(sf, ctx),
     kind: 'module',
@@ -716,12 +713,19 @@ const buildTag = (tag: ts.JSDocTag, ctx: Context): T.CommentTag => {
   const text = ts.getTextOfJSDocComment(tag.comment)?.trim() ?? ''
   const exprType = (te?: ts.JSDocTypeExpression) => (te ? typeNode(te.type, ctx) : undefined)
 
-  if (ts.isJSDocParameterTag(tag) || ts.isJSDocPropertyTag(tag)) {
-    const type = exprType(tag.typeExpression)
+  if (ts.isJSDocPropertyTag(tag)) {
     return {
-      tag: ts.isJSDocParameterTag(tag) ? '@param' : '@property',
+      tag: '@property',
       name: tag.name.getText(),
-      ...(type ? { type } : {}),
+      type: exprType(tag.typeExpression),
+      text,
+    }
+  }
+  if (ts.isJSDocParameterTag(tag)) {
+    return {
+      tag: '@param',
+      name: tag.name.getText(),
+      type: exprType(tag.typeExpression),
       ...(tag.isBracketed ? { optional: true } : {}),
       text,
     }

@@ -1,14 +1,13 @@
 import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
-import fg from 'fast-glob'
 
-import { reflect, typedoc, workspace } from '../lib.ts'
+import { project } from '../lib.ts'
 
 export const app = () =>
   cmd.subcommands({
     name: 'docs',
     description: 'Documentation generation',
-    cmds: { json, typedoc: typdoc },
+    cmds: { json },
   })
 
 const json = cmd.command({
@@ -21,33 +20,25 @@ const json = cmd.command({
       type: cmd.optional(cmd.string),
       description: 'Path to tsconfig.json',
     }),
-    projectName: cmd.option({
-      long: 'project-name',
+    packageJson: cmd.option({
+      long: 'package-json',
       short: 'p',
       type: cmd.optional(cmd.string),
-      description: 'Name of the project',
+      description: 'Path to package.json',
     }),
-    files: cmd.restPositionals({ type: cmd.string, description: 'Files to include in the project' }),
+    exclude: cmd.multioption({
+      long: 'exclude',
+      short: 'e',
+      type: cmd.array(cmd.string),
+      description: 'Glob pattern of files to exclude from the project',
+    }),
+    include: cmd.restPositionals({
+      type: cmd.string,
+      description: 'Glob pattern of files to include in the project',
+    }),
   },
   handler: async (args) => {
-    const projectName = await workspace.projectName(args.projectName)
-    const options = await workspace.tsconfig(args.tsconfig)
-    let files: string[] = []
-    if (args.files.length) files = await fg(args.files)
-    else files = options.fileNames
-    const project = reflect.json.build(projectName ?? 'my-project', files, {
-      compilerOptions: options.options,
-      rootDir: process.cwd(),
-    })
-    await fs.writeFile('reflect.json', JSON.stringify(project))
-  },
-})
-
-const typdoc = cmd.command({
-  name: 'typedoc',
-  description: 'Typdoc reflections for a project',
-  args: { files: cmd.restPositionals({ type: cmd.string }) },
-  handler: async (args) => {
-    await typedoc.generate(args.files)
+    const p = await project.scan.scan({ dir: process.cwd(), tsConfigPath: args.tsconfig, exclude: args.exclude })
+    await fs.writeFile('reflect.json', JSON.stringify(p))
   },
 })

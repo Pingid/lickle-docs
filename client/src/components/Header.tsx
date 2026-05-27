@@ -21,8 +21,7 @@ const iconFor = (label: string): string | null => {
 }
 
 export const Header = (props: { onMenu?: () => void; onSearch?: () => void }) => {
-  const { project, meta } = useProject()
-  const links = () => meta.links ?? []
+  const { project } = useProject()
   const searchHint = createMemo(() => (isMac() ? '\u2318K' : 'Ctrl K'))
 
   return (
@@ -48,8 +47,8 @@ export const Header = (props: { onMenu?: () => void; onSearch?: () => void }) =>
         </button>
         <A href="/" class="flex items-baseline gap-2 hover:opacity-70 transition-opacity">
           <span class="font-semibold text-[0.95rem] tracking-tight">{project.name}</span>
-          <Show when={meta.version}>
-            <span class="text-xs text-mute font-mono">v{meta.version}</span>
+          <Show when={project.version}>
+            <span class="text-xs text-mute font-mono">v{project.version}</span>
           </Show>
         </A>
 
@@ -68,8 +67,8 @@ export const Header = (props: { onMenu?: () => void; onSearch?: () => void }) =>
         </button>
 
         <nav class="ml-auto flex items-center gap-1">
-          <For each={links()}>
-            {([label, href]) => {
+          <For each={project.links}>
+            {({ label, href }) => {
               const icon = iconFor(label)
               return (
                 <a

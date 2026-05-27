@@ -21,21 +21,6 @@
       "types": "./lib/src/index.ts",
       "import": "./lib/src/index.ts",
       "require": "./lib/cjs/index.js"
-    },
-    "./micro": {
-      "types": "./lib/ts/micro/index.d.ts",
-      "import": "./lib/esm/micro/index.js",
-      "require": "./lib/cjs/micro/index.js"
-    },
-    "./types": {
-      "types": "./lib/ts/types/index.d.ts",
-      "import": "./lib/esm/types/index.js",
-      "require": "./lib/cjs/types/index.js"
-    },
-    "./build": {
-      "types": "./build/ts/index.d.ts",
-      "import": "./build/esm/index.js",
-      "require": "./build/cjs/index.js"
     }
   },
   "scripts": {
@@ -48,6 +33,7 @@
     "watch:docs": "pnpm -C ./typedoc watch"
   },
   "devDependencies": {
+    "@types/micromatch": "^4.0.10",
     "@types/node": "^25.9.1",
     "prettier": "^3.8.3",
     "sucrase": "^3.35.1",
@@ -63,6 +49,7 @@
     "@lickle/docs": "link:",
     "cmd-ts": "^0.15.0",
     "fast-glob": "^3.3.3",
+    "micromatch": "^4.0.8",
     "typedoc": "^0.28.19"
   }
 }

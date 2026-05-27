@@ -1,11 +1,11 @@
 import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { useProject } from '../context/index.js'
+import { useNavGroups } from '../context/index.js'
 import { shortOf } from '../util/kind.js'
 
 export const Sidebar = (props: { onNavigate?: () => void; class?: string }) => {
-  const { navGroups } = useProject()
+  const navGroups = useNavGroups()
 
   return (
     <aside class={`text-sm ${props.class ?? ''}`}>

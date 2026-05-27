@@ -1,10 +1,10 @@
-import type { index } from '@lickle/docs'
+import type * as docs from '@lickle/docs'
 import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
 import { useProject } from '../context/index.js'
 
-type T = index.Type
+type T = docs.Type
 
 const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
 const Kw = (p: { children: string }) => <span class="text-accent">{p.children}</span>
@@ -31,7 +31,7 @@ const TypeArgs = (props: { args?: T[] }) => (
   </Show>
 )
 
-const ReferenceType = (props: { type: index.Reference }) => {
+const ReferenceType = (props: { type: docs.Reference }) => {
   const { slugById } = useProject()
   const target = props.type.target
   const slug = target ? slugById.get(target.id) : undefined
@@ -47,7 +47,7 @@ const ReferenceType = (props: { type: index.Reference }) => {
   )
 }
 
-const ReflectionType = (props: { type: index.ReflectionType }) => {
+const ReflectionType = (props: { type: docs.ReflectionType }) => {
   const decl = props.type.declaration
   const onlySignatures =
     decl.callSignatures?.length &&
@@ -79,7 +79,7 @@ const ReflectionType = (props: { type: index.ReflectionType }) => {
   )
 }
 
-const TupleElement = (props: { el: index.TupleElement }) => (
+const TupleElement = (props: { el: docs.TupleElement }) => (
   <>
     <Show when={props.el.rest}>
       <Punct>...</Punct>
@@ -100,7 +100,7 @@ const TupleElement = (props: { el: index.TupleElement }) => (
   </>
 )
 
-export const SignatureExpr = (props: { sig: index.Signature; arrow?: boolean }) => (
+export const SignatureExpr = (props: { sig: docs.Signature; arrow?: boolean }) => (
   <>
     <Show when={props.sig.typeParameters?.length}>
       <Punct>{'<'}</Punct>
@@ -219,7 +219,7 @@ export const Type = (props: { type: T | undefined }): any => {
         <>
           <Kw>typeof</Kw>
           <span> </span>
-          <Type type={t.queryType as index.Reference} />
+          <Type type={t.queryType as docs.Reference} />
         </>
       )
     default:

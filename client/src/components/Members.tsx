@@ -1,11 +1,12 @@
-import type { index } from '@lickle/docs'
-import { For, Show } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
+import type * as docs from '@lickle/docs'
+import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
+
+import { ReflectionScope } from '../context/project.js'
 
 import { effectiveKind, groupOrder, labelOf, pluralLabel, shortOf, signaturesOf, type Kind } from '../util/kind.js'
 import { SignatureExpr, Type } from './Type.js'
-import { ReflectionScope } from './Comment.js'
 import { useProject } from '../context/index.js'
 
 type ChildSection = { title: string; render: () => JSX.Element }
@@ -16,7 +17,7 @@ type ChildSection = { title: string; render: () => JSX.Element }
  * - Class:  fixed sections — Constructors, Properties, Methods.
  * - Interface: Properties, Methods, Call signatures, Construct signatures, Index signature.
  */
-export const Members = (props: { decl: index.Declaration }) => {
+export const Members = (props: { decl: docs.Declaration }) => {
   const sections = () => sectionsFor(props.decl)
   return (
     <For each={sections()}>
@@ -34,15 +35,15 @@ export const Members = (props: { decl: index.Declaration }) => {
   )
 }
 
-const sectionsFor = (decl: index.Declaration): ChildSection[] => {
+const sectionsFor = (decl: docs.Declaration): ChildSection[] => {
   if (decl.kind === 'module') return moduleSections(decl)
   if (decl.kind === 'class') return classSections(decl)
   if (decl.kind === 'interface') return interfaceSections(decl)
   return []
 }
 
-const moduleSections = (mod: index.Module): ChildSection[] => {
-  const buckets = new Map<string, index.Declaration[]>()
+const moduleSections = (mod: docs.Module): ChildSection[] => {
+  const buckets = new Map<string, docs.Declaration[]>()
   for (const c of mod.children) {
     if (c.kind === 're-export') continue
     const title = pluralLabel(effectiveKind(c))
@@ -54,13 +55,11 @@ const moduleSections = (mod: index.Module): ChildSection[] => {
     .sort(([a], [b]) => groupOrder(a) - groupOrder(b) || a.localeCompare(b))
     .map(([title, items]) => ({
       title,
-      render: () => (
-        <For each={items}>{(c) => <MemberCard decl={c} parentKind="module" />}</For>
-      ),
+      render: () => <For each={items}>{(c) => <MemberCard decl={c} parentKind="module" />}</For>,
     }))
 }
 
-const classSections = (cls: index.Class): ChildSection[] => {
+const classSections = (cls: docs.Class): ChildSection[] => {
   const out: ChildSection[] = []
   if (cls.constructors.length) {
     out.push({
@@ -88,7 +87,7 @@ const classSections = (cls: index.Class): ChildSection[] => {
   return out
 }
 
-const interfaceSections = (iface: index.Interface): ChildSection[] => {
+const interfaceSections = (iface: docs.Interface): ChildSection[] => {
   const out: ChildSection[] = []
   if (iface.properties.length) {
     out.push({
@@ -120,7 +119,7 @@ const interfaceSections = (iface: index.Interface): ChildSection[] => {
   return out
 }
 
-type ChildLike = index.Declaration | index.Property | index.Method | index.EnumMember
+type ChildLike = docs.Declaration | docs.Property | docs.Method | docs.EnumMember
 type ParentKind = 'module' | 'class' | 'interface'
 
 /**
@@ -144,8 +143,8 @@ const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
 
   const body = () => {
     if (c.kind === 'property' || c.kind === 'variable') {
-      const t = (c as index.Property | index.Variable).type
-      const def = (c as index.Property | index.Variable).defaultValue
+      const t = (c as docs.Property | docs.Variable).type
+      const def = (c as docs.Property | docs.Variable).defaultValue
       return (
         <>
           <Name />
@@ -158,7 +157,7 @@ const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
       )
     }
     if (c.kind === 'enum-member') {
-      const v = (c as index.EnumMember).value
+      const v = (c as docs.EnumMember).value
       return (
         <>
           <Name />
@@ -170,7 +169,7 @@ const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
     }
     if (c.kind === 'method' || c.kind === 'function') {
       return (
-        <For each={signaturesOf(c as { signatures?: index.Signature[] })}>
+        <For each={signaturesOf(c as { signatures?: docs.Signature[] })}>
           {(sig) => (
             <div>
               <Name />
@@ -185,7 +184,7 @@ const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
         <>
           <Name />
           <span class="text-mute"> = </span>
-          <Type type={(c as index.TypeAlias).type} />
+          <Type type={(c as docs.TypeAlias).type} />
         </>
       )
     }
@@ -206,11 +205,7 @@ const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
   )
 }
 
-const SignatureRow = (props: {
-  sig: index.Signature
-  name?: string
-  kind?: 'function' | 'method' | 'constructor'
-}) => (
+const SignatureRow = (props: { sig: docs.Signature; name?: string; kind?: 'function' | 'method' | 'constructor' }) => (
   <ReflectionScope id={props.sig.id}>
     <div class="border-b border-line py-3 last:border-b-0 font-mono text-sm leading-relaxed">
       <Show when={props.kind === 'constructor'}>
@@ -224,7 +219,7 @@ const SignatureRow = (props: {
   </ReflectionScope>
 )
 
-const IndexSigRow = (props: { sig: index.IndexSignature }) => (
+const IndexSigRow = (props: { sig: docs.IndexSignature }) => (
   <div class="border-b border-line py-3 last:border-b-0 font-mono text-sm leading-relaxed">
     <span class="text-mute">[</span>
     <span class="font-semibold">{props.sig.parameter.name}</span>

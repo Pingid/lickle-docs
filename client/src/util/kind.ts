@@ -1,4 +1,4 @@
-import type { index } from '@lickle/docs'
+import type * as docs from '@lickle/docs'
 
 /**
  * String discriminants for everything we care about in the UI. The schema
@@ -47,9 +47,9 @@ export const effectiveKind = (decl: { kind: string } & CallableHost): Kind => {
  * `type.declaration.callSignatures` (`reflection`).
  */
 export const signaturesOf = (decl: {
-  signatures?: index.Signature[]
-  type?: { kind?: string; signatures?: index.Signature[]; declaration?: { callSignatures?: index.Signature[] } }
-}): index.Signature[] => {
+  signatures?: docs.Signature[]
+  type?: { kind?: string; signatures?: docs.Signature[]; declaration?: { callSignatures?: docs.Signature[] } }
+}): docs.Signature[] => {
   if (decl.signatures?.length) return decl.signatures
   const t = decl.type
   if (t?.kind === 'function-type' && t.signatures?.length) return t.signatures

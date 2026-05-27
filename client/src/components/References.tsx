@@ -1,5 +1,5 @@
 import { For, Show, createMemo } from 'solid-js'
-import type { index } from '@lickle/docs'
+import type * as docs from '@lickle/docs'
 import { A } from '@solidjs/router'
 
 import { effectiveKind, isRoutable, labelOf } from '../util/kind.js'
@@ -7,7 +7,7 @@ import { commentSummaryText } from './Comment.js'
 import { useProject } from '../context/index.js'
 
 type Row = {
-  decl: index.Declaration
+  decl: docs.Declaration
   slug: string
   /** Everything before the final dot of the qualified name. Empty for top-level symbols. */
   module: string
@@ -21,11 +21,11 @@ type Row = {
  * enclosing decl is usually that already, but for references that bubble up
  * through type-aliases or method bodies we may need an extra step.
  */
-const routableAncestor = (decl: index.Declaration): index.Declaration | undefined => {
-  let cur: index.Declaration | undefined = decl
+const routableAncestor = (decl: docs.Declaration): docs.Declaration | undefined => {
+  let cur: docs.Declaration | undefined = decl
   while (cur) {
     if (isRoutable(cur.kind)) return cur
-    cur = (cur as { $?: { module?: index.Module } }).$?.module
+    cur = (cur as { $?: { module?: docs.Module } }).$?.module
   }
   return undefined
 }
@@ -36,7 +36,7 @@ export const References = (props: { id: number }) => {
   const rows = createMemo<Row[]>(() => {
     const target = project.declarationsById.get(props.id)
     if (!target) return []
-    const queries = (target as { $?: { referencedBy?: () => Iterable<index.Reference> } }).$
+    const queries = (target as { $?: { referencedBy?: () => Iterable<docs.Reference> } }).$
     if (!queries?.referencedBy) return []
 
     const seen = new Set<number>()

@@ -7,8 +7,8 @@ import { effectiveKind, labelOf } from '../util/kind.js'
 import { Markdown } from '../components/Markdown.js'
 
 export const Home = () => {
-  const { project, meta, slugById, routables } = useProject()
-  const readme = () => meta.readme ?? ''
+  const { project, slugById, routables } = useProject()
+  const readme = () => project.readme ?? ''
 
   return (
     <article>
@@ -17,9 +17,6 @@ export const Home = () => {
         fallback={
           <>
             <h1 class="text-4xl font-semibold tracking-tight mb-2">{project.name}</h1>
-            <Show when={project.comment}>
-              <Markdown source={project.comment!.text} />
-            </Show>
             <h2 class="text-xl font-semibold mt-10 mb-4 pb-2 border-b border-line">Exports</h2>
             <ul class="space-y-2">
               <For each={routables}>

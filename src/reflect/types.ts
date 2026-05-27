@@ -38,21 +38,12 @@ export type TypeMap<T extends TypeRegistry> = {
   reflection: ReflectionType<T>
 }
 
-// ---------------- Top level project ----------------
-export interface Project<T extends TypeRegistry = Registry> {
-  name: string
-  /** Optional top-level package description, e.g. from the package README. */
-  comment?: Comment
-  /** A project is fundamentally a collection of modules/files. */
-  children: T['declarations']['module'][]
-}
-
 // ---------------- Shared types ----------------
-export interface Base {
+export interface Base<T extends TypeRegistry = Registry> {
   /** Stable identifier used by `reference` types to point back at a declaration. */
   id: number
   /** Doc comment */
-  comment?: Comment
+  comment?: Comment<T>
   /** All source locations contributing to this reflection. */
   sources?: Source[]
   /** Modifiers that may apply to many reflection kinds. */
@@ -75,15 +66,14 @@ export interface Flags {
 }
 
 // ---------------- declarations ----------------
-
-export interface Module<T extends TypeRegistry = Registry> extends Base {
+export interface Module<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'module'
   path?: string
   name?: string
   children: AnyDeclaration<T>[]
 }
 
-export interface ReExport extends Base {
+export interface ReExport<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 're-export'
   sourceModule: string
   as?: string
@@ -95,21 +85,21 @@ export interface NamedExport {
   as?: string
 }
 
-export interface Variable<T extends TypeRegistry = Registry> extends Base {
+export interface Variable<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'variable'
   type: AnyType<T>
   name: string
   defaultValue?: string
 }
 
-export interface Func<T extends TypeRegistry = Registry> extends Base {
+export interface Func<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'function'
   name: string
   /** Multiple entries represent overloads; each carries its own comment. */
   signatures: Signature<T>[]
 }
 
-export interface Class<T extends TypeRegistry = Registry> extends Base {
+export interface Class<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'class'
   name: string
   typeParameters?: TypeParameter<T>[]
@@ -121,7 +111,7 @@ export interface Class<T extends TypeRegistry = Registry> extends Base {
   indexSignature?: IndexSignature<T>
 }
 
-export interface Interface<T extends TypeRegistry = Registry> extends Base {
+export interface Interface<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'interface'
   name: string
   typeParameters?: TypeParameter<T>[]
@@ -133,47 +123,47 @@ export interface Interface<T extends TypeRegistry = Registry> extends Base {
   indexSignature?: IndexSignature<T>
 }
 
-export interface TypeAlias<T extends TypeRegistry = Registry> extends Base {
+export interface TypeAlias<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'type-alias'
   name: string
   typeParameters?: TypeParameter<T>[]
   type: AnyType<T>
 }
 
-export interface Enum extends Base {
+export interface Enum<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'enum'
   name: string
   const?: boolean
   members: EnumMember[]
 }
-export interface EnumMember extends Base {
+export interface EnumMember<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'enum-member'
   name: string
   value?: string | number
 }
 
 // ---------------- CLASS/INTERFACE MEMBERS ----------------
-export interface Property<T extends TypeRegistry = Registry> extends Base {
+export interface Property<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'property'
   name: string
   type: AnyType<T>
   defaultValue?: string
 }
 
-export interface Method<T extends TypeRegistry = Registry> extends Base {
+export interface Method<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'method'
   name: string
   signatures: Signature<T>[]
 }
 
-export interface IndexSignature<T extends TypeRegistry = Registry> extends Base {
+export interface IndexSignature<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'index-signature'
   parameter: Parameter<T>
   type: AnyType<T>
 }
 
 // ---------------- SIGNATURES & PARAMETERS ----------------
-export interface Signature<T extends TypeRegistry = Registry> extends Base {
+export interface Signature<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'signature'
   name?: string
   typeParameters?: TypeParameter<T>[]
@@ -181,7 +171,7 @@ export interface Signature<T extends TypeRegistry = Registry> extends Base {
   type: AnyType<T>
 }
 
-export interface Parameter<T extends TypeRegistry = Registry> extends Base {
+export interface Parameter<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'parameter'
   name: string
   type: AnyType<T>
@@ -288,7 +278,7 @@ export interface ReflectionType<T extends TypeRegistry = Registry> {
   declaration: ObjectLiteral<T>
 }
 
-export interface ObjectLiteral<T extends TypeRegistry = Registry> extends Base {
+export interface ObjectLiteral<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'object-literal'
   properties: Property<T>[]
   methods?: Method<T>[]
@@ -298,31 +288,30 @@ export interface ObjectLiteral<T extends TypeRegistry = Registry> extends Base {
 }
 
 // ---------------- COMMENTS ----------------
-export interface Comment {
+export interface Comment<T extends TypeRegistry = Registry> {
   /** Flat text of the comment body. Inline links are rendered as their display text. */
   text: string
   /** Structured body — present only when the comment contains inline `{@link …}` references. */
   parts?: CommentPart[]
-  tags: CommentTag[]
+  tags: CommentTag<T>[]
 }
 
 export type CommentPart =
   | { kind: 'text'; text: string }
   | { kind: 'link'; target: string; text?: string; style?: 'code' | 'plain' }
 
-/**
- * Tagged comment metadata. Known tags carry whatever structured info JSDoc
- * supplies (types, names, type parameters); unknown tags fall through to a
- * generic shape. Type-bearing fields default to the base registry — augment if
- * you need them resolved against a custom one.
- */
-export type CommentTag =
-  | { tag: '@param' | '@property'; name: string; type?: AnyType; optional?: boolean; default?: string; text: string }
-  | { tag: '@returns' | '@throws'; type?: AnyType; text: string }
-  | { tag: '@type' | '@satisfies'; type: AnyType; text: string }
-  | { tag: '@template'; typeParameters: TypeParameter[]; text: string }
-  | { tag: '@see'; target?: string; text: string }
-  | { tag: '@example'; caption?: string; code: string }
-  | { tag: '@extends' | '@augments' | '@implements'; class: AnyType; text: string }
-  | { tag: '@deprecated' | '@remarks' | '@default' | '@author'; text: string }
+export type CommentTag<T extends TypeRegistry = Registry> =
+  | CommentTagMap<T>[keyof CommentTagMap<T>]
   | { tag: string; name?: string; text: string }
+
+export interface CommentTagMap<T extends TypeRegistry = Registry> {
+  '@param': { tag: '@param'; name: string; type?: AnyType<T>; optional?: boolean; default?: string; text: string }
+  '@property': { tag: '@property'; name: string; type?: AnyType<T>; optional?: boolean; default?: string; text: string }
+  '@returns': { tag: '@returns'; type?: AnyType<T>; text: string }
+  '@throws': { tag: '@throws'; type?: AnyType<T>; text: string }
+  '@type': { tag: '@type'; type: AnyType<T>; text: string }
+  '@satisfies': { tag: '@satisfies'; type: AnyType<T>; text: string }
+  '@template': { tag: '@template'; typeParameters: TypeParameter<T>[]; text: string }
+  '@see': { tag: '@see'; target?: string; text: string }
+  '@example': { tag: '@example'; caption?: string; code: string }
+}
