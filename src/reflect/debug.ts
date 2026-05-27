@@ -61,7 +61,7 @@ const writeClass = (decl: T.Class, depth: number, write: Writer): void => {
     depth,
     join(
       `class ${decl.name}${printTypeParams(decl.typeParameters)}`,
-      decl.extends ? `extends ${printType(decl.extends)}` : '',
+      decl.extends?.length ? `extends ${decl.extends.map(printType).join(', ')}` : '',
       decl.implements?.length ? `implements ${decl.implements.map(printType).join(', ')}` : '',
     ),
   )
@@ -128,10 +128,10 @@ const printType = (t: T.AnyType): string => {
       return t.name
     case 'literal':
       return typeof t.value === 'string' ? JSON.stringify(t.value) : String(t.value)
-    case 'reference':
-      return `${t.name}${t.typeArguments?.length ? `<${t.typeArguments.map(printType).join(', ')}>` : ''}`
-    case 'unresolved':
-      return `?${t.name}${t.typeArguments?.length ? `<${t.typeArguments.map(printType).join(', ')}>` : ''}`
+    case 'reference': {
+      const prefix = t.external ? '?' : ''
+      return `${prefix}${t.name}${t.typeArguments?.length ? `<${t.typeArguments.map(printType).join(', ')}>` : ''}`
+    }
     case 'union':
       return t.types.map(printType).join(' | ')
     case 'intersection':
@@ -179,20 +179,11 @@ const printIndexSignature = (sig: T.IndexSignature): string =>
 
 // ---------------- Export shape helpers ----------------
 
-type ExportForm = { kind: 'all' } | { kind: 'namespace'; as: string } | { kind: 'named'; named: T.NamedExport[] }
-
-const exportForm = (exp: T.ReExport): ExportForm => {
-  if (exp.named.length) return { kind: 'named', named: exp.named }
-  if (exp.as) return { kind: 'namespace', as: exp.as }
-  return { kind: 'all' }
-}
-
 const printExport = (exp: T.ReExport): string => {
-  const form = exportForm(exp)
   const from = `from ${JSON.stringify(exp.sourceModule)}`
-  if (form.kind === 'all') return `re-export * ${from}`
-  if (form.kind === 'namespace') return `re-export * as ${form.as} ${from}`
-  const items = form.named.map((n) => (n.as ? `${n.name} as ${n.as}` : n.name)).join(', ')
+  if (exp.form === 'all') return `re-export * ${from}`
+  if (exp.form === 'namespace') return `re-export * as ${exp.as} ${from}`
+  const items = exp.named.map((n) => (n.as ? `${n.name} as ${n.as}` : n.name)).join(', ')
   return `re-export { ${items} } ${from}`
 }
 
@@ -235,11 +226,10 @@ const writeFollowExport = (
   if (!target) return writeLine(write, depth, '(unresolved)')
   const key = `${modulePath.label(owner)}=>${modulePath.label(target)}`
   if (seen.has(key)) return writeLine(write, depth, '(cycle)')
-  const form = exportForm(exp)
 
-  if (form.kind === 'named') {
+  if (exp.form === 'named') {
     const named = namedChildren(target)
-    for (const entry of form.named) {
+    for (const entry of exp.named) {
       const decl = named.get(entry.name)
       if (decl) writeDeclaration(decl, depth, ctx, write)
       else writeLine(write, depth, `(missing ${entry.name})`)
@@ -247,7 +237,7 @@ const writeFollowExport = (
     return
   }
 
-  writeLine(write, depth, form.kind === 'namespace' ? `namespace ${form.as}` : `from ${modulePath.label(target)}`)
+  writeLine(write, depth, exp.form === 'namespace' ? `namespace ${exp.as}` : `from ${modulePath.label(target)}`)
   seen.add(key)
   try {
     for (const child of target.children) {

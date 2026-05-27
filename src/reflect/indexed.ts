@@ -133,20 +133,25 @@ export interface TypeAlias extends T.TypeAlias<Registry>, WithQuery<DeclarationQ
   readonly target?: T.AnyDeclaration<Registry>
 }
 
-export interface ReExport extends T.ReExport<Registry>, WithQuery<DeclarationQueries> {
-  /**
-   * Resolved declarations this re-export surfaces. For `export *`, every
-   * exported declaration from the source module. For `export { a, b }`,
-   * just `a` and `b`. Empty when the source module is external (not in
-   * the project) or resolution failed.
-   */
-  readonly targets: ReadonlyArray<T.AnyDeclaration<Registry>>
+/**
+ * One indexed re-export per discriminated form. The base shape is the
+ * scanned `ReExport`; the indexed view adds resolved `targets` and an
+ * optional `sourceModuleRef` pointing at the in-project source module.
+ */
+export type ReExport = ReExportAll | ReExportNamespace | ReExportNamed
 
-  /**
-   * Resolved source module when the source resolves to an in-project module.
-   * Undefined for external modules ('node:fs', 'react', etc.). Replaces the
-   * path-heuristic resolution in `debug.ts`.
-   */
+export interface ReExportAll extends T.ReExportAll<Registry>, WithQuery<DeclarationQueries> {
+  readonly targets: ReadonlyArray<T.AnyDeclaration<Registry>>
+  readonly sourceModuleRef?: Module
+}
+
+export interface ReExportNamespace extends T.ReExportNamespace<Registry>, WithQuery<DeclarationQueries> {
+  readonly targets: ReadonlyArray<T.AnyDeclaration<Registry>>
+  readonly sourceModuleRef?: Module
+}
+
+export interface ReExportNamed extends T.ReExportNamed<Registry>, WithQuery<DeclarationQueries> {
+  readonly targets: ReadonlyArray<T.AnyDeclaration<Registry>>
   readonly sourceModuleRef?: Module
 }
 
@@ -161,7 +166,7 @@ export interface Reference extends T.ReferenceType<Registry>, WithQuery<Referenc
 }
 
 export type Source = T.Source
-export type Flags = T.Flags
+export type Routable = T.Routable
 export type NamedExport = T.NamedExport
 export type Variable = T.Variable<Registry>
 export type Func = T.Func<Registry>
@@ -178,7 +183,6 @@ export type TypeParameter = T.TypeParameter<Registry>
 export type IntrinsicType = T.IntrinsicType
 export type LiteralType = T.LiteralType
 export type ReferenceType = T.ReferenceType<Registry>
-export type UnresolvedType = T.UnresolvedType<Registry>
 export type UnionType = T.UnionType<Registry>
 export type IntersectionType = T.IntersectionType<Registry>
 export type ArrayType = T.ArrayType<Registry>
@@ -193,22 +197,37 @@ export type Comment = T.Comment<Registry>
 export type CommentTag = T.CommentTag<Registry>
 export type CommentTagMap = T.CommentTagMap<Registry>
 export type CommentPart = T.CommentPart
+
 // ============================================================================
 // PROJECT HANDLE
 // ============================================================================
 
 /**
  * Global indexes exposed at the project level. Forward indexes
- * (`declarationsById`) are built eagerly; reverse indexes
- * (`allReferences`, the maps backing `$.referencedBy()` etc.) are built
- * lazily on first reverse query and cached for the lifetime of the project.
- *
- * The project itself is a `Module`-container, same as in the base registry,
- * but with `Module` children and the global maps attached.
+ * (`declarationsById`, `slugById`, `idBySlug`, `qualifiedNameById`) are
+ * built eagerly from the precomputed naming fields. Reverse indexes
+ * (`allReferences`, `slugByName`, the maps backing `$.referencedBy()` etc.)
+ * are built lazily on first access and cached for the lifetime of the
+ * project.
  */
 export interface Indexed {
   /** Every declaration in the project keyed by its reflection id. */
   readonly declarationsById: ReadonlyMap<number, T.AnyDeclaration<Registry>>
+
+  /** Slug → id. */
+  readonly idBySlug: ReadonlyMap<string, number>
+
+  /** Id → slug. Same data, indexed in the more common direction. */
+  readonly slugById: ReadonlyMap<number, string>
+
+  /** Id → fully qualified dotted name (`models.User`, `Foo.Inner.Bar`). */
+  readonly qualifiedNameById: ReadonlyMap<number, string>
+
+  /**
+   * Bare or qualified name → slug. Built lazily; bare-name entries resolve
+   * to the shallowest matching declaration.
+   */
+  readonly slugByName: ReadonlyMap<string, string>
 
   /**
    * Every `reference` type in the project, in walk order. Cheap to expose
@@ -252,6 +271,9 @@ export const build = (modules: T.Module<resolve.Registry>[]): Indexed => {
   const state: State = {
     proj,
     declarationsById: new Map(),
+    idBySlug: new Map(),
+    slugById: new Map(),
+    qualifiedNameById: new Map(),
     allReferences: [],
     topModules: [],
     topModulesByLabel: new Map(),
@@ -278,6 +300,9 @@ type AnyDecl = T.AnyDeclaration<Registry>
 interface State {
   proj: Indexed
   declarationsById: Map<number, AnyDecl>
+  idBySlug: Map<string, number>
+  slugById: Map<number, string>
+  qualifiedNameById: Map<number, string>
   allReferences: Reference[]
   topModules: Module[]
   topModulesByLabel: Map<string, Module>
@@ -287,6 +312,7 @@ interface State {
   importedBy?: Map<number, ReExport[]>
   refById?: Map<number, Reference>
   declByQName?: Map<string, AnyDecl>
+  slugByName?: Map<string, string>
 }
 
 /** Attach a hidden field — invisible to JSON, but stable for reads. */
@@ -303,7 +329,7 @@ const idOf = (d: AnyDecl): number => (d as T.Base<any>).id
 // ============================================================================
 
 const indexModule = (mod: Module, parent: Module | undefined, state: State): void => {
-  state.declarationsById.set(mod.id, mod)
+  registerRoutable(mod, state)
   hide(mod, 'project', state.proj)
   if (parent) hide(mod, 'parentModule', parent)
   hide(mod, '$', makeModuleQueries(mod, state))
@@ -312,7 +338,7 @@ const indexModule = (mod: Module, parent: Module | undefined, state: State): voi
 
 const indexChild = (decl: AnyDecl, mod: Module, state: State): void => {
   if (decl.kind === 'module') return indexModule(decl, mod, state)
-  state.declarationsById.set(idOf(decl), decl)
+  registerRoutable(decl, state)
   hide(decl, '$', makeDeclarationQueries(decl, mod, state))
   walk.Declaration(decl as T.AnyDeclaration, {
     onReference: (ref) => {
@@ -324,6 +350,17 @@ const indexChild = (decl: AnyDecl, mod: Module, state: State): void => {
       // Re-export resolution happens in `resolveReExport` once $.module is set.
     },
   })
+}
+
+const registerRoutable = (decl: AnyDecl, state: State): void => {
+  state.declarationsById.set(idOf(decl), decl)
+  const slug = (decl as { slug?: string }).slug
+  const qn = (decl as { qualifiedName?: string }).qualifiedName
+  if (slug) {
+    state.slugById.set(idOf(decl), slug)
+    state.idBySlug.set(slug, idOf(decl))
+  }
+  if (qn) state.qualifiedNameById.set(idOf(decl), qn)
 }
 
 // ============================================================================
@@ -429,9 +466,6 @@ const importedByMap = (state: State): Map<number, ReExport[]> => {
  * Per-module name → declaration map. Local children are keyed by their own
  * name; re-exported names by their external alias (the `as` in
  * `export { foo as bar }`, or the target's own name for `export *`).
- *
- * Named entries are matched to targets by declaration name rather than by
- * index because `idsForNamedExport` dedupes and skips unresolved entries.
  */
 const moduleDeclByName = (mod: Module, state: State): Map<string, AnyDecl> => {
   const cached = state.declByName.get(mod.id)
@@ -439,7 +473,7 @@ const moduleDeclByName = (mod: Module, state: State): Map<string, AnyDecl> => {
   const map = new Map<string, AnyDecl>()
   for (const child of mod.children) {
     if (child.kind === 're-export') {
-      if (child.named.length) {
+      if (child.form === 'named') {
         for (const entry of child.named) {
           const target = child.targets.find((t) => (t as { name?: string }).name === entry.name)
           if (target) map.set(entry.as ?? entry.name, target)
@@ -468,11 +502,19 @@ const moduleDeclByName = (mod: Module, state: State): Map<string, AnyDecl> => {
 const attachProjectMethods = (state: State): void => {
   const p = state.proj
   hide(p, 'declarationsById', state.declarationsById)
+  hide(p, 'slugById', state.slugById)
+  hide(p, 'idBySlug', state.idBySlug)
+  hide(p, 'qualifiedNameById', state.qualifiedNameById)
   hide(p, 'allReferences', state.allReferences)
   hide(p, 'modules', () => state.topModules)
   hide(p, 'declarationById', (id: number) => state.declarationsById.get(id))
   hide(p, 'referenceById', (id: number) => refByIdMap(state).get(id))
   hide(p, 'declarationByQualifiedName', (name: string) => declByQNameMap(state).get(name))
+  Object.defineProperty(p, 'slugByName', {
+    get: () => slugByNameMap(state),
+    enumerable: false,
+    configurable: true,
+  })
 }
 
 const refByIdMap = (state: State): Map<number, Reference> => {
@@ -480,6 +522,29 @@ const refByIdMap = (state: State): Map<number, Reference> => {
   const map = new Map<number, Reference>()
   for (const ref of state.allReferences) map.set(ref.id, ref)
   return (state.refById = map)
+}
+
+/**
+ * `name` → slug, with bare-name fallback. Bare names resolve to the
+ * shallowest matching declaration so that `{@link Foo}` from any context
+ * lands on the obvious target.
+ */
+const slugByNameMap = (state: State): Map<string, string> => {
+  if (state.slugByName) return state.slugByName
+  const map = new Map<string, string>()
+  const bare: { name: string; depth: number; slug: string }[] = []
+  for (const decl of state.declarationsById.values()) {
+    const slug = state.slugById.get(idOf(decl))
+    if (!slug) continue
+    const name = (decl as { name?: string }).name
+    if (!name) continue
+    const qn = state.qualifiedNameById.get(idOf(decl)) ?? name
+    map.set(qn, slug)
+    bare.push({ name, depth: qn.split('.').length, slug })
+  }
+  bare.sort((a, b) => a.depth - b.depth)
+  for (const { name, slug } of bare) if (!map.has(name)) map.set(name, slug)
+  return (state.slugByName = map)
 }
 
 /**

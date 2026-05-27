@@ -1,5 +1,6 @@
 import ts from 'typescript'
 
+import * as scan from './scan.ts'
 import type { Result } from './scan.ts'
 import type * as T from './types.ts'
 import * as walk from './walk.ts'
@@ -15,20 +16,22 @@ export interface Registry extends T.TypeRegistry {
 }
 
 export interface DeclarationMap extends T.DeclarationMap<Registry> {
-  'type-alias': T.TypeAlias<Registry> & { targetId: number }
-  're-export': T.ReExport & { ids: number[] }
+  're-export': T.ReExport<Registry> & { ids: number[] }
 }
 export type Declaration = T.AnyDeclaration<Registry>
 
 export interface TypeMap extends T.TypeMap<Registry> {
-  reference: T.ReferenceType<Registry> & { targetId: number }
+  reference: T.ReferenceType<Registry> & { targetId?: number }
 }
 export type Type = T.AnyType<Registry>
 
 export type Source = T.Source
-export type Flags = T.Flags
+export type Routable = T.Routable
 export type Module = T.Module<Registry>
 export type ReExport = T.ReExport<Registry>
+export type ReExportAll = T.ReExportAll<Registry>
+export type ReExportNamespace = T.ReExportNamespace<Registry>
+export type ReExportNamed = T.ReExportNamed<Registry>
 export type NamedExport = T.NamedExport
 export type Variable = T.Variable<Registry>
 export type Func = T.Func<Registry>
@@ -46,7 +49,6 @@ export type TypeParameter = T.TypeParameter<Registry>
 export type IntrinsicType = T.IntrinsicType
 export type LiteralType = T.LiteralType
 export type ReferenceType = T.ReferenceType<Registry>
-export type UnresolvedType = T.UnresolvedType<Registry>
 export type UnionType = T.UnionType<Registry>
 export type IntersectionType = T.IntersectionType<Registry>
 export type ArrayType = T.ArrayType<Registry>
@@ -62,22 +64,17 @@ export type CommentTag = T.CommentTag<Registry>
 export type CommentPart = T.CommentPart
 
 /**
- * Information the first pass must record so the second pass can resolve names
- * to declaration ids via the checker. Keyed by reflection id.
+ * Scan + resolve in one call. Hides the internal scan `Result` from public
+ * consumers — only the resolved module tree leaves the boundary.
  */
-export interface ResolverContext {
-  checker: ts.TypeChecker
-  /** For each declaration id, the symbol it came from. */
-  symbolsById: Map<number, ts.Symbol>
-  /** For each reference id, the node it was generated from. */
-  referenceOrigins: Map<number, ts.Node>
-  /** For each `Export` declaration, the `ExportDeclaration` it came from. */
-  exportOrigins: Map<T.ReExport, ts.Node>
-}
+export const run = (rootFiles: string[], options: scan.Options): T.Module<Registry>[] =>
+  generation(scan.files(rootFiles, options))
 
 /**
  * Walk the project and populate `targetId` on every `ReferenceType`, and `ids`
- * on every `Export`, whose declarations we know about. Mutates in place.
+ * on every `ReExport`, whose declarations we know about. References that
+ * can't be resolved in-project are tagged with `external` (`stdlib`,
+ * `package`, or `anonymous`). Mutates in place.
  */
 export const generation = (generation: Result): T.Module<Registry>[] => {
   const { children, context: ctx } = generation
@@ -100,13 +97,23 @@ export const generation = (generation: Result): T.Module<Registry>[] => {
 
   const resolveRef = (ref: T.ReferenceType): void => {
     const r = ref as T.ReferenceType & { targetId?: number }
-    if (r.targetId !== undefined) return
+    if (r.targetId !== undefined || r.external) return
     const origin = ctx.referenceOrigins.get(ref.id)
-    if (!origin) return
+    if (!origin) {
+      r.external = 'anonymous'
+      return
+    }
     const sym = symbolAt(origin, ref.name, ctx.checker)
-    if (!sym) return
+    if (!sym) {
+      r.external = 'anonymous'
+      return
+    }
     const [first] = idsForSymbol(sym)
-    if (first !== undefined) r.targetId = first
+    if (first !== undefined) {
+      r.targetId = first
+      return
+    }
+    r.external = classifySymbol(sym)
   }
 
   const resolveExport = (exp: T.ReExport): void => {
@@ -114,10 +121,11 @@ export const generation = (generation: Result): T.Module<Registry>[] => {
     if (e.ids !== undefined) return
     const origin = ctx.exportOrigins.get(exp)
     if (!origin) return
-    const ids = exp.named.length
-      ? idsForNamedExport(exp, origin, ctx.checker, idsForSymbol)
-      : idsForStarExport(origin, ctx.checker, idsForSymbol)
-    if (ids.length) e.ids = ids
+    const ids =
+      exp.form === 'named'
+        ? idsForNamedExport(exp, origin, ctx.checker, idsForSymbol)
+        : idsForStarExport(origin, ctx.checker, idsForSymbol)
+    e.ids = ids
   }
 
   children.forEach((c) => walk.Declaration(c, { onReference: resolveRef, onReExport: resolveExport }))
@@ -131,7 +139,7 @@ export const generation = (generation: Result): T.Module<Registry>[] => {
 
 /** `export { a, b as c } from './x'` — resolve each named entry via the source clause. */
 const idsForNamedExport = (
-  exp: T.ReExport,
+  exp: T.ReExportNamed,
   origin: ts.Node,
   checker: ts.TypeChecker,
   idsForSymbol: (s: ts.Symbol) => number[],
@@ -181,4 +189,20 @@ const symbolAt = (origin: ts.Node, name: string, checker: ts.TypeChecker): ts.Sy
   const root = name.split('.')[0]
   const inScope = checker.getSymbolsInScope(origin, ts.SymbolFlags.Type | ts.SymbolFlags.Value)
   return inScope.find((s) => s.getName() === root)
+}
+
+/**
+ * Bucket an external symbol into the schema's `external` taxonomy by its
+ * declaration file path. The renderer uses this to style references — e.g.
+ * grey-out `stdlib`, prepend `?` for `anonymous`.
+ */
+const classifySymbol = (sym: ts.Symbol): NonNullable<T.ReferenceType['external']> => {
+  const decl = sym.declarations?.[0]
+  if (!decl) return 'anonymous'
+  const file = decl.getSourceFile().fileName
+  if (/[\\/]node_modules[\\/]typescript[\\/]lib[\\/]/.test(file) || /[\\/]lib\.[^\\/]+\.d\.ts$/.test(file)) {
+    return 'stdlib'
+  }
+  if (file.includes('/node_modules/') || file.includes('\\node_modules\\')) return 'package'
+  return 'anonymous'
 }

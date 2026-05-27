@@ -34,7 +34,7 @@ export const Function = (n: T.Func, v: Visitor): void => n.signatures.forEach((s
 
 export const Class = (n: T.Class, v: Visitor): void => {
   n.typeParameters?.forEach((tp) => TypeParameter(tp, v))
-  if (n.extends) Type(n.extends, v)
+  n.extends?.forEach((t) => Type(t, v))
   n.implements?.forEach((t) => Type(t, v))
   n.constructors.forEach((s) => Signature(s, v))
   n.properties.forEach((p) => Property(p, v))
@@ -97,8 +97,6 @@ export const Type = (t: T.AnyType, v: Visitor): void => {
       v.onReference(t)
       t.typeArguments?.forEach((a) => Type(a, v))
       return
-    case 'unresolved':
-      return t.typeArguments?.forEach((a) => Type(a, v))
     case 'union':
     case 'intersection':
       return t.types.forEach((x) => Type(x, v))

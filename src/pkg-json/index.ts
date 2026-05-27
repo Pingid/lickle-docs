@@ -1,9 +1,22 @@
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
 
-export const find = (_searchPath: string = process.cwd()): string | undefined => {
-  return 'package.json'
+/**
+ * Walk parent directories starting at `searchPath` and return the path to
+ * the nearest `package.json`, or undefined if none exists up to the
+ * filesystem root.
+ */
+export const find = (searchPath: string = process.cwd()): string | undefined => {
+  let dir = path.resolve(searchPath)
+  while (true) {
+    const candidate = path.join(dir, 'package.json')
+    if (existsSync(candidate)) return candidate
+    const parent = path.dirname(dir)
+    if (parent === dir) return undefined
+    dir = parent
+  }
 }
 
 export const read = async (configPath: string): Promise<PackageJson> => {
@@ -20,32 +33,56 @@ export type PackageJson = {
   main?: string
   module?: string
   types?: string
-  exports?: { [key: string]: { types?: string; import?: string; require?: string } }
+  exports?: { [key: string]: ConditionalSubpath }
 }
 
-// I am getting
-// { name: '.', path: '/Users/dan/code/lickle-rx/lib/ts/index.d.ts' },
-// { name: './*', path: '/Users/dan/code/lickle-rx/lib/ts/*.d.ts' }
+export type ConditionalSubpath = { types?: string; import?: string; require?: string }
 
-// but i want all resolved exports
+export interface ExportEntry {
+  name: string
+  /** Absolute paths for each conditional that the manifest specified. */
+  candidates: ConditionalSubpath
+}
 
-export const exports = async function* (dir: string, json: PackageJson) {
-  const resolveExport = async function* (name: string, pth: string) {
-    const relativePattern = pth.replace(/^\.\//, '')
-    if (!relativePattern.includes('*')) yield { name, path: path.resolve(dir, relativePattern) }
-    else {
-      for await (const item of fg.globStream(relativePattern, { cwd: dir })) {
-        const entry = item.toString()
-        const subPath = entry.substring(relativePattern.indexOf('*'))
-        const resolvedName = name.replace('*', subPath.replace(path.extname(subPath), ''))
-        yield { name: resolvedName, path: entry }
-      }
+/**
+ * Walk every entry in `package.json#exports`, expanding wildcards. Each
+ * match yields one `ExportEntry` whose `candidates` carries the resolved
+ * absolute path for each conditional subpath the manifest declared.
+ *
+ * The caller picks which conditional to consume — see `pickEntry` in the
+ * project builder.
+ */
+export const exports = async function* (dir: string, json: PackageJson): AsyncGenerator<ExportEntry> {
+  for (const [name, sub] of Object.entries(json.exports || {})) {
+    const primary = sub.import ?? sub.require ?? sub.types
+    if (!primary) continue
+    const primaryPattern = primary.replace(/^\.\//, '')
+    if (!primaryPattern.includes('*')) {
+      yield { name, candidates: resolveCandidates(sub, dir, undefined) }
+      continue
+    }
+    for await (const match of fg.globStream(primaryPattern, { cwd: dir })) {
+      const entry = match.toString()
+      const subPath = entry.substring(primaryPattern.indexOf('*'))
+      const stem = subPath.replace(/\.[^./]+$/, '')
+      const resolvedName = name.replace('*', stem)
+      yield { name: resolvedName, candidates: resolveCandidates(sub, dir, stem) }
     }
   }
+}
 
-  for (const [name, path] of Object.entries(json.exports || {})) {
-    const p = path.import ?? path.require ?? path.types
-    if (!p) continue
-    yield* resolveExport(name, p)
+const resolveCandidates = (
+  sub: ConditionalSubpath,
+  dir: string,
+  wildcardStem: string | undefined,
+): ConditionalSubpath => {
+  const out: ConditionalSubpath = {}
+  for (const cond of ['types', 'import', 'require'] as const) {
+    const pat = sub[cond]
+    if (!pat) continue
+    const rel = pat.replace(/^\.\//, '')
+    const filled = wildcardStem !== undefined ? rel.replace('*', wildcardStem) : rel
+    out[cond] = path.resolve(dir, filled)
   }
+  return out
 }

@@ -19,15 +19,14 @@ export interface DeclarationMap<T extends TypeRegistry> {
   class: Class<T>
   interface: Interface<T>
   'type-alias': TypeAlias<T>
-  enum: Enum
-  're-export': ReExport
+  enum: Enum<T>
+  're-export': ReExport<T>
 }
 
 export type TypeMap<T extends TypeRegistry> = {
   intrinsic: IntrinsicType
   literal: LiteralType
   reference: ReferenceType<T>
-  unresolved: UnresolvedType<T>
   union: UnionType<T>
   intersection: IntersectionType<T>
   array: ArrayType<T>
@@ -46,8 +45,6 @@ export interface Base<T extends TypeRegistry = Registry> {
   comment?: Comment<T>
   /** All source locations contributing to this reflection. */
   sources?: Source[]
-  /** Modifiers that may apply to many reflection kinds. */
-  flags?: Flags
 }
 
 export interface Source {
@@ -56,27 +53,56 @@ export interface Source {
   column: number
 }
 
-export interface Flags {
-  readonly?: boolean
-  static?: boolean
-  abstract?: boolean
-  async?: boolean
-  optional?: boolean
-  visibility?: 'public' | 'protected' | 'private'
+/**
+ * Stamped onto every routable declaration during the JSON build pass. Lets
+ * the client treat slugs, qualified names, and display names as data instead
+ * of recomputing them at render time.
+ */
+export interface Routable {
+  /** Stable, collision-free URL slug. */
+  slug: string
+  /** Dotted qualified name, e.g. `models.User`, `foo.Inner.Bar`. */
+  qualifiedName: string
+  /** Friendly display name — `User` even when the source name is `index`. */
+  displayName: string
 }
 
 // ---------------- declarations ----------------
-export interface Module<T extends TypeRegistry = Registry> extends Base<T> {
+export interface Module<T extends TypeRegistry = Registry> extends Base<T>, Routable {
   kind: 'module'
   path?: string
   name?: string
   children: AnyDeclaration<T>[]
 }
 
-export interface ReExport<T extends TypeRegistry = Registry> extends Base<T> {
+/**
+ * `export … from '…'` re-export. Three syntactic forms, distinguished by `form`:
+ *   - `export * from 'x'`         → `{ form: 'all' }`
+ *   - `export * as foo from 'x'`  → `{ form: 'namespace', as: 'foo' }`
+ *   - `export { a, b as c } …`    → `{ form: 'named', named: [...] }`
+ */
+export type ReExport<T extends TypeRegistry = Registry> =
+  | ReExportAll<T>
+  | ReExportNamespace<T>
+  | ReExportNamed<T>
+
+export interface ReExportAll<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 're-export'
+  form: 'all'
   sourceModule: string
-  as?: string
+}
+
+export interface ReExportNamespace<T extends TypeRegistry = Registry> extends Base<T> {
+  kind: 're-export'
+  form: 'namespace'
+  sourceModule: string
+  as: string
+}
+
+export interface ReExportNamed<T extends TypeRegistry = Registry> extends Base<T> {
+  kind: 're-export'
+  form: 'named'
+  sourceModule: string
   named: NamedExport[]
 }
 
@@ -85,25 +111,26 @@ export interface NamedExport {
   as?: string
 }
 
-export interface Variable<T extends TypeRegistry = Registry> extends Base<T> {
+export interface Variable<T extends TypeRegistry = Registry> extends Base<T>, Routable {
   kind: 'variable'
   type: AnyType<T>
   name: string
   defaultValue?: string
 }
 
-export interface Func<T extends TypeRegistry = Registry> extends Base<T> {
+export interface Func<T extends TypeRegistry = Registry> extends Base<T>, Routable {
   kind: 'function'
   name: string
   /** Multiple entries represent overloads; each carries its own comment. */
   signatures: Signature<T>[]
 }
 
-export interface Class<T extends TypeRegistry = Registry> extends Base<T> {
+export interface Class<T extends TypeRegistry = Registry> extends Base<T>, Routable {
   kind: 'class'
   name: string
   typeParameters?: TypeParameter<T>[]
-  extends?: AnyType<T>
+  /** Class can extend at most one base, but the array shape matches `Interface`. */
+  extends?: AnyType<T>[]
   implements?: AnyType<T>[]
   constructors: Signature<T>[]
   properties: Property<T>[]
@@ -111,7 +138,7 @@ export interface Class<T extends TypeRegistry = Registry> extends Base<T> {
   indexSignature?: IndexSignature<T>
 }
 
-export interface Interface<T extends TypeRegistry = Registry> extends Base<T> {
+export interface Interface<T extends TypeRegistry = Registry> extends Base<T>, Routable {
   kind: 'interface'
   name: string
   typeParameters?: TypeParameter<T>[]
@@ -123,19 +150,20 @@ export interface Interface<T extends TypeRegistry = Registry> extends Base<T> {
   indexSignature?: IndexSignature<T>
 }
 
-export interface TypeAlias<T extends TypeRegistry = Registry> extends Base<T> {
+export interface TypeAlias<T extends TypeRegistry = Registry> extends Base<T>, Routable {
   kind: 'type-alias'
   name: string
   typeParameters?: TypeParameter<T>[]
   type: AnyType<T>
 }
 
-export interface Enum<T extends TypeRegistry = Registry> extends Base<T> {
+export interface Enum<T extends TypeRegistry = Registry> extends Base<T>, Routable {
   kind: 'enum'
   name: string
   const?: boolean
-  members: EnumMember[]
+  members: EnumMember<T>[]
 }
+
 export interface EnumMember<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 'enum-member'
   name: string
@@ -148,6 +176,7 @@ export interface Property<T extends TypeRegistry = Registry> extends Base<T> {
   name: string
   type: AnyType<T>
   defaultValue?: string
+  optional?: boolean
 }
 
 export interface Method<T extends TypeRegistry = Registry> extends Base<T> {
@@ -211,23 +240,24 @@ export interface LiteralType {
   value: string | number | boolean | bigint | null
 }
 
+/**
+ * A type referring to another declaration by id. When the target lives in the
+ * project, the resolver populates an `id` that points at it. When the target
+ * is outside the project, `external` classifies the source so the renderer
+ * can style it (greyed out, no link, etc.).
+ */
 export interface ReferenceType<T extends TypeRegistry = Registry> {
   kind: 'reference'
   id: number
   name: string
   typeArguments?: AnyType<T>[]
-}
-
-/**
- * A type the resolver cannot link to a project declaration — typically an
- * inferred or anonymous type whose symbol has no source location we crawled
- * (e.g. lib.d.ts internals, intrinsic conditional results). Kept as a
- * name-only marker so consumers don't mistake it for a resolvable reference.
- */
-export interface UnresolvedType<T extends TypeRegistry = Registry> {
-  kind: 'unresolved'
-  name: string
-  typeArguments?: AnyType<T>[]
+  /**
+   * Set when this reference cannot resolve to an in-project declaration.
+   *   - `stdlib`: lib.d.ts (e.g. `Array`, `Promise`)
+   *   - `package`: an installed dependency (`node_modules`)
+   *   - `anonymous`: an inferred or otherwise unlocatable symbol
+   */
+  external?: 'stdlib' | 'package' | 'anonymous'
 }
 
 export interface UnionType<T extends TypeRegistry = Registry> {
@@ -288,12 +318,15 @@ export interface ObjectLiteral<T extends TypeRegistry = Registry> extends Base<T
 }
 
 // ---------------- COMMENTS ----------------
+/**
+ * Doc comments are always emitted in structured form. The renderer flattens
+ * `parts` into markdown when needed, resolving `{@link …}` targets through
+ * the project's slug index.
+ */
 export interface Comment<T extends TypeRegistry = Registry> {
-  /** Flat text of the comment body. Inline links are rendered as their display text. */
-  text: string
-  /** Structured body — present only when the comment contains inline `{@link …}` references. */
-  parts?: CommentPart[]
-  tags: CommentTag<T>[]
+  parts: CommentPart[]
+  /** Block tags. Omitted when empty so the common case stays small. */
+  tags?: CommentTag<T>[]
 }
 
 export type CommentPart =
