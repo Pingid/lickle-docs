@@ -1,5 +1,8 @@
 export { render } from 'solid-js/web'
 
+// ---------------- Schema types ----------------
+export type * from '../core/client.ts'
+
 // ---------------- Data layer ----------------
 export { ProjectProvider, ReflectionScope, useProject, useReflectionId, type ProjectBag } from './context/project.js'
 export {

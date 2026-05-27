@@ -9,18 +9,18 @@
   },
   "license": "MIT",
   "type": "module",
-  "main": "dist/index.cjs",
-  "types": "dist/index.d.mts",
-  "module": "dist/index.mjs",
+  "main": "dist/ui/index.cjs",
+  "types": "dist/ui/index.d.mts",
+  "module": "dist/ui/index.mjs",
   "sideEffects": false,
   "bin": {
     "ldocs": "./src/cli.ts"
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
+      "types": "./dist/ui/index.d.mts",
+      "import": "./dist/ui/index.mjs",
+      "require": "./dist/ui/index.cjs"
     }
   },
   "scripts": {
@@ -46,9 +46,15 @@
     "trailingComma": "all"
   },
   "dependencies": {
+    "@orama/orama": "^3.1.18",
+    "@solidjs/router": "^0.16.1",
     "cmd-ts": "^0.15.0",
+    "codejar": "^4.3.0",
     "fast-glob": "^3.3.3",
+    "marked": "^18.0.4",
     "micromatch": "^4.0.8",
+    "shiki": "^4.1.0",
+    "solid-js": "^1.9.13",
     "typedoc": "^0.28.19",
     "unbuild": "^3.6.1",
     "vite": "^8.0.14"

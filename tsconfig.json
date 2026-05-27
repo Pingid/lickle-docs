@@ -4,6 +4,8 @@
     "target": "es2022",
     "lib": ["DOM", "ESNext"],
     "types": ["node"],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
 
     /* Emit */
     /* Modules */
