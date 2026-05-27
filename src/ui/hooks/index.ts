@@ -1,11 +1,11 @@
 import { createMemo, type Accessor } from 'solid-js'
-import type * as docs from '../../core/client.ts'
+import * as docs from '../../core/client.ts'
 
-import { useProject, type ProjectBag } from '../context/project.js'
-import { isRoutable } from '../util/kind.js'
-import { commentSummaryText } from '../components/Comment.js'
 import { createSearchEngine, type SearchEngine } from '../util/search.js'
-import type { NavGroup, NavItem } from '../util/project.js'
+import { useProject, type ProjectBag } from '../context/project.js'
+import type { NavGroup, NavItem } from '../strategies/index.js'
+import { commentSummaryText } from '../util/comment.js'
+import { isRoutable } from '../util/kind.js'
 
 // ============================================================================
 // SELECTOR HOOKS
@@ -74,19 +74,19 @@ export const useReferences = (id: () => number): Accessor<ReferenceRow[]> => {
 const buildReferenceRows = (project: docs.Project, id: number): ReferenceRow[] => {
   const target = project.declarationsById.get(id)
   if (!target) return []
-  const queries = (target as { $?: { referencedBy?: () => Iterable<docs.Reference> } }).$
-  if (!queries?.referencedBy) return []
+  const referencedBy = docs.queriesOf(target)?.referencedBy
+  if (!referencedBy) return []
 
   const seen = new Set<number>()
   const out: ReferenceRow[] = []
-  for (const ref of queries.referencedBy()) {
+  for (const ref of referencedBy()) {
     const ancestor = routableAncestor(ref.$.enclosingDeclaration)
     if (!ancestor || ancestor.id === id) continue
     if (seen.has(ancestor.id)) continue
     seen.add(ancestor.id)
     const slug = project.slugById.get(ancestor.id)
     if (!slug) continue
-    const name = (ancestor as { name?: string }).name ?? ''
+    const name = docs.nameOf(ancestor)
     const qualified = project.qualifiedNameById.get(ancestor.id) ?? name
     const dot = qualified.lastIndexOf('.')
     out.push({
@@ -110,7 +110,7 @@ const routableAncestor = (decl: docs.Declaration): docs.Declaration | undefined 
   let cur: docs.Declaration | undefined = decl
   while (cur) {
     if (isRoutable(cur.kind)) return cur
-    cur = (cur as { $?: { module?: docs.Module } }).$?.module
+    cur = docs.queriesOf(cur)?.module
   }
   return undefined
 }

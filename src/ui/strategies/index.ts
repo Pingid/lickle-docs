@@ -1,6 +1,6 @@
-import type * as docs from '../../core/client.ts'
+import * as docs from '../../core/client.ts'
 
-import { isRoutable, pluralLabel, groupOrder, type Kind } from './kind.js'
+import { isRoutable, pluralLabel, groupOrder, type Kind } from '../util/kind.js'
 
 export type NavItem = {
   id: number
@@ -38,11 +38,7 @@ export const routables = (project: docs.Project): docs.Declaration[] => {
   return out
 }
 
-const compareNames = (a: docs.Declaration, b: docs.Declaration): number => {
-  const an = (a as { name?: string }).name ?? ''
-  const bn = (b as { name?: string }).name ?? ''
-  return an.localeCompare(bn)
-}
+const compareNames = (a: docs.Declaration, b: docs.Declaration): number => docs.nameOf(a).localeCompare(docs.nameOf(b))
 
 /**
  * Translate a precomputed surface item into a `NavItem` for rendering.
@@ -56,10 +52,10 @@ const itemFor = (project: docs.Project, surfaceItem: { id: number; kind: string 
   if (!slug) return undefined
   return {
     id: decl.id,
-    name: (decl as { displayName?: string; name?: string }).displayName ?? (decl as { name?: string }).name ?? '',
+    name: docs.displayNameOf(decl),
     kind: surfaceItem.kind as Kind,
     slug,
-    comment: (decl as { comment?: docs.Comment }).comment,
+    comment: decl.comment,
   }
 }
 
@@ -159,9 +155,8 @@ export const ancestors = (project: docs.Project, id: number): docs.Declaration[]
   const target = project.declarationsById.get(id)
   if (!target) return []
   const out: docs.Declaration[] = [target]
-  const moduleOf = (decl: docs.Declaration): docs.Module | undefined =>
-    (decl as { $?: { module?: docs.Module } }).$?.module
-  let cur: docs.Module | undefined = target.kind === 'module' ? target.parentModule : moduleOf(target)
+  let cur: docs.Module | undefined =
+    target.kind === 'module' ? target.parentModule : (docs.queriesOf(target)?.module as docs.Module | undefined)
   while (cur) {
     out.unshift(cur)
     cur = cur.parentModule

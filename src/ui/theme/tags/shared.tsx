@@ -1,8 +1,8 @@
 import { Show, type JSX } from 'solid-js'
 import type * as docs from '../../../core/client.ts'
 
-import { Markdown } from '../../components/Markdown.js'
-import { Type } from '../../components/Type.js'
+import { Markdown } from '../../shared/Markdown.js'
+import { Type } from '../../primitives/Type.js'
 
 /** Markdown with top/bottom block margins trimmed — for table cells / short rows. */
 export const InlineText = (props: { source: string }) => <Markdown class="lk-md-inline" source={props.source} />

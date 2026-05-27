@@ -1,6 +1,7 @@
 export type {
   Components,
   PageComponents,
+  PageComponent,
   TagComponents,
   TagComponent,
   Slots,
@@ -9,3 +10,4 @@ export type {
   KnownTagKey,
 } from './types.js'
 export { ComponentsProvider, useComponents } from './context.js'
+export { tag, page } from './authoring.js'

@@ -52,7 +52,7 @@ export interface ExportEntry {
  * The caller picks which conditional to consume — see `pickEntry` in the
  * project builder.
  */
-export const exports = async function* (dir: string, json: PackageJson): AsyncGenerator<ExportEntry> {
+export const getExports = async function* (dir: string, json: PackageJson): AsyncGenerator<ExportEntry> {
   for (const [name, sub] of Object.entries(json.exports || {})) {
     const primary = sub.import ?? sub.require ?? sub.types
     if (!primary) continue

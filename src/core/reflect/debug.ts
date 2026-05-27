@@ -1,5 +1,5 @@
-import type * as T from './types.ts'
 import * as modulePath from './module-path.ts'
+import type * as T from './types.ts'
 
 /** Sink for streamed text output. Compatible with `(chunk) => stream.write(chunk)`. */
 export type Writer = (chunk: string) => void
@@ -42,7 +42,11 @@ const writeDeclaration = (decl: T.AnyDeclaration, depth: number, ctx: PrintConte
     case 'interface':
       return writeInterface(decl, depth, write)
     case 'type-alias':
-      return writeLine(write, depth, `type ${decl.name}${printTypeParams(decl.typeParameters)} = ${printType(decl.type)}`)
+      return writeLine(
+        write,
+        depth,
+        `type ${decl.name}${printTypeParams(decl.typeParameters)} = ${printType(decl.type)}`,
+      )
     case 'enum': {
       writeLine(write, depth, `${decl.const ? 'const enum' : 'enum'} ${decl.name}`)
       for (const m of decl.members) {

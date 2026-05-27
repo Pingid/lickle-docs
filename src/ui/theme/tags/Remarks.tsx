@@ -1,6 +1,6 @@
 import type * as docs from '../../../core/client.ts'
 
-import { Markdown } from '../../components/Markdown.js'
+import { Markdown } from '../../shared/Markdown.js'
 import { TagSection } from './shared.js'
 
 export const RemarksTag = (props: { tag: docs.CommentTag }) => (

@@ -26,6 +26,8 @@
   --color-link: #0a0a0a;
   --color-accent: #6f42c1;
   --color-code-bg: #fafafa;
+  --color-error: #c5302a;
+  --color-error-bg: rgba(197, 48, 42, 0.06);
 }
 
 :root[data-theme='dark'] {
@@ -38,6 +40,8 @@
   --color-link: #fafafa;
   --color-accent: #c4a8ff;
   --color-code-bg: #131313;
+  --color-error: #fca5a5;
+  --color-error-bg: rgba(252, 165, 165, 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -51,6 +55,8 @@
     --color-link: #fafafa;
     --color-accent: #c4a8ff;
     --color-code-bg: #131313;
+    --color-error: #fca5a5;
+    --color-error-bg: rgba(252, 165, 165, 0.08);
   }
 }
 
@@ -282,6 +288,73 @@
     padding: 0;
     margin: 0;
     border: 0;
+  }
+
+  /* Runnable `@example` — editor on top, output sandbox below, single card frame.
+     The nested `.editor` drops its own border / radius so the parent owns the surface. */
+  .lk-runnable {
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--color-bg);
+  }
+  .lk-runnable .editor {
+    border: 0;
+    border-radius: 0;
+  }
+  .lk-runnable .editor:focus-within {
+    border: 0;
+  }
+  .lk-runnable-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 12px;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-mute);
+    background: var(--color-panel);
+    border-top: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-line);
+    font-weight: 600;
+  }
+  .lk-runnable-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    color: var(--color-mute);
+    transition: color 150ms;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+  }
+  .lk-runnable-reset:hover {
+    color: var(--color-fg);
+  }
+  .lk-runnable-output {
+    padding: 14px 16px;
+    min-height: 2.75rem;
+  }
+  .lk-runnable-slot:empty {
+    display: none;
+  }
+  .lk-runnable-error {
+    padding: 10px 12px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-error);
+    background: var(--color-error-bg);
+    border-left: 2px solid var(--color-error);
+    border-radius: 4px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+  }
+  /* When both a slot render and an error coexist (handler partially succeeded
+     then threw), separate them with a little breathing room. */
+  .lk-runnable-slot:not(:empty) + .lk-runnable-error {
+    margin-top: 10px;
   }
 
   /* Compact markdown — used inside table cells and tag rows so a single

@@ -57,8 +57,7 @@ const normalize = (name: string): string =>
 
 // ---------------- Path primitives (POSIX-style, no node:path) ----------------
 
-const isAbsolute = (p: string): boolean =>
-  p.startsWith('/') || p.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(p)
+const isAbsolute = (p: string): boolean => p.startsWith('/') || p.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(p)
 
 const dirname = (p: string): string => {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))

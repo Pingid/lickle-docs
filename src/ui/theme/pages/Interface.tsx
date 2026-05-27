@@ -2,10 +2,10 @@ import { For, Show } from 'solid-js'
 
 import type * as docs from '../../../core/client.ts'
 
-import { Comment } from '../../components/Comment.js'
-import { Members } from '../../components/Members.js'
-import { Type } from '../../components/Type.js'
-import { PageHeader } from '../slots/PageHeader.js'
+import { Comment } from '../../shared/Comment.js'
+import { Members } from '../sections.js'
+import { Type } from '../../primitives/Type.js'
+import { PageHeader } from '../slots/index.js'
 
 export const InterfacePage = (props: { decl: docs.Declaration<'interface'> }) => (
   <article>

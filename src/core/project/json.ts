@@ -1,6 +1,6 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
 import ts from 'typescript'
 import mm from 'micromatch'
 import fg from 'fast-glob'
@@ -105,7 +105,7 @@ const collectEntrypoints = async (
     if (r.ok) files.add(r.path)
   }
 
-  for await (const e of pkgJson.exports(options.dir, json)) {
+  for await (const e of pkgJson.getExports(options.dir, json)) {
     const r = pickConditional(e.candidates, options.dir, tsConfig)
     if (!r.ok) continue
     files.add(r.path)

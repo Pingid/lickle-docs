@@ -1,14 +1,15 @@
-import { Show, type Component } from 'solid-js'
+import { Show } from 'solid-js'
 import { useParams, A } from '@solidjs/router'
 import { Dynamic } from 'solid-js/web'
 
 import type * as docs from '../../core/client.ts'
 
 import { ReflectionScope } from '../context/project.js'
-import { References } from '../theme/slots/References.js'
+import { References } from '../theme/slots/index.js'
 import { useReflection } from '../hooks/index.js'
 import { useComponents } from '../registry/context.js'
 import { defaultPages } from '../theme/pages/index.js'
+import type { PageComponent } from '../registry/types.js'
 
 type Kind = docs.Declaration['kind']
 
@@ -23,11 +24,7 @@ export const Reflection = () => {
   const decl = useReflection(() => params['slug'])
   const { pages } = useComponents()
 
-  const pageFor = (k: Kind): Component<{ decl: any }> => {
-    const override = pages?.[k]
-    if (override) return override as Component<{ decl: any }>
-    return (defaultPages[k] ?? defaultPages.module) as Component<{ decl: any }>
-  }
+  const pageFor = (k: Kind): PageComponent => pages?.[k] ?? defaultPages[k] ?? defaultPages.module!
 
   return (
     <Show

@@ -1,17 +1,20 @@
 import type { TagComponents } from '../../registry/types.js'
+import { tag } from '../../registry/authoring.js'
 
-import { ReturnsTag } from './Returns.js'
-import { ThrowsTag } from './Throws.js'
-import { TypeTag } from './Type.js'
-import { SatisfiesTag } from './Satisfies.js'
-import { ExampleTag } from './Example.js'
-import { SeeTag } from './See.js'
-import { TemplateTag } from './Template.js'
+import { ExampleTag, exampleRunnableTag } from './Example.js'
 import { DeprecatedTag } from './Deprecated.js'
+import { SatisfiesTag } from './Satisfies.js'
+import { TemplateTag } from './Template.js'
+import { ReturnsTag } from './Returns.js'
 import { RemarksTag } from './Remarks.js'
-import { AuthorTag } from './Author.js'
 import { DefaultTag } from './Default.js'
 import { UnknownTag } from './Unknown.js'
+import { ThrowsTag } from './Throws.js'
+import { AuthorTag } from './Author.js'
+import { TypeTag } from './Type.js'
+import { SeeTag } from './See.js'
+
+export { TagSection } from './shared.js'
 
 export {
   ReturnsTag,
@@ -19,6 +22,7 @@ export {
   TypeTag,
   SatisfiesTag,
   ExampleTag,
+  exampleRunnableTag,
   SeeTag,
   TemplateTag,
   DeprecatedTag,
@@ -28,17 +32,25 @@ export {
   UnknownTag,
 }
 
-/** Stock tag registry. `UnknownTag` is the catch-all the dispatcher uses. */
+/**
+ * Stock tag registry. The `'*'` key is the catch-all: the dispatcher falls
+ * through to it for any tag without a more specific entry, so adding a new
+ * stock tag is one entry here and nothing else.
+ */
 export const defaultTags: TagComponents = {
-  '@returns': ReturnsTag,
-  '@throws': ThrowsTag,
-  '@type': TypeTag,
-  '@satisfies': SatisfiesTag,
-  '@example': ExampleTag,
-  '@see': SeeTag,
-  '@template': TemplateTag,
+  ...Object.fromEntries([
+    tag('@returns', ReturnsTag),
+    tag('@throws', ThrowsTag),
+    tag('@type', TypeTag),
+    tag('@satisfies', SatisfiesTag),
+    tag('@example', ExampleTag),
+    tag('@see', SeeTag),
+    tag('@template', TemplateTag),
+  ]),
+  // Tags outside CommentTagMap — text-shaped, no narrow author type needed.
   '@deprecated': DeprecatedTag,
   '@remarks': RemarksTag,
   '@author': AuthorTag,
   '@default': DefaultTag,
+  '*': UnknownTag,
 }

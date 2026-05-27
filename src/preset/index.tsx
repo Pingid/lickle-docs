@@ -1,4 +1,5 @@
-import { render, App, Components, NavStrategy, ProjectProvider } from '../ui/index.ts'
+import { render, App, type Components, ProjectProvider } from '../ui/index.ts'
+import type { NavStrategy } from '../ui/strategies/index.ts'
 import { ProjectJson } from '../core/client.ts'
 
 export * from './solidjs/index.ts'
@@ -8,7 +9,7 @@ import './index.css'
 
 export type UIConfig = {
   json: ProjectJson
-  /** Override the sidebar grouping. Defaults to {@link auto}. */
+  /** Override the sidebar grouping. Defaults to `strategies.auto`. */
   navGroups?: NavStrategy
   /** Component overrides — pages, tags, slots, member sections. */
   components?: Components

@@ -2,8 +2,8 @@ import { For } from 'solid-js'
 
 import type * as docs from '../../../core/client.ts'
 
-import { Signature } from '../../components/Signature.js'
-import { PageHeader } from '../slots/PageHeader.js'
+import { Signature } from '../../shared/Signature.js'
+import { PageHeader } from '../slots/index.js'
 
 export const FunctionPage = (props: { decl: docs.Declaration<'function'> }) => (
   <article>

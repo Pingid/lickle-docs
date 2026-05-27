@@ -1,8 +1,8 @@
 import ts from 'typescript'
 
-import * as scan from './scan.ts'
 import type { Result } from './scan.ts'
 import type * as T from './types.ts'
+import * as scan from './scan.ts'
 import * as walk from './walk.ts'
 
 // ============================================================================

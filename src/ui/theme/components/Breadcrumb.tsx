@@ -1,9 +1,11 @@
 import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { ancestors } from '../util/project.js'
-import { useProject } from '../context/index.js'
-import { useSlugFor } from '../hooks/index.js'
+import { displayNameOf } from '../../../core/client.ts'
+
+import { ancestors } from '../../strategies/index.js'
+import { useProject } from '../../context/project.js'
+import { useSlugFor } from '../../hooks/index.js'
 
 export const Breadcrumb = (props: { id: number }) => {
   const { project } = useProject()
@@ -22,11 +24,7 @@ export const Breadcrumb = (props: { id: number }) => {
           {(r, i) => {
             const isLast = i() === chain().length - 1
             const slug = slugs.byId(r.id)
-            const name =
-              (r as { displayName?: string }).displayName ??
-              (r as { name?: string; path?: string }).name ??
-              (r as { path?: string }).path ??
-              ''
+            const name = displayNameOf(r)
             return (
               <>
                 <li class="text-mute opacity-60">/</li>

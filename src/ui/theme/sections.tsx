@@ -7,11 +7,12 @@ import type * as docs from '../../core/client.ts'
 import { ReflectionScope } from '../context/project.js'
 import { useSlugFor } from '../hooks/index.js'
 import { groupOrder, pluralLabel, type Kind } from '../util/kind.js'
-import { isNamespaceReExport } from '../util/project.js'
+import { isNamespaceReExport } from '../strategies/index.js'
 import { SignatureExpr, Type } from '../primitives/Type.js'
 import { KindBadge } from '../primitives/Kind.js'
-import { Comment } from '../components/Comment.js'
-import type { ChildSection } from '../registry/types.js'
+import { Comment } from '../shared/Comment.js'
+import { useComponents } from '../registry/context.js'
+import type { ChildSection, MemberSections } from '../registry/types.js'
 
 // ============================================================================
 // PUBLIC API
@@ -21,12 +22,36 @@ import type { ChildSection } from '../registry/types.js'
  * Default member-section builder. Dispatches per parent kind; returns the
  * stock list users can post-process via `components.sections.<kind>`.
  */
-export const defaultSectionsFor = (decl: docs.Declaration): ChildSection[] => {
+export const defaultFor = (decl: docs.Declaration): ChildSection[] => {
   if (decl.kind === 'module') return moduleSections(decl)
   if (decl.kind === 'class') return classSections(decl)
   if (decl.kind === 'interface') return interfaceSections(decl)
   if (decl.kind === 'enum') return enumSections(decl)
   return []
+}
+
+/**
+ * Page-level member rendering. Computes the stock section list, then hands
+ * it to the user override (if any) for filtering / addition / replacement
+ * before rendering.
+ */
+export const Members = (props: { decl: docs.Declaration }) => {
+  const { sections } = useComponents()
+  const final = (): ChildSection[] => {
+    const defaults = defaultFor(props.decl)
+    const hook = sections?.[props.decl.kind as keyof MemberSections]
+    return hook ? hook(props.decl as any, defaults) : defaults
+  }
+  return (
+    <For each={final()}>
+      {(s) => (
+        <section class="mt-8">
+          <h2 class="font-semibold text-xl mb-3 pb-1.5 border-b border-line capitalize">{s.title}</h2>
+          <div>{s.render(s.items)}</div>
+        </section>
+      )}
+    </For>
+  )
 }
 
 // ============================================================================
@@ -59,11 +84,26 @@ const moduleSections = (mod: docs.Module): ChildSection[] => {
 
   return [...buckets.entries()]
     .sort(([a], [b]) => groupOrder(a) - groupOrder(b) || a.localeCompare(b))
-    .map(([title, items]) => ({
-      title,
-      items: items.flatMap((it) => (it.kind === 'decl' ? [it.decl] : [])),
-      render: () => <For each={items}>{(it) => <MemberEntryRow entry={it} parentKind="module" />}</For>,
-    }))
+    .map(([title, entries]): ChildSection => {
+      const declItems = entries.flatMap((it) => (it.kind === 'decl' ? [it.decl] : []))
+      const entryById = new Map(entries.flatMap((it) => (it.kind === 'decl' ? [[it.decl.id, it] as const] : [])))
+      return {
+        title,
+        items: declItems,
+        render: (items) => {
+          // Keep the namespace-alias rows pinned at the front; for the rest,
+          // honour whatever filtering/reordering the override did to `items`.
+          const aliases = entries.filter((it) => it.kind === 'module')
+          const declEntries = items.flatMap((d) => {
+            const e = entryById.get(d.id)
+            return e ? [e] : []
+          })
+          return (
+            <For each={[...aliases, ...declEntries]}>{(it) => <MemberEntryRow entry={it} parentKind="module" />}</For>
+          )
+        },
+      }
+    })
 }
 
 type MemberEntry = { kind: 'decl'; decl: docs.Declaration } | { kind: 'module'; re: docs.ReExportNamespace }
@@ -111,21 +151,13 @@ const classSections = (cls: docs.Class): ChildSection[] => {
     })
   }
   if (cls.properties.length) {
-    out.push({
-      title: 'Properties',
-      items: cls.properties as unknown as docs.Declaration[],
-      render: () => <For each={cls.properties}>{(p) => <MemberCard decl={p} parentKind="class" />}</For>,
-    })
+    out.push(memberSection('Properties', cls.properties, 'class'))
   }
   if (cls.methods.length) {
-    out.push({
-      title: 'Methods',
-      items: cls.methods as unknown as docs.Declaration[],
-      render: () => <For each={cls.methods}>{(m) => <MemberCard decl={m} parentKind="class" />}</For>,
-    })
+    out.push(memberSection('Methods', cls.methods, 'class'))
   }
   if (cls.indexSignature) {
-    out.push({ title: 'Index signature', render: () => <IndexSigRow sig={cls.indexSignature!} /> })
+    out.push({ title: 'Index signature', items: [], render: () => <IndexSigRow sig={cls.indexSignature!} /> })
   }
   return out
 }
@@ -137,33 +169,27 @@ const classSections = (cls: docs.Class): ChildSection[] => {
 const interfaceSections = (iface: docs.Interface): ChildSection[] => {
   const out: ChildSection[] = []
   if (iface.properties.length) {
-    out.push({
-      title: 'Properties',
-      items: iface.properties as unknown as docs.Declaration[],
-      render: () => <For each={iface.properties}>{(p) => <MemberCard decl={p} parentKind="interface" />}</For>,
-    })
+    out.push(memberSection('Properties', iface.properties, 'interface'))
   }
   if (iface.methods.length) {
-    out.push({
-      title: 'Methods',
-      items: iface.methods as unknown as docs.Declaration[],
-      render: () => <For each={iface.methods}>{(m) => <MemberCard decl={m} parentKind="interface" />}</For>,
-    })
+    out.push(memberSection('Methods', iface.methods, 'interface'))
   }
   if (iface.callSignatures?.length) {
     out.push({
       title: 'Call signatures',
+      items: [],
       render: () => <For each={iface.callSignatures!}>{(s) => <SignatureRow sig={s} />}</For>,
     })
   }
   if (iface.constructSignatures?.length) {
     out.push({
       title: 'Construct signatures',
+      items: [],
       render: () => <For each={iface.constructSignatures!}>{(s) => <SignatureRow sig={s} kind="constructor" />}</For>,
     })
   }
   if (iface.indexSignature) {
-    out.push({ title: 'Index signature', render: () => <IndexSigRow sig={iface.indexSignature!} /> })
+    out.push({ title: 'Index signature', items: [], render: () => <IndexSigRow sig={iface.indexSignature!} /> })
   }
   return out
 }
@@ -176,29 +202,36 @@ const interfaceSections = (iface: docs.Interface): ChildSection[] => {
 
 const enumSections = (e: docs.Enum): ChildSection[] => {
   if (!e.members.length) return []
+  const byId = new Map(e.members.map((m) => [m.id, m] as const))
   return [
     {
       title: 'Members',
       items: e.members as unknown as docs.Declaration[],
-      render: () => (
-        <For each={e.members}>
-          {(m) => (
-            <div class="border-b border-line py-3 last:border-b-0">
-              <div class="flex items-baseline gap-3 flex-wrap">
-                <code class="font-mono font-semibold">{m.name}</code>
-                <Show when={m.value != null}>
-                  <code class="font-mono text-mute text-sm">= {String(m.value)}</code>
+      render: (items) => {
+        const rows = items.flatMap((d) => {
+          const m = byId.get(d.id)
+          return m ? [m] : []
+        })
+        return (
+          <For each={rows}>
+            {(m) => (
+              <div class="border-b border-line py-3 last:border-b-0">
+                <div class="flex items-baseline gap-3 flex-wrap">
+                  <code class="font-mono font-semibold">{m.name}</code>
+                  <Show when={m.value != null}>
+                    <code class="font-mono text-mute text-sm">= {String(m.value)}</code>
+                  </Show>
+                </div>
+                <Show when={m.comment}>
+                  <div class="mt-1 text-sm">
+                    <Comment comment={m.comment} />
+                  </div>
                 </Show>
               </div>
-              <Show when={m.comment}>
-                <div class="mt-1 text-sm">
-                  <Comment comment={m.comment} />
-                </div>
-              </Show>
-            </div>
-          )}
-        </For>
-      ),
+            )}
+          </For>
+        )
+      },
     },
   ]
 }
@@ -210,16 +243,41 @@ const enumSections = (e: docs.Enum): ChildSection[] => {
 type ChildLike = docs.Declaration | docs.Property | docs.Method | docs.EnumMember
 type ParentKind = 'module' | 'class' | 'interface'
 
+/**
+ * Build a `Properties` / `Methods` section whose `items` is the source list
+ * coerced to `Declaration[]` for the registry contract; `render` keeps the
+ * original objects via an id lookup so overrides that filter `items` work.
+ */
+const memberSection = <T extends { id: number }>(
+  title: string,
+  source: readonly T[],
+  parentKind: ParentKind,
+): ChildSection => {
+  const byId = new Map(source.map((m) => [m.id, m] as const))
+  return {
+    title,
+    items: source as unknown as docs.Declaration[],
+    render: (items) => {
+      const rows = items.flatMap((d) => {
+        const m = byId.get(d.id)
+        return m ? [m as unknown as ChildLike] : []
+      })
+      return <For each={rows}>{(m) => <MemberCard decl={m} parentKind={parentKind} />}</For>
+    },
+  }
+}
+
 const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
   const slugs = useSlugFor()
-  const c = props.decl as ChildLike & { id: number; name?: string; kind: string }
+  const c = props.decl
   const k: Kind = c.kind as Kind
   const slug = slugs.byId(c.id)
+  const name = 'name' in c ? (c.name ?? '') : ''
 
   const Name = () => (
-    <Show when={slug} fallback={<span class="font-semibold">{c.name}</span>}>
+    <Show when={slug} fallback={<span class="font-semibold">{name}</span>}>
       <A href={`/r/${slug}`} class="font-semibold hover:opacity-70">
-        {c.name}
+        {name}
       </A>
     </Show>
   )

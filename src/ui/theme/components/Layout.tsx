@@ -4,9 +4,8 @@ import type { JSX } from 'solid-js/jsx-runtime'
 import { useLocation } from '@solidjs/router'
 import { createEffect } from 'solid-js'
 
-import { SearchPalette } from './SearchPalette.js'
-import { Sidebar } from '../theme/slots/Sidebar.js'
-import { Header } from '../theme/slots/Header.js'
+import { SearchPalette } from '../../shared/SearchPalette.js'
+import { Header, Sidebar } from '../slots/index.js'
 
 export const Layout = (props: { children: JSX.Element }) => {
   const [menuOpen, setMenuOpen] = createSignal(false)

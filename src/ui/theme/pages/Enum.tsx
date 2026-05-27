@@ -2,9 +2,9 @@ import { Show } from 'solid-js'
 
 import type * as docs from '../../../core/client.ts'
 
-import { Comment } from '../../components/Comment.js'
-import { Members } from '../../components/Members.js'
-import { PageHeader } from '../slots/PageHeader.js'
+import { Comment } from '../../shared/Comment.js'
+import { Members } from '../sections.js'
+import { PageHeader } from '../slots/index.js'
 
 export const EnumPage = (props: { decl: docs.Declaration<'enum'> }) => (
   <article>

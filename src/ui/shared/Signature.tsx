@@ -3,7 +3,7 @@ import { For, Show } from 'solid-js'
 import type * as docs from '../../core/client.ts'
 
 import { Comment } from './Comment.js'
-import { Type } from './Type.js'
+import { Type } from '../primitives/Type.js'
 
 const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
 const Kw = (p: { children: string }) => <span class="text-accent">{p.children}</span>

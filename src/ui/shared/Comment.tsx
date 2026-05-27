@@ -3,11 +3,11 @@ import { For, Show } from 'solid-js'
 import type * as docs from '../../core/client.ts'
 
 import { useProject, useReflectionId } from '../context/project.js'
-import { defaultTags, UnknownTag } from '../theme/tags/index.js'
+import { defaultTags } from '../theme/tags/index.js'
 import { useComponents } from '../registry/context.js'
 import { useSlugFor } from '../hooks/index.js'
 import { Markdown } from './Markdown.js'
-import { Type } from './Type.js'
+import { Type } from '../primitives/Type.js'
 
 type Tag = docs.CommentTag
 type TagOf<K extends keyof docs.CommentTagMap> = docs.CommentTagMap[K]
@@ -42,17 +42,6 @@ export const Comment = (props: { comment?: docs.Comment; class?: string }) => {
       }}
     </Show>
   )
-}
-
-/** Single-line plain-text preview of a comment. Used by listings/cards. */
-export const commentSummaryText = (comment: docs.Comment | undefined): string => {
-  if (!comment) return ''
-  let out = ''
-  for (const p of comment.parts) {
-    if (p.kind === 'text') out += p.text
-    else out += p.text ?? p.target
-  }
-  return out.trim()
 }
 
 // ============================================================================
@@ -94,19 +83,16 @@ const TagGroup = (props: { group: Group }) => {
 
 /**
  * Per-tag dispatch. Lookup order: user override → stock theme entry →
- * {@link UnknownTag}. The enclosing declaration is passed through so custom
- * tags can render context-aware content (e.g. an `@runnable` button needs
- * the decl id).
+ * `defaultTags['*']` (the unknown-tag catch-all). The enclosing declaration
+ * is passed through so custom tags can render context-aware content (e.g.
+ * an `@runnable` button needs the decl id).
  */
 const TagDispatch = (props: { tag: Tag }) => {
   const { tags } = useComponents()
   const id = useReflectionId()
   const { project } = useProject()
-  const decl = () => (id != null && id >= 0 ? project.declarationsById.get(id) : undefined)
-  const Render = (tags?.[props.tag.tag] ?? defaultTags[props.tag.tag] ?? UnknownTag) as (p: {
-    tag: Tag
-    decl?: docs.Declaration
-  }) => any
+  const decl = () => (id != null ? project.declarationsById.get(id) : undefined)
+  const Render = tags?.[props.tag.tag] ?? defaultTags[props.tag.tag] ?? defaultTags['*']!
   return <Render tag={props.tag} decl={decl()} />
 }
 

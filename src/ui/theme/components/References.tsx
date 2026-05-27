@@ -1,8 +1,8 @@
 import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { labelOf } from '../util/kind.js'
-import { useReferences, type ReferenceRow } from '../hooks/index.js'
+import { labelOf } from '../../util/kind.js'
+import { useReferences, type ReferenceRow } from '../../hooks/index.js'
 
 export const References = (props: { id: number }) => {
   const rows = useReferences(() => props.id)

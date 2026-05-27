@@ -81,10 +81,7 @@ export interface Module<T extends TypeRegistry = Registry> extends Base<T>, Rout
  *   - `export * as foo from 'x'`  → `{ form: 'namespace', as: 'foo' }`
  *   - `export { a, b as c } …`    → `{ form: 'named', named: [...] }`
  */
-export type ReExport<T extends TypeRegistry = Registry> =
-  | ReExportAll<T>
-  | ReExportNamespace<T>
-  | ReExportNamed<T>
+export type ReExport<T extends TypeRegistry = Registry> = ReExportAll<T> | ReExportNamespace<T> | ReExportNamed<T>
 
 export interface ReExportAll<T extends TypeRegistry = Registry> extends Base<T> {
   kind: 're-export'
@@ -346,7 +343,7 @@ export interface CommentTagMap<T extends TypeRegistry = Registry> {
   '@satisfies': { tag: '@satisfies'; type: AnyType<T>; text: string }
   '@template': { tag: '@template'; typeParameters: TypeParameter<T>[]; text: string }
   '@see': { tag: '@see'; target?: string; text: string }
-  '@example': { tag: '@example'; caption?: string; code: string }
+  '@example': { tag: '@example'; caption?: string; code: string; text?: string }
   '@augments': { tag: '@augments'; class: AnyType<T>; text: string }
   '@implements': { tag: '@implements'; class: AnyType<T>; text: string }
 }

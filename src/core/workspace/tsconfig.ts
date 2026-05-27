@@ -1,5 +1,5 @@
-import ts from 'typescript'
 import path from 'node:path'
+import ts from 'typescript'
 
 export const find = (searchPath: string = process.cwd(), name?: string) =>
   ts.findConfigFile(searchPath, ts.sys.fileExists, name)

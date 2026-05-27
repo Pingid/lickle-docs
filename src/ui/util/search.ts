@@ -1,5 +1,7 @@
 import { create, insert, search } from '@orama/orama'
 
+import { nameOf } from '../../core/client.ts'
+
 import type { ProjectBag } from '../context/project.js'
 import { type Kind } from './kind.js'
 
@@ -20,7 +22,7 @@ export const createSearchEngine = async (bag: ProjectBag): Promise<SearchEngine>
   for (const r of bag.routables) {
     const slug = bag.project.slugById.get(r.id)
     if (!slug) continue
-    const name = (r as { name?: string }).name ?? ''
+    const name = nameOf(r)
     await insert(db, {
       name,
       qualified: bag.project.qualifiedNameById.get(r.id) ?? name,

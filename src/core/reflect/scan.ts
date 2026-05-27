@@ -1,5 +1,5 @@
-import ts from 'typescript'
 import path from 'node:path'
+import ts from 'typescript'
 
 import type * as T from './types.ts'
 
@@ -801,8 +801,27 @@ const buildTag = (tag: ts.JSDocTag, ctx: Context): T.CommentTag => {
   if (ts.isJSDocImplementsTag(tag)) return { tag: '@implements', class: typeNode(tag.class, ctx), text }
 
   const name = '@' + tag.tagName.text
-  if (name === '@example') return parseExample(text)
+  // `@example` carries semantic indentation; re-extract from source so the
+  // leader-strip never eats author tabs (see `rawTagBody`).
+  if (name === '@example') return parseExample(rawTagBody(tag))
   return { tag: name, text }
+}
+
+/**
+ * Reconstruct the body of a JSDoc tag from source, stripping the per-line
+ * `*` leader and at most one *space* of separator. Unlike
+ * `ts.getTextOfJSDocComment` — which strips `[ \t]?` and so eats a single
+ * tab of user indentation — this preserves tabs intact.
+ */
+const rawTagBody = (tag: ts.JSDocTag): string => {
+  const src = tag.getSourceFile().text
+  // Body starts immediately after the tag name (`@example`), runs to tag end.
+  const raw = src.slice(tag.tagName.end, tag.end)
+  return raw
+    .split('\n')
+    .map((line, i) => (i === 0 ? line : line.replace(/^[ \t]*\*( ?)/, '')))
+    .join('\n')
+    .trim()
 }
 
 /**

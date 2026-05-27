@@ -1,4 +1,4 @@
-import { useTheme, type ThemeMode } from '../context/index.js'
+import { useTheme, type ThemeMode } from '../context/theme.js'
 import { For } from 'solid-js'
 
 const ICONS: Record<ThemeMode, string> = {

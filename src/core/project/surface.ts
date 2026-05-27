@@ -1,5 +1,5 @@
-import type * as resolve from '../reflect/resolve.ts'
 import * as modulePath from '../reflect/module-path.ts'
+import type * as resolve from '../reflect/resolve.ts'
 
 export type Kind = 'module' | 'variable' | 'function' | 'class' | 'interface' | 'type-alias' | 'enum'
 
