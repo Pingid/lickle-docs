@@ -4,10 +4,11 @@ import type * as docs from '@lickle/docs'
 import { Dynamic } from 'solid-js/web'
 
 import { effectiveKind, labelOf, signaturesOf, type Kind } from '../util/kind.js'
-import { OldComment, ReflectionScope } from '../components/Comment.js'
+import { ReflectionScope } from '../context/project.js'
 import { References } from '../components/References.js'
 import { Breadcrumb } from '../components/Breadcrumb.js'
 import { Signature } from '../components/Signature.js'
+import { Comment } from '../components/Comment.js'
 import { Members } from '../components/Members.js'
 import { useProject } from '../context/index.js'
 import { Type } from '../components/Type.js'
@@ -40,7 +41,10 @@ const Header = (props: { decl: Decl }) => (
   </header>
 )
 
-const nameOf = (decl: Decl): string => (decl as { name?: string }).name ?? '<anonymous>'
+const nameOf = (decl: Decl): string => {
+  const n = (decl as { name?: string }).name ?? ''
+  return n
+}
 
 const FunctionPage = (props: { decl: docs.Declaration<'function'> | docs.Declaration<'variable'> }) => (
   <article>
@@ -69,7 +73,7 @@ const VariablePage = (props: { decl: docs.Declaration<'variable'> }) => (
     </div>
     <Show when={props.decl.comment}>
       <div class="mt-5">
-        <OldComment comment={props.decl.comment} />
+        <Comment comment={props.decl.comment} />
       </div>
     </Show>
   </article>
@@ -106,7 +110,7 @@ const TypeAliasPage = (props: { decl: docs.Declaration<'type-alias'> }) => (
     </div>
     <Show when={props.decl.comment}>
       <div class="mt-5">
-        <OldComment comment={props.decl.comment} />
+        <Comment comment={props.decl.comment} />
       </div>
     </Show>
   </article>
@@ -138,7 +142,7 @@ const ClassPage = (props: { decl: docs.Declaration<'class'> }) => (
     </Show>
     <Show when={props.decl.comment}>
       <div class="mt-5">
-        <OldComment comment={props.decl.comment} />
+        <Comment comment={props.decl.comment} />
       </div>
     </Show>
     <Members decl={props.decl} />
@@ -165,7 +169,7 @@ const InterfacePage = (props: { decl: docs.Declaration<'interface'> }) => (
     </Show>
     <Show when={props.decl.comment}>
       <div class="mt-5">
-        <OldComment comment={props.decl.comment} />
+        <Comment comment={props.decl.comment} />
       </div>
     </Show>
     <Members decl={props.decl} />
@@ -176,7 +180,7 @@ const EnumPage = (props: { decl: docs.Declaration<'enum'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.comment}>
-      <OldComment comment={props.decl.comment} />
+      <Comment comment={props.decl.comment} />
     </Show>
     <section class="mt-8">
       <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Members</h2>
@@ -191,7 +195,7 @@ const EnumPage = (props: { decl: docs.Declaration<'enum'> }) => (
             </div>
             <Show when={m.comment}>
               <div class="mt-1 text-sm">
-                <OldComment comment={m.comment} />
+                <Comment comment={m.comment} />
               </div>
             </Show>
           </div>
@@ -205,7 +209,7 @@ const ModulePage = (props: { decl: docs.Declaration<'module'> }) => (
   <article>
     <Header decl={props.decl} />
     <Show when={props.decl.comment}>
-      <OldComment comment={props.decl.comment} />
+      <Comment comment={props.decl.comment} />
     </Show>
     <Members decl={props.decl} />
   </article>

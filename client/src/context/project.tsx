@@ -3,7 +3,16 @@ import type { JSX } from 'solid-js/jsx-runtime'
 
 import * as docs from '@lickle/docs'
 
-import { auto, buildSlugs, routables, type NavGroup, type NavStrategy, type Slugs } from '../util/project.js'
+import {
+  auto,
+  buildSlugs,
+  routables,
+  surface,
+  type NavGroup,
+  type NavItem,
+  type NavStrategy,
+  type Slugs,
+} from '../util/project.js'
 
 export type ProjectBag = {
   project: docs.Project
@@ -13,13 +22,15 @@ export type ProjectBag = {
   qualifiedNameById: Slugs['qualifiedNameById']
   navGroups: NavGroup[]
   routables: docs.Declaration[]
+  /** Public surface from the entrypoint(s): direct routables + namespace re-exports. */
+  surface: NavItem[]
 }
 
 const ProjectCtx = createContext<Accessor<ProjectBag>>()
 
 export const ProjectProvider = (props: {
   children: JSX.Element
-  json: docs.PojectJson
+  json: docs.ProjectJson
   /** Override the sidebar grouping. Defaults to {@link auto}. */
   navGroups?: NavStrategy
 }) => {
@@ -32,6 +43,7 @@ export const ProjectProvider = (props: {
       ...slugs,
       navGroups: strategy(project, slugs.slugById),
       routables: routables(project),
+      surface: surface(project, slugs.slugById),
     }
   })
   return <ProjectCtx.Provider value={bag}>{props.children}</ProjectCtx.Provider>

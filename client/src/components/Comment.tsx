@@ -1,93 +1,262 @@
-import { For, Show, createMemo } from 'solid-js'
+import { For, Show } from 'solid-js'
+import type { JSX } from 'solid-js/jsx-runtime'
+import { A } from '@solidjs/router'
 import type * as docs from '@lickle/docs'
 
 import { useProject } from '../context/index.js'
-import { handlerOf, type Tag } from '../api.js'
+import type { Tag } from '../api.js'
 import { Markdown } from './Markdown.js'
-import { Type } from './Type.jsx'
+import { Type } from './Type.js'
 
-type TagKind<T extends keyof docs.CommentTagMap = keyof docs.CommentTagMap> = docs.CommentTagMap[T]
+type TagOf<K extends keyof docs.CommentTagMap> = docs.CommentTagMap[K]
 
+/**
+ * Render a single doc comment: summary markdown first, then every tag in
+ * source order. Consecutive `@param` (or `@property`) runs are merged into
+ * one labelled table so a five-parameter signature reads as one block.
+ *
+ * No code preview / handler registry — `@example` renders as plain markdown
+ * via {@link Markdown}, which already hands fenced blocks off to shiki.
+ */
 export const Comment = (props: { comment?: docs.Comment; class?: string }) => {
   const { slugByName } = useProject()
   const slugOf = (name: string) => slugByName.get(name)
-
   return (
     <Show when={props.comment}>
       {(c) => {
         const summary = () => commentToMarkdown(c(), slugOf)
-        const tags = () => c().tags
+        const groups = () => groupTags(c().tags)
         return (
-          <div class={props.class}>
-            <Show when={summary()}>
-              <Markdown source={summary()} />
-            </Show>
-            <Tags tags={tags()} />
-          </div>
+          <Show when={summary() || groups().length}>
+            <div class={props.class}>
+              <Show when={summary()}>
+                <Markdown source={summary()} />
+              </Show>
+              <For each={groups()}>{(g) => <TagGroup group={g} />}</For>
+            </div>
+          </Show>
         )
       }}
     </Show>
   )
 }
 
-export const Text = (props: { text: string }) => <div class="text-fg">{props.text}</div>
+/** Single-line plain-text preview of a comment. Used by listings/cards. */
+export const commentSummaryText = (comment: docs.Comment | undefined): string => comment?.text.trim() ?? ''
 
-export const Tags = (props: { tags: Tag[] }) => {
-  let known: { t: TagKind[]; k: TagKind['tag'] }[] = [{ t: [], k: '@param' }]
-  let unknown: Tag[] = []
-  for (const t of props.tags) {
-    const current = known[known.length - 1]
-    if (t.tag === '@param') {
-      if (current.k === '@param' && current.t.length > 0) {
-        current.t.push(t as TagKind<'@param'>)
-      } else {
-        known.push({ t: [t as TagKind], k: '@param' })
-      }
-    }
+// ============================================================================
+// GROUPING
+// One pass over `comment.tags`. Adjacent `@param` / `@property` collapse into
+// one block; anything else stays put.
+// ============================================================================
+
+type Group =
+  | { kind: '@param'; items: TagOf<'@param'>[] }
+  | { kind: '@property'; items: TagOf<'@property'>[] }
+  | { kind: 'tag'; tag: Tag }
+
+const groupTags = (tags: Tag[]): Group[] => {
+  const out: Group[] = []
+  const pushRun = <K extends '@param' | '@property'>(kind: K, item: TagOf<K>) => {
+    const last = out[out.length - 1]
+    if (last && last.kind === kind) (last.items as TagOf<K>[]).push(item)
+    else out.push({ kind, items: [item] } as Group)
   }
+  for (const t of tags) {
+    if (t.tag === '@param') pushRun('@param', t as TagOf<'@param'>)
+    else if (t.tag === '@property') pushRun('@property', t as TagOf<'@property'>)
+    else out.push({ kind: 'tag', tag: t })
+  }
+  return out
+}
 
+// ============================================================================
+// PER-GROUP RENDERING
+// ============================================================================
+
+const TagGroup = (props: { group: Group }) => {
+  const g = props.group
+  if (g.kind === '@param') return <NamedTable title="Parameters" items={g.items} />
+  if (g.kind === '@property') return <NamedTable title="Properties" items={g.items} />
+  return <TagBlock tag={g.tag} />
+}
+
+type Named = TagOf<'@param'> | TagOf<'@property'>
+
+const NamedTable = (props: { title: string; items: Named[] }) => (
+  <Section title={props.title}>
+    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
+      <For each={props.items}>{(it) => <NamedRow item={it} />}</For>
+    </dl>
+  </Section>
+)
+
+const NamedRow = (props: { item: Named }) => (
+  <>
+    <dt class="font-mono text-sm whitespace-nowrap">
+      <span class="font-semibold">{props.item.name}</span>
+      <Show when={props.item.optional}>
+        <span class="text-mute">?</span>
+      </Show>
+      <Show when={props.item.type}>
+        <>
+          <span class="text-mute">: </span>
+          <Type type={props.item.type!} />
+        </>
+      </Show>
+      <Show when={props.item.default}>
+        <span class="text-mute"> = {props.item.default}</span>
+      </Show>
+    </dt>
+    <dd class="text-sm text-mute min-w-0">
+      <Show when={trimLead(props.item.text)}>
+        <InlineText source={trimLead(props.item.text)} />
+      </Show>
+    </dd>
+  </>
+)
+
+// ============================================================================
+// PER-TAG RENDERING
+// One small component per known tag kind, with an `UnknownTag` fallback.
+// ============================================================================
+
+const TagBlock = (props: { tag: Tag }) => {
+  const t = props.tag
+  console.log(t)
+  if (t.tag === '@returns') return <TypedText title="Returns" tag={t as TagOf<'@returns'>} />
+  if (t.tag === '@throws') return <TypedText title="Throws" tag={t as TagOf<'@throws'>} />
+  if (t.tag === '@type') return <TypedText title="Type" tag={t as TagOf<'@type'>} />
+  if (t.tag === '@satisfies') return <TypedText title="Satisfies" tag={t as TagOf<'@satisfies'>} />
+  if (t.tag === '@example' && 'code' in t) return <ExampleBlock tag={t as TagOf<'@example'>} />
+  if (t.tag === '@see') return <SeeBlock tag={t as TagOf<'@see'>} />
+  if (t.tag === '@template') return <TemplateBlock tag={t as TagOf<'@template'>} />
+  if (t.tag === '@deprecated') return <TextBlock title="Deprecated" text={t.text} />
+  if (t.tag === '@remarks')
+    return (
+      <Section title="Remarks">
+        <Markdown source={t.text} />
+      </Section>
+    )
+  if (t.tag === '@author') return <TextBlock title="Author" text={t.text} />
+  if (t.tag === '@default') return <TextBlock title="Default" text={t.text} />
+  return <UnknownTag tag={t.tag} text={(t as { text?: string }).text ?? ''} />
+}
+
+const Section = (props: { title: string; description?: string; children: JSX.Element }) => (
+  <section class="mt-6">
+    <div class="flex items-baseline gap-2 mb-2">
+      <h4 class="text-mute uppercase text-[0.7rem] font-semibold tracking-wider">{props.title}</h4>
+      <Show when={props.description}>
+        {(description) => (
+          <div class="text-xs text-mute min-w-0">
+            <InlineText source={description()} />
+          </div>
+        )}
+      </Show>
+    </div>
+    {props.children}
+  </section>
+)
+
+type WithMaybeType = { type?: docs.Type; text: string }
+
+const TypedText = (props: { title: string; tag: WithMaybeType }) => (
+  <Section title={props.title}>
+    <Show when={props.tag.type}>
+      <div class="font-mono text-sm mb-1">
+        <Type type={props.tag.type!} />
+      </div>
+    </Show>
+    <Show when={props.tag.text?.trim()}>
+      <InlineText source={props.tag.text} />
+    </Show>
+  </Section>
+)
+
+const TextBlock = (props: { title: string; text: string }) => (
+  <Section title={props.title}>
+    <InlineText source={props.text} />
+  </Section>
+)
+
+const ExampleBlock = (props: { tag: TagOf<'@example'> }) => (
+  <Section title="Example" description={props.tag.caption}>
+    <Markdown source={ensureFenced(props.tag.code)} />
+  </Section>
+)
+
+const SeeBlock = (props: { tag: TagOf<'@see'> }) => {
+  const { slugByName } = useProject()
+  const slug = () => (props.tag.target ? slugByName.get(props.tag.target) : undefined)
   return (
-    <>
-      <For each={known}>
-        {(b) => {
-          if (b.k === '@param') return <Params tags={b.t as TagKind<'@param'>[]} />
-          if (b.k === '@property') return ''
-          if (b.k === '@returns') return ''
-          if (b.k === '@throws') return ''
-          if (b.k === '@type') return ''
-          if (b.k === '@satisfies') return ''
-          if (b.k === '@template') return ''
-          if (b.k === '@see') return ''
-          if (b.k === '@example') return ''
-          if (b.k === '@remarks') return ''
-          if (b.k === '@deprecated') return ''
-          return null
-        }}
+    <Section title="See">
+      <Show when={props.tag.target}>
+        <div class="font-mono text-sm mb-1">
+          <Show when={slug()} fallback={<span>{props.tag.target}</span>}>
+            <A href={`/r/${slug()}`} class="underline decoration-line underline-offset-[3px] hover:opacity-70">
+              {props.tag.target}
+            </A>
+          </Show>
+        </div>
+      </Show>
+      <Show when={props.tag.text?.trim()}>
+        <InlineText source={props.tag.text} />
+      </Show>
+    </Section>
+  )
+}
+
+const TemplateBlock = (props: { tag: TagOf<'@template'> }) => (
+  <Section title="Type Parameters">
+    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
+      <For each={props.tag.typeParameters}>
+        {(tp) => (
+          <>
+            <dt class="font-mono text-sm font-semibold">{tp.name}</dt>
+            <dd class="text-sm text-mute">
+              <Show when={tp.constraint}>
+                <>
+                  <span class="text-accent">extends </span>
+                  <Type type={tp.constraint!} />
+                </>
+              </Show>
+            </dd>
+          </>
+        )}
       </For>
-      <For each={unknown}>{(t) => '...'}</For>
-    </>
-  )
-}
+    </dl>
+    <Show when={props.tag.text?.trim()}>
+      <div class="mt-2">
+        <InlineText source={props.tag.text} />
+      </div>
+    </Show>
+  </Section>
+)
 
-export const Params = (props: { tags: TagKind<'@param'>[] }) => {
-  if (props.tags.length === 0) return null
-  return (
-    <div class="">
-      <h4 class="text-mute text-xs">parameters</h4>
-      <For each={props.tags}>{(t) => <TagParam tag={t} />}</For>
-    </div>
-  )
-}
+const UnknownTag = (props: { tag: string; text: string }) => (
+  <Section title={prettifyTagName(props.tag)}>
+    <Markdown source={props.text} />
+  </Section>
+)
 
-export const TagParam = (props: { tag: TagKind<'@param'> }) => {
-  return (
-    <div class="text-fg pl-2">
-      <span class="text-mute text-xs font-semibold tracking-wider">{props.tag.name}</span>
-      <span class="pr-2">:</span>
-      <Show when={props.tag.type}>{(t) => <Type type={t()} />}</Show>
-      <span class="text-mute text-xs">{props.tag.text}</span>
-    </div>
-  )
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/** Markdown with top/bottom block margins trimmed — for table cells / short rows. */
+const InlineText = (props: { source: string }) => <Markdown class="lk-md-inline" source={props.source} />
+
+/** Strip a single leading `- ` so `@param foo - desc` collapses cleanly. */
+const trimLead = (s: string): string => (s ?? '').replace(/^\s*-\s*/, '').trim()
+
+/** Wrap raw code in a default ```ts fence if it isn't already fenced. */
+const ensureFenced = (code: string): string => (/^\s*```/.test(code) ? code : '```ts\n' + code + '\n```')
+
+/** `@deprecated` → `Deprecated`, `@runnable` → `Runnable`. */
+const prettifyTagName = (tag: string): string => {
+  const bare = tag.replace(/^@/, '')
+  return bare.charAt(0).toUpperCase() + bare.slice(1)
 }
 
 /**
@@ -105,95 +274,8 @@ const commentToMarkdown = (comment: docs.Comment, slugOf: (name: string) => stri
     }
     const label = p.text ?? p.target
     const slug = slugOf(p.target)
-    if (slug) {
-      const display = p.style === 'code' ? `\`${label}\`` : label
-      out += `[${display}](/r/${slug})`
-    } else {
-      out += p.style === 'code' ? `\`${label}\`` : label
-    }
+    const display = p.style === 'code' ? `\`${label}\`` : label
+    out += slug ? `[${display}](/r/${slug})` : display
   }
   return out
 }
-
-const BLOCK_TAG_LABELS: Record<string, string> = {
-  '@example': 'Example',
-  '@remarks': 'Remarks',
-  '@see': 'See',
-  '@deprecated': 'Deprecated',
-  '@throws': 'Throws',
-  '@returns': 'Returns',
-}
-
-/** Tags handled elsewhere (parameter table, type aliases, etc.) — skip in the comment block. */
-const SKIP_IN_BLOCK = new Set(['@param', '@property', '@template', '@type', '@satisfies'])
-
-const FENCE = /```(\w+)?\r?\n([\s\S]*?)\r?\n```/
-
-type Parsed = { code: string; raw: string; title: string; language: string }
-
-/**
- * Pull body text + fenced code + language out of an arbitrary tag. `@example`
- * arrives pre-parsed by the schema, so we use its `code`/`caption` directly.
- * Everything else carries a markdown `text` field that may contain a fence.
- */
-const parseTag = (tag: Tag): Parsed => {
-  // The unknown-tag catch-all in the schema uses `tag: string`, which prevents
-  // a literal-only narrow. Pair the discriminator with a structural check.
-  if (tag.tag === '@example' && 'code' in tag) {
-    // Schema's `@example.code` may itself still be wrapped in a ```lang fence.
-    const m = tag.code.match(FENCE)
-    const inner = m ? (m[2] ?? '') : tag.code
-    const language = m ? m[1] || 'ts' : 'ts'
-    return { code: inner, raw: tag.code, title: tag.caption ?? '', language }
-  }
-  const text = (tag as { text?: string }).text ?? ''
-  const m = text.match(FENCE)
-  if (!m) return { code: text.trim(), raw: text, title: '', language: '' }
-  const title = text.slice(0, m.index).trim()
-  return { code: m[2] ?? '', raw: text, title, language: m[1] || '' }
-}
-
-export const OldComment = (props: { comment?: docs.Comment; class?: string }) => {
-  const { slugByName } = useProject()
-  const slugOf = (name: string) => slugByName.get(name)
-
-  return (
-    <Show when={props.comment}>
-      {(c) => {
-        const summary = () => commentToMarkdown(c(), slugOf)
-        const tags = () => c().tags.filter((t: Tag) => !SKIP_IN_BLOCK.has(t.tag))
-        return (
-          <div class={props.class}>
-            <Show when={summary()}>
-              <Markdown source={summary()} />
-            </Show>
-            <For each={tags()}>{(t) => <TagBlock tag={t} />}</For>
-          </div>
-        )
-      }}
-    </Show>
-  )
-}
-
-const TagBlock = (props: { tag: Tag }) => {
-  const parsed = createMemo(() => parseTag(props.tag))
-  const handler = createMemo(() => handlerOf(props.tag.tag))
-  const label = () => BLOCK_TAG_LABELS[props.tag.tag]
-  const hasFence = () => parsed().language !== ''
-
-  // Live-editable copy of the code; resets when navigating between examples.
-
-  return (
-    <Show when={hasFence() || handler() || label()}>
-      <div class={`lk-tag lk-tag-${props.tag.tag.replace(/^@/, '')} mt-6`}>
-        <Show when={label() || parsed().title}>
-          <h4 class="text-mute uppercase text-[0.7rem] font-semibold mb-2 tracking-wider">
-            {label() ?? parsed().title}
-          </h4>
-        </Show>
-      </div>
-    </Show>
-  )
-}
-
-export const commentSummaryText = (comment: docs.Comment | undefined): string => comment?.text.trim() ?? ''

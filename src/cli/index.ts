@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
 
-import { project } from '../lib.ts'
+import * as project from '../project/json.ts'
 
 export const app = () =>
   cmd.subcommands({
@@ -38,7 +38,7 @@ const json = cmd.command({
     }),
   },
   handler: async (args) => {
-    const p = await project.scan.scan({ dir: process.cwd(), tsConfigPath: args.tsconfig, exclude: args.exclude })
+    const p = await project.generate({ dir: process.cwd(), tsConfigPath: args.tsconfig, exclude: args.exclude })
     await fs.writeFile('reflect.json', JSON.stringify(p))
   },
 })

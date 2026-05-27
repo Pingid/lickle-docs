@@ -1,4 +1,5 @@
-export { OldComment as Comment, ReflectionScope, commentSummaryText } from './Comment.js'
+export { Comment, commentSummaryText } from './Comment.js'
+export { ReflectionScope } from '../context/project.js'
 export { Signature, SignatureLine } from './Signature.js'
 export { Type, TypeBox, SignatureExpr } from './Type.js'
 export { ThemeToggle } from './ThemeToggle.js'

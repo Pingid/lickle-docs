@@ -18,7 +18,7 @@ export interface Options {
 }
 
 export interface Result {
-  children: T.AnyDeclaration<Registry>[]
+  children: T.Module<Registry>[]
   /** Pass this to `resolveReferences` to populate `targetId` / `resolvedIds` fields. */
   context: Pick<Context, 'checker' | 'symbolsById' | 'referenceOrigins' | 'exportOrigins'>
 }
@@ -48,14 +48,47 @@ interface Context extends Options {
 export const files = (rootFiles: string[], options: Options): Result => {
   const program = ts.createProgram(rootFiles, options.compilerOptions)
   const ctx = makeContext(program.getTypeChecker(), options)
+  const include = options.include?.file
   const children: T.Module<Registry>[] = []
 
-  for (const sf of program.getSourceFiles()) {
-    if (rootFiles.includes(sf.fileName)) {
-      children.push(sourceFile(sf, ctx))
+  // BFS over source files starting at `rootFiles`. Root files are always
+  // included; transitive re-export targets must pass `include.file`. We mutate
+  // `queue` during iteration so a single indexed loop suffices.
+  const seen = new Set<ts.SourceFile>()
+  const queue: ts.SourceFile[] = []
+  for (const f of rootFiles) {
+    const sf = program.getSourceFile(f)
+    if (sf && !seen.has(sf)) {
+      seen.add(sf)
+      queue.push(sf)
     }
   }
+
+  for (let i = 0; i < queue.length; i++) {
+    const sf = queue[i]!
+    children.push(sourceFile(sf, ctx))
+    for (const target of reExportedSources(sf, ctx.checker)) {
+      if (seen.has(target)) continue
+      if (include && !include(target)) continue
+      seen.add(target)
+      queue.push(target)
+    }
+  }
+
   return { children, context: ctx }
+}
+
+/** Source files reachable from `sf` via top-level `export … from '…'` clauses. */
+const reExportedSources = (sf: ts.SourceFile, checker: ts.TypeChecker): ts.SourceFile[] => {
+  const out: ts.SourceFile[] = []
+  for (const stmt of sf.statements) {
+    if (!ts.isExportDeclaration(stmt) || !stmt.moduleSpecifier) continue
+    if (!ts.isStringLiteral(stmt.moduleSpecifier)) continue
+    const sym = checker.getSymbolAtLocation(stmt.moduleSpecifier)
+    const decl = sym?.valueDeclaration ?? sym?.declarations?.[0]
+    if (decl && ts.isSourceFile(decl)) out.push(decl)
+  }
+  return out
 }
 
 const makeContext = (checker: ts.TypeChecker, options: Options): Context => {
@@ -86,6 +119,7 @@ const sourceFile = (sf: ts.SourceFile, ctx: Context): T.Module => {
     ...base(sf, ctx),
     kind: 'module',
     path: relPath(sf, ctx),
+    name: path.basename(sf.fileName).replace(/\.[^./]+$/, ''),
     children,
   }
 }
@@ -749,14 +783,26 @@ const buildTag = (tag: ts.JSDocTag, ctx: Context): T.CommentTag => {
   if (ts.isJSDocAugmentsTag(tag)) return { tag: '@augments', class: typeNode(tag.class, ctx), text }
   if (ts.isJSDocImplementsTag(tag)) return { tag: '@implements', class: typeNode(tag.class, ctx), text }
 
+  // ts.getJsDocTagDescription
   const name = '@' + tag.tagName.text
   if (name === '@example') return parseExample(text)
   return { tag: name, text }
 }
 
-/** Pull an optional `<caption>…</caption>` prefix out of `@example` body. */
-const parseExample = (raw: string): T.CommentTag => {
-  const m = raw.match(/^<caption>([\s\S]*?)<\/caption>\s*([\s\S]*)$/)
-  if (m) return { tag: '@example', caption: m[1]!.trim(), code: m[2]!.trim() }
-  return { tag: '@example', code: raw }
+/**
+ * Pull an optional caption out of an `@example` body. Two forms are recognised:
+ *   1. Legacy JSDoc: `<caption>…</caption>` prefix.
+ *   2. TypeDoc-style: any text on the line(s) before the first fenced code
+ *      block becomes the caption; the fence and its body become the code.
+ * When neither pattern matches, the entire body is treated as `code`.
+ */
+const parseExample = (raw: string): T.CommentTagMap['@example'] => {
+  const html = raw.match(/^<caption>([\s\S]*?)<\/caption>\s*([\s\S]*)$/)
+  if (html) return { tag: '@example', caption: html[1]!.trim(), code: html[2]!.trim() }
+  const fence = raw.search(/^```/m)
+  if (fence > 0) {
+    const caption = raw.slice(0, fence).trim()
+    if (caption) return { tag: '@example', caption, code: raw.slice(fence).trim() }
+  }
+  return { tag: '@example', code: raw.trim() }
 }

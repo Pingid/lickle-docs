@@ -314,4 +314,6 @@ export interface CommentTagMap<T extends TypeRegistry = Registry> {
   '@template': { tag: '@template'; typeParameters: TypeParameter<T>[]; text: string }
   '@see': { tag: '@see'; target?: string; text: string }
   '@example': { tag: '@example'; caption?: string; code: string }
+  '@augments': { tag: '@augments'; class: AnyType<T>; text: string }
+  '@implements': { tag: '@implements'; class: AnyType<T>; text: string }
 }

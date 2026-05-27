@@ -284,23 +284,13 @@
     border: 0;
   }
 
-  /* Runner preview — small framed area below an Editor where `onTag` handlers paint. */
-  .lk-preview {
-    margin-top: 0.5rem;
-    padding: 12px 14px;
-    background: var(--color-bg);
-    border: 1px solid var(--color-line);
-    border-radius: 8px;
-    min-height: 2.5rem;
+  /* Compact markdown — used inside table cells and tag rows so a single
+     paragraph doesn't collide with the surrounding block margins. */
+  .markdown.lk-md-inline > :first-child {
+    margin-top: 0;
   }
-  .lk-preview:empty {
-    display: none;
-  }
-  .lk-preview-err {
-    color: #c53030;
-    font-family: var(--font-mono);
-    font-size: 0.85em;
-    white-space: pre-wrap;
+  .markdown.lk-md-inline > :last-child {
+    margin-bottom: 0;
   }
 
   /* "Used in" list — column-aligned `(usage, kind, module.name, summary)` */

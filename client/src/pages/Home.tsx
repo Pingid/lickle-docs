@@ -3,41 +3,37 @@ import { A } from '@solidjs/router'
 
 import { commentSummaryText } from '../components/Comment.js'
 import { useProject } from '../context/index.js'
-import { effectiveKind, labelOf } from '../util/kind.js'
+import { labelOf } from '../util/kind.js'
+import type { NavItem } from '../util/project.js'
 import { Markdown } from '../components/Markdown.js'
 
 export const Home = () => {
-  const { project, slugById, routables } = useProject()
+  const { project, surface } = useProject()
   const readme = () => project.readme ?? ''
 
   return (
     <article>
-      <Show
-        when={readme()}
-        fallback={
-          <>
-            <h1 class="text-4xl font-semibold tracking-tight mb-2">{project.name}</h1>
-            <h2 class="text-xl font-semibold mt-10 mb-4 pb-2 border-b border-line">Exports</h2>
-            <ul class="space-y-2">
-              <For each={routables}>
-                {(r) => (
-                  <li class="flex items-baseline gap-3">
-                    <span class="text-xs uppercase text-mute tracking-wider w-20">{labelOf(effectiveKind(r))}</span>
-                    <A href={`/r/${slugById.get(r.id)}`} class="font-mono font-medium hover:opacity-70">
-                      {(r as { name?: string }).name}
-                    </A>
-                    <Show when={commentSummaryText(r.comment)}>
-                      <span class="text-sm text-mute truncate">{commentSummaryText(r.comment)}</span>
-                    </Show>
-                  </li>
-                )}
-              </For>
-            </ul>
-          </>
-        }
-      >
+      <Show when={readme()} fallback={<h1 class="text-4xl font-semibold tracking-tight mb-2">{project.name}</h1>}>
         <Markdown source={readme()} />
+      </Show>
+      <Show when={surface.length}>
+        <h2 class="text-xl font-semibold mt-10 mb-4 pb-2 border-b border-line">Exports</h2>
+        <ul class="space-y-2">
+          <For each={surface}>{(it) => <SurfaceRow item={it} />}</For>
+        </ul>
       </Show>
     </article>
   )
 }
+
+const SurfaceRow = (props: { item: NavItem }) => (
+  <li class="flex items-baseline gap-3">
+    <span class="text-xs uppercase text-mute tracking-wider w-20">{labelOf(props.item.kind)}</span>
+    <A href={`/r/${props.item.slug}`} class="font-mono font-medium hover:opacity-70">
+      {props.item.name}
+    </A>
+    <Show when={commentSummaryText(props.item.comment)}>
+      <span class="text-sm text-mute truncate">{commentSummaryText(props.item.comment)}</span>
+    </Show>
+  </li>
+)

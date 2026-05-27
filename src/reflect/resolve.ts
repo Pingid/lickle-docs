@@ -79,7 +79,7 @@ export interface ResolverContext {
  * Walk the project and populate `targetId` on every `ReferenceType`, and `ids`
  * on every `Export`, whose declarations we know about. Mutates in place.
  */
-export const generation = (generation: Result): T.AnyDeclaration<Registry>[] => {
+export const generation = (generation: Result): T.Module<Registry>[] => {
   const { children, context: ctx } = generation
   // Build a lookup from any declaration node belonging to a recorded symbol
   // back to its reflection id. Symbols can have multiple declarations (merged
@@ -122,7 +122,7 @@ export const generation = (generation: Result): T.AnyDeclaration<Registry>[] => 
 
   children.forEach((c) => walk.Declaration(c, { onReference: resolveRef, onReExport: resolveExport }))
 
-  return children as T.AnyDeclaration<Registry>[]
+  return children as unknown as T.Module<Registry>[]
 }
 
 // ============================================================================

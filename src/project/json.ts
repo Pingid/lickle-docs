@@ -7,8 +7,9 @@ import fg from 'fast-glob'
 import * as pkgJson from '../pkg-json/index.ts'
 import * as tsconf from '../tsconfig/index.ts'
 import * as reflect from '../reflect/index.ts'
+import { spawnSync } from 'node:child_process'
 
-export interface PojectJson {
+export interface ProjectJson {
   /** The name of the project. */
   name: string
   /** The version of the project. */
@@ -19,6 +20,8 @@ export interface PojectJson {
   main?: string
   /** The exports of the project. */
   exports: { name: string; path: string }[]
+  /** Git hash of the project. */
+  hash?: string
   /** Entrypoints for reflections */
   entrypoints: string[]
   /** Top-level reflections — one per scanned source file. */
@@ -34,12 +37,17 @@ export interface ScanOptions {
   tsConfigPath?: string
 }
 
-export const scan = async (options: ScanOptions): Promise<PojectJson> => {
+export const generate = async (options: ScanOptions): Promise<ProjectJson> => {
   const json = await pkgJson.read(path.join(options.dir, 'package.json'))
   const tsConfig = await findAndParseTsConfig(options.tsConfigPath)
 
+  const links: ProjectJson['links'] = []
   const files = new Set<string>()
   const exports: { name: string; path: string }[] = []
+
+  if (json.repository?.url) {
+    links.push({ label: 'Repository', href: json.repository.url })
+  }
 
   if (!options.include?.length) {
     const entrypoint = json.module ?? json.main ?? json.types
@@ -81,7 +89,15 @@ export const scan = async (options: ScanOptions): Promise<PojectJson> => {
 
   const relativeEntrypoints = Array.from(files).map((f) => path.relative(options.dir, f))
 
-  return { name, version, readme, entrypoints: relativeEntrypoints, reflections, exports, links: [] }
+  const hash = (() => {
+    try {
+      return spawnSync('git', ['rev-parse', 'HEAD', '--short']).stdout.toString().trim()
+    } catch (error) {
+      return undefined
+    }
+  })()
+
+  return { name, version, readme, entrypoints: relativeEntrypoints, reflections, exports, links: [], hash }
 }
 
 const resolveEntry = (dir: string, pth: string, tsConfig: ts.ParsedCommandLine) => {

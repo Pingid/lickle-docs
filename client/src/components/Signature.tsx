@@ -1,7 +1,7 @@
 import type * as docs from '@lickle/docs'
 import { For, Show } from 'solid-js'
 
-import { Comment, OldComment } from './Comment.js'
+import { Comment } from './Comment.js'
 import { Type } from './Type.js'
 
 const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
@@ -70,43 +70,21 @@ export const SignatureLine = (props: {
   </div>
 )
 
-const ParameterRow = (props: { param: docs.Parameter }) => (
-  <div class="grid grid-cols-[auto_1fr] gap-x-3 items-baseline">
-    <dt class="font-mono text-sm">
-      <span class="font-semibold">{props.param.name}</span>
-      <Show when={isOptional(props.param)}>
-        <span class="text-mute">?</span>
-      </Show>
-    </dt>
-    <dd class="text-sm text-mute min-w-0">
-      <Show when={props.param.comment}>
-        <OldComment comment={props.param.comment} />
-      </Show>
-    </dd>
-  </div>
-)
-
+/**
+ * Type signature + its doc block. Parameter descriptions come from the
+ * `@param` tags inside `sig.comment` and are rendered by `<Comment>` itself,
+ * so there's no separate parameter table here.
+ */
 export const Signature = (props: {
   sig: docs.Signature
   name?: string
   kind?: 'function' | 'method' | 'constructor'
 }) => (
-  <div class="mb-6">
+  <div class="mb-8">
     <SignatureLine sig={props.sig} name={props.name} kind={props.kind} />
-    <Comment comment={props.sig.comment} />
-
-    <div class="mt-12" />
     <Show when={props.sig.comment}>
-      <div class="mt-3">
-        <OldComment comment={props.sig.comment} />
-      </div>
-    </Show>
-    <Show when={props.sig.parameters.length}>
-      <div class="mt-5">
-        <h4 class="text-mute text-xs mb-2">Parameters</h4>
-        <dl class="space-y-1.5">
-          <For each={props.sig.parameters}>{(p) => <ParameterRow param={p} />}</For>
-        </dl>
+      <div class="mt-2">
+        <Comment comment={props.sig.comment} />
       </div>
     </Show>
   </div>

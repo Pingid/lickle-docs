@@ -1,9 +1,7 @@
 import * as indexed from '../reflect/indexed.ts'
 
-import type { PojectJson } from './scan.ts'
+import type { ProjectJson } from './json.ts'
 
-export interface Project extends PojectJson, indexed.Indexed {}
+export interface Project extends ProjectJson, indexed.Indexed {}
 
-export const create = (json: PojectJson): Project => {
-  return Object.assign(indexed.build(json.reflections), json)
-}
+export const create = (json: ProjectJson): Project => Object.assign(indexed.build(json.reflections), json)

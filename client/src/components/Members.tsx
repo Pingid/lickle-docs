@@ -6,6 +6,7 @@ import { A } from '@solidjs/router'
 import { ReflectionScope } from '../context/project.js'
 
 import { effectiveKind, groupOrder, labelOf, pluralLabel, shortOf, signaturesOf, type Kind } from '../util/kind.js'
+import { isNamespaceReExport } from '../util/project.js'
 import { SignatureExpr, Type } from './Type.js'
 import { useProject } from '../context/index.js'
 
@@ -42,21 +43,69 @@ const sectionsFor = (decl: docs.Declaration): ChildSection[] => {
   return []
 }
 
+/**
+ * Namespace re-exports (`export * as foo from './x'`) become a `Modules`
+ * section that links to the source module page; barrel re-exports
+ * (`export * from './x'`) are flattened so `re.targets` show alongside the
+ * module's own declarations.
+ */
 const moduleSections = (mod: docs.Module): ChildSection[] => {
-  const buckets = new Map<string, docs.Declaration[]>()
-  for (const c of mod.children) {
-    if (c.kind === 're-export') continue
-    const title = pluralLabel(effectiveKind(c))
+  const buckets = new Map<string, MemberEntry[]>()
+  const push = (title: string, entry: MemberEntry) => {
     const arr = buckets.get(title) ?? []
-    arr.push(c)
+    arr.push(entry)
     buckets.set(title, arr)
   }
+
+  for (const c of mod.children) {
+    if (isNamespaceReExport(c) && c.sourceModuleRef) {
+      push(pluralLabel('module'), { kind: 'module', re: c })
+      continue
+    }
+    if (c.kind === 're-export') {
+      for (const t of c.targets) push(pluralLabel(effectiveKind(t)), { kind: 'decl', decl: t })
+      continue
+    }
+    push(pluralLabel(effectiveKind(c)), { kind: 'decl', decl: c })
+  }
+
   return [...buckets.entries()]
     .sort(([a], [b]) => groupOrder(a) - groupOrder(b) || a.localeCompare(b))
     .map(([title, items]) => ({
       title,
-      render: () => <For each={items}>{(c) => <MemberCard decl={c} parentKind="module" />}</For>,
+      render: () => <For each={items}>{(it) => <MemberEntryRow entry={it} parentKind="module" />}</For>,
     }))
+}
+
+type MemberEntry = { kind: 'decl'; decl: docs.Declaration } | { kind: 'module'; re: docs.ReExport }
+
+const MemberEntryRow = (props: { entry: MemberEntry; parentKind: ParentKind }) => {
+  const e = props.entry
+  if (e.kind === 'module') return <ModuleAliasRow re={e.re} />
+  return <MemberCard decl={e.decl} parentKind={props.parentKind} />
+}
+
+/** Row for a `export * as foo from './x'` — links to the source module page. */
+const ModuleAliasRow = (props: { re: docs.ReExport }) => {
+  const { slugById } = useProject()
+  const target = props.re.sourceModuleRef
+  const slug = target ? slugById.get(target.id) : undefined
+  return (
+    <div class="border-b border-line py-3 last:border-b-0">
+      <div class="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 font-mono text-sm leading-relaxed">
+        <span class="text-xs text-mute text-center" title={labelOf('module')}>
+          {shortOf('module')}
+        </span>
+        <div class="min-w-0">
+          <Show when={slug} fallback={<span class="font-semibold">{props.re.as}</span>}>
+            <A href={`/r/${slug}`} class="font-semibold hover:opacity-70">
+              {props.re.as}
+            </A>
+          </Show>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const classSections = (cls: docs.Class): ChildSection[] => {

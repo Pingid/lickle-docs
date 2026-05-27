@@ -2,7 +2,14 @@ import type * as docs from '@lickle/docs'
 
 import { effectiveKind, isRoutable, pluralLabel, groupOrder, type Kind } from './kind.js'
 
-export type NavItem = { id: number; name: string; kind: Kind; slug: string }
+export type NavItem = {
+  id: number
+  name: string
+  kind: Kind
+  slug: string
+  /** Comment to display alongside the item — used by the home page surface list. */
+  comment?: docs.Comment
+}
 export type NavGroup = { title: string; items: NavItem[] }
 
 /** Pluggable sidebar grouping. Take a project + slug index, return groups. */
@@ -19,10 +26,20 @@ export type Slugs = {
 
 const stripExt = (s: string): string => s.replace(/\.[^./]+$/, '')
 
+/**
+ * Display name for a module. When the file is `…/<dir>/index.ts(x|js|mjs)`,
+ * use the containing directory rather than the generic `index` so slugs read
+ * `micro`, `util`, … instead of `index`, `index-2`, `index-3`.
+ */
 const moduleDisplayName = (mod: docs.Module): string => {
-  if (mod.name) return mod.name
-  if (mod.path) return stripExt(mod.path.split('/').pop() ?? mod.path)
-  return '<anonymous>'
+  if (mod.name && mod.name !== 'index') return mod.name
+  if (mod.path) {
+    const parts = mod.path.split('/')
+    const last = stripExt(parts[parts.length - 1] ?? '')
+    if (last === 'index' && parts.length > 1) return parts[parts.length - 2]!
+    return last
+  }
+  return mod.name ?? '<anonymous>'
 }
 
 /**
@@ -42,6 +59,10 @@ const modulePrefix = (mod: docs.Module): string[] => {
 const isAnonymousModule = (mod: docs.Module): boolean => !mod.name && !mod.path
 
 const moduleOf = (decl: docs.Declaration): docs.Module => (decl as { $: { module: docs.Module } }).$.module
+
+/** A namespace re-export — `export * as foo from './x'` — stands in for a module. */
+export const isNamespaceReExport = (decl: docs.Declaration): decl is docs.ReExport =>
+  decl.kind === 're-export' && (decl as docs.ReExport).as != null
 
 /**
  * `models.User`, `Foo.Bar`, etc. Module declarations qualify to their own
@@ -63,12 +84,12 @@ const toSlug = (s: string): string =>
     .replace(/^-+|-+$/g, '')
 
 /**
- * Routable declarations in stable group/name order. `re-export` and `enum-member`
- * never appear here.
+ * Routable declarations across the project, sorted by kind group then name.
+ * Used by the search index. Excludes namespace re-exports — `surface` covers
+ * those for navigation.
  */
 export const routables = (project: docs.Project): docs.Declaration[] => {
   const out: docs.Declaration[] = []
-
   for (const d of project.declarationsById.values()) {
     if (isRoutable(d.kind)) out.push(d)
   }
@@ -87,6 +108,50 @@ const compareNames = (a: docs.Declaration, b: docs.Declaration): number => {
 }
 
 /**
+ * Top-level modules pointed to by `project.entrypoints`. Falls back to every
+ * top-level module when the field is empty so projects without a published
+ * entrypoint still get a sensible sidebar.
+ */
+const entrypointModules = (project: docs.Project): docs.Module[] => {
+  const byPath = new Map<string, docs.Module>()
+  for (const m of project.modules()) if (m.path) byPath.set(m.path, m)
+  const matched = (project.entrypoints ?? [])
+    .map((p) => byPath.get(p))
+    .filter((m): m is docs.Module => m != null)
+  return matched.length ? matched : (project.modules() as docs.Module[])
+}
+
+/**
+ * Translate any module child to a nav item. Namespace re-exports become
+ * `module`-kind items pointing at `sourceModuleRef`. Non-routable children
+ * (anonymous re-exports, members, …) return undefined.
+ */
+const itemFor = (decl: docs.Declaration, slugById: Map<number, string>): NavItem | undefined => {
+  if (isNamespaceReExport(decl)) {
+    const target = decl.sourceModuleRef
+    const slug = target ? slugById.get(target.id) : undefined
+    if (!target || !slug) return undefined
+    return {
+      id: target.id,
+      name: decl.as!,
+      kind: 'module',
+      slug,
+      comment: decl.comment ?? target.comment,
+    }
+  }
+  if (!isRoutable(decl.kind)) return undefined
+  const slug = slugById.get(decl.id)
+  if (!slug) return undefined
+  return {
+    id: decl.id,
+    name: (decl as { name?: string }).name ?? '',
+    kind: effectiveKind(decl),
+    slug,
+    comment: decl.comment,
+  }
+}
+
+/**
  * Slug bookkeeping over the project. Built once per project lifetime;
  * reverse-indexed by `decl.$.referencedBy()` and friends are not needed here.
  */
@@ -94,7 +159,7 @@ export const buildSlugs = (project: docs.Project): Slugs => {
   const slugById = new Map<number, string>()
   const idBySlug = new Map<string, number>()
   const qualifiedNameById = new Map<number, string>()
-  console.log(project)
+
   for (const d of project.declarationsById.values()) {
     qualifiedNameById.set(d.id, qualifyDecl(d) || (d as { name?: string }).name || String(d.id))
   }
@@ -135,30 +200,38 @@ const buildNameLookup = (
   return out
 }
 
-const itemFor = (decl: docs.Declaration, slugById: Map<number, string>): NavItem | undefined => {
-  if (!isRoutable(decl.kind)) return undefined
-  const slug = slugById.get(decl.id)
-  if (!slug) return undefined
-  return {
-    id: decl.id,
-    name: (decl as { name?: string }).name ?? '',
-    kind: effectiveKind(decl),
-    slug,
-  }
-}
-
 const sortByGroupThenName = (items: NavItem[]): NavItem[] =>
   items.sort(
     (a, b) => groupOrder(pluralLabel(a.kind)) - groupOrder(pluralLabel(b.kind)) || a.name.localeCompare(b.name),
   )
 
 /**
- * Default kind-bucketed sidebar: every routable child of every top-level
- * module flattened into one group per `pluralLabel(effectiveKind)`.
+ * Public surface from the entrypoint module(s) — direct routables plus any
+ * namespace re-exports, both treated as first-class nav items. The home page
+ * uses this list as its "Exports" overview.
+ */
+export const surface = (project: docs.Project, slugById: Map<number, string>): NavItem[] => {
+  const out: NavItem[] = []
+  const seen = new Set<number>()
+  for (const top of entrypointModules(project)) {
+    for (const child of top.children) {
+      const item = itemFor(child, slugById)
+      if (!item || seen.has(item.id)) continue
+      seen.add(item.id)
+      out.push(item)
+    }
+  }
+  return sortByGroupThenName(out)
+}
+
+/**
+ * Default kind-bucketed sidebar: every routable child of every entrypoint
+ * module flattened into one group per `pluralLabel(effectiveKind)`. Namespace
+ * re-exports land in the `modules` bucket and link to their source module.
  */
 export const byKind: NavStrategy = (project, slugById) => {
   const buckets = new Map<string, NavItem[]>()
-  for (const top of project.modules()) {
+  for (const top of entrypointModules(project)) {
     for (const child of top.children) {
       const item = itemFor(child, slugById)
       if (!item) continue

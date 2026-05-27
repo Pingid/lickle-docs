@@ -264,7 +264,6 @@ export const build = (modules: T.Module<resolve.Registry>[]): Indexed => {
   }
   resolveForwardEdges(state)
   attachProjectMethods(state)
-  console.log(proj, state)
   return proj
 }
 
