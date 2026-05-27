@@ -3,7 +3,7 @@
     /* Language and Environment */
     "target": "es2022",
     "lib": ["DOM", "ESNext"],
-    "types": ["node"],
+    "types": ["node", "vite/client"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
 

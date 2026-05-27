@@ -8,7 +8,7 @@ import { Type } from '../../components/Type.js'
 export const InlineText = (props: { source: string }) => <Markdown class="lk-md-inline" source={props.source} />
 
 /** Section frame shared across tag renderers. */
-export const Section = (props: { title: string; description?: string; children: JSX.Element }) => (
+export const TagSection = (props: { title: string; description?: string; children: JSX.Element }) => (
   <section class="mt-6">
     <div class="flex items-baseline gap-2 mb-2">
       <h4 class="text-mute uppercase text-[0.7rem] font-semibold tracking-wider">{props.title}</h4>
@@ -26,7 +26,7 @@ export const Section = (props: { title: string; description?: string; children: 
 
 /** Type pill + caption — used for `@returns`, `@throws`, `@type`, `@satisfies`. */
 export const TypedText = (props: { title: string; tag: { type?: docs.Type; text: string } }) => (
-  <Section title={props.title}>
+  <TagSection title={props.title}>
     <Show when={props.tag.type}>
       <div class="font-mono text-sm mb-1">
         <Type type={props.tag.type!} />
@@ -35,12 +35,12 @@ export const TypedText = (props: { title: string; tag: { type?: docs.Type; text:
     <Show when={props.tag.text?.trim()}>
       <InlineText source={props.tag.text} />
     </Show>
-  </Section>
+  </TagSection>
 )
 
 /** Bare text section — used for `@deprecated`, `@author`, `@default`. */
 export const TextBlock = (props: { title: string; text: string }) => (
-  <Section title={props.title}>
+  <TagSection title={props.title}>
     <InlineText source={props.text} />
-  </Section>
+  </TagSection>
 )

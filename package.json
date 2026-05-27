@@ -18,10 +18,17 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/ui/index.d.mts",
+      "types": "./dist/ui/index.d.ts",
       "import": "./dist/ui/index.mjs",
       "require": "./dist/ui/index.cjs"
-    }
+    },
+    "./preset": {
+      "types": "./dist/preset/index.d.ts",
+      "import": "./dist/preset/index.mjs",
+      "require": "./dist/preset/index.cjs"
+    },
+    "./preset/tsconfig.json": "./tsconfig.client.json",
+    "./preset/jsx-runtime": "./dist/preset/solidjs/jsx-runtime.d.ts"
   },
   "scripts": {
     "build": "pnpm tsc && pnpm build:tools && pnpm build:lib",
@@ -48,6 +55,7 @@
   "dependencies": {
     "@orama/orama": "^3.1.18",
     "@solidjs/router": "^0.16.1",
+    "@tailwindcss/vite": "^4.3.0",
     "cmd-ts": "^0.15.0",
     "codejar": "^4.3.0",
     "fast-glob": "^3.3.3",
@@ -55,8 +63,10 @@
     "micromatch": "^4.0.8",
     "shiki": "^4.1.0",
     "solid-js": "^1.9.13",
+    "tailwindcss": "^4.3.0",
     "typedoc": "^0.28.19",
     "unbuild": "^3.6.1",
-    "vite": "^8.0.14"
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.12"
   }
 }

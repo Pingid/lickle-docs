@@ -2,10 +2,10 @@ import { For, Show } from 'solid-js'
 import type * as docs from '../../../core/client.ts'
 
 import { Type } from '../../components/Type.js'
-import { InlineText, Section } from './shared.js'
+import { InlineText, TagSection } from './shared.js'
 
 export const TemplateTag = (props: { tag: docs.CommentTagMap['@template'] }) => (
-  <Section title="Type Parameters">
+  <TagSection title="Type Parameters">
     <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
       <For each={props.tag.typeParameters}>
         {(tp) => (
@@ -28,5 +28,5 @@ export const TemplateTag = (props: { tag: docs.CommentTagMap['@template'] }) => 
         <InlineText source={props.tag.text} />
       </div>
     </Show>
-  </Section>
+  </TagSection>
 )

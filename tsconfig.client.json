@@ -1,0 +1,9 @@
+{
+    "compilerOptions": {
+      "lib": ["DOM"],
+      "jsx": "preserve",
+      "jsxImportSource": "@lickle/docs/preset",
+      "noEmit": true,
+    }
+  }
+  

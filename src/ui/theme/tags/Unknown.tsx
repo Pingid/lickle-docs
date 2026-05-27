@@ -1,7 +1,7 @@
 import type * as docs from '../../../core/client.ts'
 
 import { Markdown } from '../../components/Markdown.js'
-import { Section } from './shared.js'
+import { TagSection } from './shared.js'
 
 /** `@deprecated` → `Deprecated`, `@runnable` → `Runnable`. */
 const prettifyTagName = (tag: string): string => {
@@ -10,7 +10,7 @@ const prettifyTagName = (tag: string): string => {
 }
 
 export const UnknownTag = (props: { tag: docs.CommentTag }) => (
-  <Section title={prettifyTagName(props.tag.tag)}>
+  <TagSection title={prettifyTagName(props.tag.tag)}>
     <Markdown source={(props.tag as { text?: string }).text ?? ''} />
-  </Section>
+  </TagSection>
 )
