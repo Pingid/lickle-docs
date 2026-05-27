@@ -1,17 +1,17 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 
-import { createSearchEngine, type SearchHit } from '../util/search.js'
-import { labelOf, shortOf } from '../util/kind.js'
-import { useProject } from '../context/index.js'
+import { type SearchHit } from '../util/search.js'
+import { useSearch } from '../hooks/index.js'
+import { KindBadge } from '../primitives/Kind.js'
 
 const DEBOUNCE_MS = 80
 
 export const SearchPalette = (props: { open: () => boolean; onClose: () => void }) => {
-  const bag = useProject()
   const navigate = useNavigate()
+  const search = useSearch()
 
-  const [engine] = createResource(props.open, async (isOpen) => (isOpen ? createSearchEngine(bag) : undefined))
+  const [engine] = createResource(props.open, async (isOpen) => (isOpen ? await search() : undefined))
 
   const [term, setTerm] = createSignal('')
   const [debounced, setDebounced] = createSignal('')
@@ -127,9 +127,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
                     onMouseEnter={() => setHighlight(i())}
                     onClick={() => choose(hit)}
                   >
-                    <span class="font-mono text-xs text-mute w-4 text-center shrink-0" title={labelOf(hit.kind)}>
-                      {shortOf(hit.kind)}
-                    </span>
+                    <KindBadge kind={hit.kind} class="w-4 shrink-0" />
                     <span class="font-mono font-semibold text-sm truncate">{hit.name}</span>
                     <Show when={hit.qualified && hit.qualified !== hit.name}>
                       <span class="font-mono text-xs text-mute truncate ml-auto">{hit.qualified}</span>

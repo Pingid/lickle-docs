@@ -2,7 +2,7 @@ import { Router, Route } from '@solidjs/router'
 
 import { ThemeProvider } from './context/index.js'
 import { Reflection } from './pages/Reflection.js'
-import { Layout } from './components/Layout.js'
+import { Layout } from './theme/slots/Layout.js'
 import { Home } from './pages/Home.js'
 
 export const App = () => (

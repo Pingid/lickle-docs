@@ -4,6 +4,7 @@ import { A, useLocation } from '@solidjs/router'
 import { useNavGroups } from '../context/index.js'
 import type { NavGroup } from '../util/project.js'
 import { shortOf } from '../util/kind.js'
+import { KindBadge } from '../primitives/Kind.js'
 
 /**
  * Collapsible navigation. Groups start collapsed; the group containing the
@@ -68,8 +69,8 @@ export const Sidebar = (props: { onNavigate?: () => void; class?: string }) => {
                           onClick={() => props.onNavigate?.()}
                         >
                           <Show when={shortOf(it.kind)}>
-                            <span class="font-mono text-[0.7rem] w-3.5 text-mute">{shortOf(it.kind)}</span>
-                          </Show>
+                          <KindBadge kind={it.kind} class="!text-[0.7rem] w-3.5" />
+                        </Show>
                           <span class="font-mono truncate">{it.name}</span>
                         </A>
                       </li>

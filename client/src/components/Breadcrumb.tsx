@@ -3,9 +3,11 @@ import { A } from '@solidjs/router'
 
 import { ancestors } from '../util/project.js'
 import { useProject } from '../context/index.js'
+import { useSlugFor } from '../hooks/index.js'
 
 export const Breadcrumb = (props: { id: number }) => {
   const { project } = useProject()
+  const slugs = useSlugFor()
   const chain = () => ancestors(project, props.id)
 
   return (
@@ -19,7 +21,7 @@ export const Breadcrumb = (props: { id: number }) => {
         <For each={chain()}>
           {(r, i) => {
             const isLast = i() === chain().length - 1
-            const slug = project.slugById.get(r.id)
+            const slug = slugs.byId(r.id)
             const name =
               (r as { displayName?: string }).displayName ??
               (r as { name?: string; path?: string }).name ??

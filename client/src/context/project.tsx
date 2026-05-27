@@ -4,6 +4,8 @@ import type { JSX } from 'solid-js/jsx-runtime'
 import * as docs from '@lickle/docs'
 
 import { auto, routables, surface, type NavGroup, type NavItem, type NavStrategy } from '../util/project.js'
+import { ComponentsProvider } from '../registry/context.js'
+import type { Components } from '../registry/types.js'
 
 export type ProjectBag = {
   project: docs.Project
@@ -20,6 +22,8 @@ export const ProjectProvider = (props: {
   json: docs.ProjectJson
   /** Override the sidebar grouping. Defaults to {@link auto}. */
   navGroups?: NavStrategy
+  /** Component overrides — pages, tags, slots, member sections. */
+  components?: Components
 }) => {
   const bag = createMemo<ProjectBag>(() => {
     const project = docs.createProject(props.json)
@@ -31,7 +35,11 @@ export const ProjectProvider = (props: {
       surface: surface(project),
     }
   })
-  return <ProjectCtx.Provider value={bag}>{props.children}</ProjectCtx.Provider>
+  return (
+    <ComponentsProvider value={props.components}>
+      <ProjectCtx.Provider value={bag}>{props.children}</ProjectCtx.Provider>
+    </ComponentsProvider>
+  )
 }
 
 export const useProject = (): ProjectBag => {

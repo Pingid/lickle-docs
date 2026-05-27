@@ -1,11 +1,11 @@
 import { createResource, Show } from 'solid-js'
 
 import { renderMarkdown, renderMarkdownSync, type CodespanLookup } from '../util/markdown.js'
-import { useProject } from '../context/index.js'
+import { useSlugFor } from '../hooks/index.js'
 
 export const Markdown = (props: { source: string; class?: string }) => {
-  const { project } = useProject()
-  const lookup: CodespanLookup = (raw) => project.slugByName.get(raw)
+  const slugs = useSlugFor()
+  const lookup: CodespanLookup = (raw) => slugs.byName(raw)
   const [html] = createResource(
     () => props.source,
     (s) => renderMarkdown(s, lookup),

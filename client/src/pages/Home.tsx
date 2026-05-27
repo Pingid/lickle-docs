@@ -3,7 +3,7 @@ import { A } from '@solidjs/router'
 
 import { commentSummaryText } from '../components/Comment.js'
 import { useProject } from '../context/index.js'
-import { labelOf } from '../util/kind.js'
+import { KindLabel } from '../primitives/Kind.js'
 import type { NavItem } from '../util/project.js'
 import { Markdown } from '../components/Markdown.js'
 
@@ -28,7 +28,7 @@ export const Home = () => {
 
 const SurfaceRow = (props: { item: NavItem }) => (
   <li class="flex items-baseline gap-3">
-    <span class="text-xs uppercase text-mute tracking-wider w-20">{labelOf(props.item.kind)}</span>
+    <KindLabel kind={props.item.kind} class="w-20" />
     <A href={`/r/${props.item.slug}`} class="font-mono font-medium hover:opacity-70">
       {props.item.name}
     </A>
