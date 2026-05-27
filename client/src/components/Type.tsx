@@ -32,11 +32,15 @@ const TypeArgs = (props: { args?: T[] }) => (
 )
 
 const ReferenceType = (props: { type: docs.Reference }) => {
-  const { slugById } = useProject()
+  const { project } = useProject()
   const target = props.type.target
-  const slug = target ? slugById.get(target.id) : undefined
+  const slug = target ? project.slugById.get(target.id) : undefined
+  const external = props.type.external
   return (
     <>
+      <Show when={external === 'anonymous'}>
+        <Punct>?</Punct>
+      </Show>
       <Show when={slug} fallback={<Name>{props.type.name}</Name>}>
         <A href={`/r/${slug}`} class="underline decoration-line underline-offset-[3px] hover:opacity-70">
           {props.type.name}
@@ -66,7 +70,7 @@ const ReflectionType = (props: { type: docs.ReflectionType }) => {
               <Punct>{', '}</Punct>
             </Show>
             <Name>{p.name}</Name>
-            <Show when={p.flags?.optional}>
+            <Show when={p.optional}>
               <Punct>?</Punct>
             </Show>
             <Punct>: </Punct>
@@ -163,13 +167,6 @@ export const Type = (props: { type: T | undefined }): any => {
       return <span>{String(t.value)}</span>
     case 'reference':
       return <ReferenceType type={t} />
-    case 'unresolved':
-      return (
-        <>
-          <Name>{t.name}</Name>
-          <TypeArgs args={t.typeArguments} />
-        </>
-      )
     case 'array':
       return (
         <>

@@ -4,8 +4,7 @@ import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
 import { ReflectionScope } from '../context/project.js'
-
-import { effectiveKind, groupOrder, labelOf, pluralLabel, shortOf, signaturesOf, type Kind } from '../util/kind.js'
+import { groupOrder, labelOf, pluralLabel, shortOf, type Kind } from '../util/kind.js'
 import { isNamespaceReExport } from '../util/project.js'
 import { SignatureExpr, Type } from './Type.js'
 import { useProject } from '../context/index.js'
@@ -14,7 +13,7 @@ type ChildSection = { title: string; render: () => JSX.Element }
 
 /**
  * Page-level member rendering. Dispatches per parent kind:
- * - Module: bucket children by `effectiveKind` and render with {@link MemberCard}.
+ * - Module: bucket children by `kind` and render with {@link MemberCard}.
  * - Class:  fixed sections — Constructors, Properties, Methods.
  * - Interface: Properties, Methods, Call signatures, Construct signatures, Index signature.
  */
@@ -44,10 +43,9 @@ const sectionsFor = (decl: docs.Declaration): ChildSection[] => {
 }
 
 /**
- * Namespace re-exports (`export * as foo from './x'`) become a `Modules`
- * section that links to the source module page; barrel re-exports
- * (`export * from './x'`) are flattened so `re.targets` show alongside the
- * module's own declarations.
+ * Module children, bucketed by kind. Re-exports flatten depending on `form`:
+ *   - `namespace` → `Modules` row that links to the source module page
+ *   - `all` / `named` → expand `re.targets` so they sit alongside local decls
  */
 const moduleSections = (mod: docs.Module): ChildSection[] => {
   const buckets = new Map<string, MemberEntry[]>()
@@ -58,15 +56,15 @@ const moduleSections = (mod: docs.Module): ChildSection[] => {
   }
 
   for (const c of mod.children) {
-    if (isNamespaceReExport(c) && c.sourceModuleRef) {
-      push(pluralLabel('module'), { kind: 'module', re: c })
-      continue
-    }
     if (c.kind === 're-export') {
-      for (const t of c.targets) push(pluralLabel(effectiveKind(t)), { kind: 'decl', decl: t })
+      if (isNamespaceReExport(c) && c.sourceModuleRef) {
+        push(pluralLabel('module'), { kind: 'module', re: c })
+        continue
+      }
+      for (const t of c.targets) push(pluralLabel(t.kind), { kind: 'decl', decl: t })
       continue
     }
-    push(pluralLabel(effectiveKind(c)), { kind: 'decl', decl: c })
+    push(pluralLabel(c.kind), { kind: 'decl', decl: c })
   }
 
   return [...buckets.entries()]
@@ -77,7 +75,7 @@ const moduleSections = (mod: docs.Module): ChildSection[] => {
     }))
 }
 
-type MemberEntry = { kind: 'decl'; decl: docs.Declaration } | { kind: 'module'; re: docs.ReExport }
+type MemberEntry = { kind: 'decl'; decl: docs.Declaration } | { kind: 'module'; re: docs.ReExportNamespace }
 
 const MemberEntryRow = (props: { entry: MemberEntry; parentKind: ParentKind }) => {
   const e = props.entry
@@ -86,10 +84,10 @@ const MemberEntryRow = (props: { entry: MemberEntry; parentKind: ParentKind }) =
 }
 
 /** Row for a `export * as foo from './x'` — links to the source module page. */
-const ModuleAliasRow = (props: { re: docs.ReExport }) => {
-  const { slugById } = useProject()
+const ModuleAliasRow = (props: { re: docs.ReExportNamespace }) => {
+  const { project } = useProject()
   const target = props.re.sourceModuleRef
-  const slug = target ? slugById.get(target.id) : undefined
+  const slug = target ? project.slugById.get(target.id) : undefined
   return (
     <div class="border-b border-line py-3 last:border-b-0">
       <div class="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 font-mono text-sm leading-relaxed">
@@ -172,15 +170,14 @@ type ChildLike = docs.Declaration | docs.Property | docs.Method | docs.EnumMembe
 type ParentKind = 'module' | 'class' | 'interface'
 
 /**
- * Single-row card for a child declaration. Uses {@link effectiveKind} for the
- * left-rail glyph and dispatches the body by `child.kind` (with a small
- * parent-context tweak for class methods).
+ * Single-row card for a child declaration. Dispatches the body by kind, with
+ * a small parent-context tweak for class methods.
  */
 const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
-  const { slugById } = useProject()
+  const { project } = useProject()
   const c = props.decl as ChildLike & { id: number; name?: string; kind: string }
-  const k: Kind = effectiveKind(c as { kind: string })
-  const slug = slugById.get(c.id)
+  const k: Kind = c.kind as Kind
+  const slug = project.slugById.get(c.id)
 
   const Name = () => (
     <Show when={slug} fallback={<span class="font-semibold">{c.name}</span>}>
@@ -217,8 +214,9 @@ const MemberCard = (props: { decl: ChildLike; parentKind: ParentKind }) => {
       )
     }
     if (c.kind === 'method' || c.kind === 'function') {
+      const sigs = (c as docs.Method | docs.Func).signatures
       return (
-        <For each={signaturesOf(c as { signatures?: docs.Signature[] })}>
+        <For each={sigs}>
           {(sig) => (
             <div>
               <Name />

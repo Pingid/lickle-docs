@@ -1,10 +1,10 @@
-import type * as docs from '@lickle/docs'
-
 /**
- * String discriminants for everything we care about in the UI. The schema
- * already gives us declaration kinds; the additional members (`'enum-member'`,
- * `'property'`, …) come from nested reflections that aren't declarations but
- * still need labels and icons.
+ * String discriminants for everything we render. Server-side normalisation
+ * (in `scan.ts`) collapses callable variables to `function`, so the client
+ * can read `decl.kind` directly without runtime adjustment.
+ *
+ * Members like `'enum-member'`, `'property'`, … are not declarations but
+ * still appear in member listings and search hits.
  */
 export type Kind =
   | 'module'
@@ -22,40 +22,6 @@ export type Kind =
   | 'signature'
   | 'index-signature'
   | 'object-literal'
-
-type CallableHost = {
-  type?: { kind?: string; signatures?: unknown[]; declaration?: { callSignatures?: unknown[] } }
-}
-
-/**
- * Promote a callable `const` (the resolver reports it as `variable`) to
- * `function`. Source-level `const f = () => …` is semantically a function, so
- * the UI labels and groups it that way. Everything else passes through.
- */
-export const effectiveKind = (decl: { kind: string } & CallableHost): Kind => {
-  if (decl.kind !== 'variable') return decl.kind as Kind
-  const t = decl.type
-  if (t?.kind === 'function-type' && (t as { signatures?: unknown[] }).signatures?.length) return 'function'
-  if (t?.kind === 'reflection' && t.declaration?.callSignatures?.length) return 'function'
-  return 'variable'
-}
-
-/**
- * Call signatures for a declaration. `function` and `method` carry them
- * directly on `signatures`; callable Variables (see {@link effectiveKind})
- * carry them on `type.signatures` (`function-type`) or
- * `type.declaration.callSignatures` (`reflection`).
- */
-export const signaturesOf = (decl: {
-  signatures?: docs.Signature[]
-  type?: { kind?: string; signatures?: docs.Signature[]; declaration?: { callSignatures?: docs.Signature[] } }
-}): docs.Signature[] => {
-  if (decl.signatures?.length) return decl.signatures
-  const t = decl.type
-  if (t?.kind === 'function-type' && t.signatures?.length) return t.signatures
-  if (t?.kind === 'reflection' && t.declaration?.callSignatures?.length) return t.declaration.callSignatures
-  return []
-}
 
 const LABELS: Record<Kind, string> = {
   module: 'module',
@@ -129,13 +95,13 @@ export const pluralLabel = (kind: Kind | string): string => PLURAL[kind as Kind]
  * Unknown titles sort to the end.
  */
 const GROUP_ORDER = [
+  'modules',
   'functions',
   'variables',
   'types',
   'classes',
   'interfaces',
   'enums',
-  'modules',
   'references',
   'properties',
   'methods',

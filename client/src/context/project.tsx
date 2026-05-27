@@ -3,23 +3,10 @@ import type { JSX } from 'solid-js/jsx-runtime'
 
 import * as docs from '@lickle/docs'
 
-import {
-  auto,
-  buildSlugs,
-  routables,
-  surface,
-  type NavGroup,
-  type NavItem,
-  type NavStrategy,
-  type Slugs,
-} from '../util/project.js'
+import { auto, routables, surface, type NavGroup, type NavItem, type NavStrategy } from '../util/project.js'
 
 export type ProjectBag = {
   project: docs.Project
-  slugById: Slugs['slugById']
-  idBySlug: Slugs['idBySlug']
-  slugByName: Slugs['slugByName']
-  qualifiedNameById: Slugs['qualifiedNameById']
   navGroups: NavGroup[]
   routables: docs.Declaration[]
   /** Public surface from the entrypoint(s): direct routables + namespace re-exports. */
@@ -36,14 +23,12 @@ export const ProjectProvider = (props: {
 }) => {
   const bag = createMemo<ProjectBag>(() => {
     const project = docs.createProject(props.json)
-    const slugs = buildSlugs(project)
     const strategy = props.navGroups ?? auto
     return {
       project,
-      ...slugs,
-      navGroups: strategy(project, slugs.slugById),
+      navGroups: strategy(project),
       routables: routables(project),
-      surface: surface(project, slugs.slugById),
+      surface: surface(project),
     }
   })
   return <ProjectCtx.Provider value={bag}>{props.children}</ProjectCtx.Provider>

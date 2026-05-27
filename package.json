@@ -9,18 +9,18 @@
   },
   "license": "MIT",
   "type": "module",
-  "main": "lib/cjs/index.js",
-  "types": "lib/ts/index.d.ts",
-  "module": "lib/esm/index.js",
+  "main": "dist/index.cjs",
+  "types": "dist/index.d.mts",
+  "module": "dist/index.mjs",
   "sideEffects": false,
   "bin": {
     "ldocs": "./src/cli.ts"
   },
   "exports": {
     ".": {
-      "types": "./lib/src/index.ts",
-      "import": "./lib/src/index.ts",
-      "require": "./lib/cjs/index.js"
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
     }
   },
   "scripts": {
@@ -46,11 +46,11 @@
     "trailingComma": "all"
   },
   "dependencies": {
-    "@lickle/docs": "link:",
     "cmd-ts": "^0.15.0",
     "fast-glob": "^3.3.3",
     "micromatch": "^4.0.8",
     "typedoc": "^0.28.19",
+    "unbuild": "^3.6.1",
     "vite": "^8.0.14"
   }
 }

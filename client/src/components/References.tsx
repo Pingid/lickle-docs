@@ -2,7 +2,7 @@ import { For, Show, createMemo } from 'solid-js'
 import type * as docs from '@lickle/docs'
 import { A } from '@solidjs/router'
 
-import { effectiveKind, isRoutable, labelOf } from '../util/kind.js'
+import { isRoutable, labelOf } from '../util/kind.js'
 import { commentSummaryText } from './Comment.js'
 import { useProject } from '../context/index.js'
 
@@ -31,7 +31,7 @@ const routableAncestor = (decl: docs.Declaration): docs.Declaration | undefined 
 }
 
 export const References = (props: { id: number }) => {
-  const { project, slugById, qualifiedNameById } = useProject()
+  const { project } = useProject()
 
   const rows = createMemo<Row[]>(() => {
     const target = project.declarationsById.get(props.id)
@@ -46,10 +46,10 @@ export const References = (props: { id: number }) => {
       if (!ancestor || ancestor.id === props.id) continue
       if (seen.has(ancestor.id)) continue
       seen.add(ancestor.id)
-      const slug = slugById.get(ancestor.id)
+      const slug = project.slugById.get(ancestor.id)
       if (!slug) continue
       const name = (ancestor as { name?: string }).name ?? ''
-      const qualified = qualifiedNameById.get(ancestor.id) ?? name
+      const qualified = project.qualifiedNameById.get(ancestor.id) ?? name
       const dot = qualified.lastIndexOf('.')
       out.push({
         decl: ancestor,
@@ -78,7 +78,7 @@ export const References = (props: { id: number }) => {
 const ReferenceRow = (props: { row: Row }) => {
   return (
     <li>
-      <span class="kind">{labelOf(effectiveKind(props.row.decl))}</span>
+      <span class="kind">{labelOf(props.row.decl.kind)}</span>
       <A href={`/r/${props.row.slug}`} class="symbol font-mono hover:opacity-70">
         <Show when={props.row.module}>
           <span class="text-mute">{props.row.module}.</span>

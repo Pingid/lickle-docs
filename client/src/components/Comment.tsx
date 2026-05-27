@@ -4,10 +4,10 @@ import { A } from '@solidjs/router'
 import type * as docs from '@lickle/docs'
 
 import { useProject } from '../context/index.js'
-import type { Tag } from '../api.js'
 import { Markdown } from './Markdown.js'
 import { Type } from './Type.js'
 
+type Tag = docs.CommentTag
 type TagOf<K extends keyof docs.CommentTagMap> = docs.CommentTagMap[K]
 
 /**
@@ -19,13 +19,13 @@ type TagOf<K extends keyof docs.CommentTagMap> = docs.CommentTagMap[K]
  * via {@link Markdown}, which already hands fenced blocks off to shiki.
  */
 export const Comment = (props: { comment?: docs.Comment; class?: string }) => {
-  const { slugByName } = useProject()
-  const slugOf = (name: string) => slugByName.get(name)
+  const { project } = useProject()
+  const slugOf = (name: string) => project.slugByName.get(name)
   return (
     <Show when={props.comment}>
       {(c) => {
         const summary = () => commentToMarkdown(c(), slugOf)
-        const groups = () => groupTags(c().tags)
+        const groups = () => groupTags(c().tags ?? [])
         return (
           <Show when={summary() || groups().length}>
             <div class={props.class}>
@@ -42,7 +42,15 @@ export const Comment = (props: { comment?: docs.Comment; class?: string }) => {
 }
 
 /** Single-line plain-text preview of a comment. Used by listings/cards. */
-export const commentSummaryText = (comment: docs.Comment | undefined): string => comment?.text.trim() ?? ''
+export const commentSummaryText = (comment: docs.Comment | undefined): string => {
+  if (!comment) return ''
+  let out = ''
+  for (const p of comment.parts) {
+    if (p.kind === 'text') out += p.text
+    else out += p.text ?? p.target
+  }
+  return out.trim()
+}
 
 // ============================================================================
 // GROUPING
@@ -123,7 +131,6 @@ const NamedRow = (props: { item: Named }) => (
 
 const TagBlock = (props: { tag: Tag }) => {
   const t = props.tag
-  console.log(t)
   if (t.tag === '@returns') return <TypedText title="Returns" tag={t as TagOf<'@returns'>} />
   if (t.tag === '@throws') return <TypedText title="Throws" tag={t as TagOf<'@throws'>} />
   if (t.tag === '@type') return <TypedText title="Type" tag={t as TagOf<'@type'>} />
@@ -131,15 +138,15 @@ const TagBlock = (props: { tag: Tag }) => {
   if (t.tag === '@example' && 'code' in t) return <ExampleBlock tag={t as TagOf<'@example'>} />
   if (t.tag === '@see') return <SeeBlock tag={t as TagOf<'@see'>} />
   if (t.tag === '@template') return <TemplateBlock tag={t as TagOf<'@template'>} />
-  if (t.tag === '@deprecated') return <TextBlock title="Deprecated" text={t.text} />
+  if (t.tag === '@deprecated') return <TextBlock title="Deprecated" text={(t as { text: string }).text} />
   if (t.tag === '@remarks')
     return (
       <Section title="Remarks">
-        <Markdown source={t.text} />
+        <Markdown source={(t as { text: string }).text} />
       </Section>
     )
-  if (t.tag === '@author') return <TextBlock title="Author" text={t.text} />
-  if (t.tag === '@default') return <TextBlock title="Default" text={t.text} />
+  if (t.tag === '@author') return <TextBlock title="Author" text={(t as { text: string }).text} />
+  if (t.tag === '@default') return <TextBlock title="Default" text={(t as { text: string }).text} />
   return <UnknownTag tag={t.tag} text={(t as { text?: string }).text ?? ''} />
 }
 
@@ -187,8 +194,8 @@ const ExampleBlock = (props: { tag: TagOf<'@example'> }) => (
 )
 
 const SeeBlock = (props: { tag: TagOf<'@see'> }) => {
-  const { slugByName } = useProject()
-  const slug = () => (props.tag.target ? slugByName.get(props.tag.target) : undefined)
+  const { project } = useProject()
+  const slug = () => (props.tag.target ? project.slugByName.get(props.tag.target) : undefined)
   return (
     <Section title="See">
       <Show when={props.tag.target}>
@@ -260,12 +267,10 @@ const prettifyTagName = (tag: string): string => {
 }
 
 /**
- * Convert structured `comment.parts` to markdown, resolving inline `{@link}`
- * references via the slug lookup. Falls back to `comment.text` when `parts`
- * isn't populated.
+ * Render structured `comment.parts` to markdown, resolving inline `{@link}`
+ * references via the slug lookup.
  */
 const commentToMarkdown = (comment: docs.Comment, slugOf: (name: string) => string | undefined): string => {
-  if (!comment.parts?.length) return comment.text
   let out = ''
   for (const p of comment.parts) {
     if (p.kind === 'text') {

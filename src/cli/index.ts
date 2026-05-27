@@ -2,8 +2,8 @@ import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
 import path from 'node:path'
 
-import * as project from '../project/json.ts'
-import * as client from '../client/index.ts'
+import * as project from '../core/project/json.ts'
+import { client } from '../cli/util/index.ts'
 
 export const app = () =>
   cmd.subcommands({

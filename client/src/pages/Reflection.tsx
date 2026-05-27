@@ -3,7 +3,7 @@ import { useParams, A } from '@solidjs/router'
 import type * as docs from '@lickle/docs'
 import { Dynamic } from 'solid-js/web'
 
-import { effectiveKind, labelOf, signaturesOf, type Kind } from '../util/kind.js'
+import { labelOf, type Kind } from '../util/kind.js'
 import { ReflectionScope } from '../context/project.js'
 import { References } from '../components/References.js'
 import { Breadcrumb } from '../components/Breadcrumb.js'
@@ -32,8 +32,8 @@ const Header = (props: { decl: Decl }) => (
     <Breadcrumb id={props.decl.id} />
     <div class="flex items-baseline gap-3 flex-wrap">
       <h1 class="text-2xl font-semibold tracking-tight font-mono">{nameOf(props.decl)}</h1>
-      <span class="text-xs uppercase tracking-wider text-mute">{labelOf(effectiveKind(props.decl))}</span>
-      <Show when={props.decl.comment?.tags.some((t: { tag: string }) => t.tag === '@deprecated')}>
+      <span class="text-xs uppercase tracking-wider text-mute">{labelOf(props.decl.kind)}</span>
+      <Show when={props.decl.comment?.tags?.some((t: { tag: string }) => t.tag === '@deprecated')}>
         <span class="text-xs uppercase tracking-wider text-mute">· deprecated</span>
       </Show>
     </div>
@@ -42,17 +42,16 @@ const Header = (props: { decl: Decl }) => (
 )
 
 const nameOf = (decl: Decl): string => {
-  const n = (decl as { name?: string }).name ?? ''
-  return n
+  return (decl as { displayName?: string; name?: string }).displayName ?? (decl as { name?: string }).name ?? ''
 }
 
-const FunctionPage = (props: { decl: docs.Declaration<'function'> | docs.Declaration<'variable'> }) => (
+const FunctionPage = (props: { decl: docs.Declaration<'function'> }) => (
   <article>
     <Header decl={props.decl} />
     {/* The function decl's comment is repeated on each signature, so
         skip it here and let `<Signature>` render the per-overload copy. */}
     <div class="mt-5">
-      <For each={signaturesOf(props.decl)}>
+      <For each={props.decl.signatures}>
         {(sig) => <Signature sig={sig} name={props.decl.name} kind="function" />}
       </For>
     </div>
@@ -119,10 +118,19 @@ const TypeAliasPage = (props: { decl: docs.Declaration<'type-alias'> }) => (
 const ClassPage = (props: { decl: docs.Declaration<'class'> }) => (
   <article>
     <Header decl={props.decl} />
-    <Show when={props.decl.extends}>
+    <Show when={props.decl.extends?.length}>
       <div class="text-sm text-mute font-mono mt-2">
         <span class="text-accent">extends </span>
-        <Type type={props.decl.extends!} />
+        <For each={props.decl.extends!}>
+          {(t, i) => (
+            <>
+              <Show when={i() > 0}>
+                <span>, </span>
+              </Show>
+              <Type type={t} />
+            </>
+          )}
+        </For>
       </div>
     </Show>
     <Show when={props.decl.implements?.length}>
@@ -215,7 +223,7 @@ const ModulePage = (props: { decl: docs.Declaration<'module'> }) => (
   </article>
 )
 
-/** Map effective kind → page component. Falls back to {@link ModulePage}. */
+/** Map declaration kind → page component. Falls back to {@link ModulePage}. */
 const pageFor = (k: Kind): Component<{ decl: any }> => {
   if (k === 'function') return FunctionPage
   if (k === 'variable') return VariablePage
@@ -228,12 +236,12 @@ const pageFor = (k: Kind): Component<{ decl: any }> => {
 
 export const Reflection = () => {
   const params = useParams()
-  const { project, idBySlug } = useProject()
+  const { project } = useProject()
 
   const decl = createMemo<Decl | undefined>(() => {
     const slug = params.slug
     if (!slug) return undefined
-    const id = idBySlug.get(slug)
+    const id = project.idBySlug.get(slug)
     if (id == null) return undefined
     return project.declarationsById.get(id)
   })
@@ -253,7 +261,7 @@ export const Reflection = () => {
     >
       {(d) => (
         <ReflectionScope id={d().id}>
-          <Dynamic component={pageFor(effectiveKind(d()))} decl={d()} />
+          <Dynamic component={pageFor(d().kind as Kind)} decl={d()} />
           <References id={d().id} />
         </ReflectionScope>
       )}

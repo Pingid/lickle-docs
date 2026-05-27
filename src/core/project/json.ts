@@ -5,11 +5,10 @@ import ts from 'typescript'
 import mm from 'micromatch'
 import fg from 'fast-glob'
 
-import * as pkgJson from '../pkg-json/index.ts'
-import * as tsconf from '../tsconfig/index.ts'
+import { pkgJson, tsconfig as tsconf } from '../workspace/index.ts'
 import * as reflect from '../reflect/index.ts'
-import * as naming from './naming.ts'
 import * as surface from './surface.ts'
+import * as naming from './naming.ts'
 
 export interface ProjectJson {
   /** The name of the project. */
@@ -144,9 +143,7 @@ const pickConditional = (
   return { ok: false, error: 'not-in-tsconfig' }
 }
 
-type ResolveResult =
-  | { ok: true; path: string }
-  | { ok: false; error: 'not-in-tsconfig' | 'unsupported-path' }
+type ResolveResult = { ok: true; path: string } | { ok: false; error: 'not-in-tsconfig' | 'unsupported-path' }
 
 /**
  * Map a `package.json` style spec (e.g. `./lib/src/index.ts`) onto a source
