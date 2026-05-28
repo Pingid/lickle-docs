@@ -2,15 +2,21 @@ import type * as T from './types.ts'
 
 export interface Visitor {
   onReference: (ref: T.ReferenceType) => void
-  onReExport: (re: T.ReExport) => void
+  onExports: (e: T.Exports) => void
 }
 
-export const Module = (m: T.Module, v: Visitor): void => m.children.forEach((c) => Declaration(c, v))
-
+/**
+ * Walk a single declaration's substructure. Modules and namespaces are no-ops
+ * because their children are just ids — every child is reachable through the
+ * flat declaration list separately, so recursing here would double-count.
+ *
+ * Only the per-decl substructure (signatures, types, parameters, …) is walked.
+ */
 export const Declaration = (d: T.AnyDeclaration, v: Visitor): void => {
   switch (d.kind) {
     case 'module':
-      return Module(d, v)
+    case 'namespace':
+      return
     case 'variable':
       return Variable(d, v)
     case 'function':
@@ -23,8 +29,8 @@ export const Declaration = (d: T.AnyDeclaration, v: Visitor): void => {
       return TypeAlias(d, v)
     case 'enum':
       return Enum(d, v)
-    case 're-export':
-      return v.onReExport(d)
+    case 'exports':
+      return v.onExports(d)
   }
 }
 

@@ -72,7 +72,8 @@ export interface Components {
   'declaration.interface'?: Component<DeclarationProps<'interface'>>
   'declaration.enum'?: Component<DeclarationProps<'enum'>>
   'declaration.module'?: Component<DeclarationProps<'module'>>
-  'declaration.re-export'?: Component<DeclarationProps<'re-export'>>
+  'declaration.namespace'?: Component<DeclarationProps<'namespace'>>
+  'declaration.exports'?: Component<DeclarationProps<'exports'>>
 
   comment?: Component<WithDefault<{ comment?: docs.Comment; class?: string }>>
   'comment.parameters'?: Component<WithDefault<{ tags: docs.CommentTagMap['@param'][] }>>

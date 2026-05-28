@@ -4,7 +4,7 @@ import { App, type Components, ProjectProvider } from '../ui/index.ts'
 import type { NavStrategy } from '../ui/strategies/index.ts'
 import { ProjectJson } from '../core/client.ts'
 
-export * from './solidjs/index.ts'
+export * from './index.ts'
 export * from '../ui/index.ts'
 
 import '@lickle/docs/theme.css'

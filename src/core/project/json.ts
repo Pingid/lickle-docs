@@ -25,8 +25,10 @@ export interface ProjectJson {
   hash?: string
   /** Entrypoints — relative source paths reachable from `main` / `exports`. */
   entrypoints: string[]
-  /** Top-level reflections — one per scanned source file. */
-  reflections: reflect.resolve.Module[]
+  /** Flat list of every declaration in the project, source order. */
+  declarations: reflect.resolve.Declaration[]
+  /** Top-level module ids — one per scanned source file. */
+  children: number[]
   /** Per-entrypoint public surface (id + kind), precomputed once at scan time. */
   surface: surface.SurfaceEntry[]
   /** Links for the project. */
@@ -53,16 +55,16 @@ export const generate = async (options: ScanOptions): Promise<ProjectJson> => {
   const version = json.version
   const name = json.name ?? 'Unknown'
 
-  const reflections = reflect.resolve.run(Array.from(files), {
+  const result = reflect.resolve.run(Array.from(files), {
     compilerOptions: tsConfig.options,
     rootDir: options.dir,
     include: { file: (sf) => keepFile(sf, options.exclude) },
   })
 
-  naming.stamp(reflections)
+  naming.stamp(result.declarations, result.children)
 
   const entrypoints = Array.from(files).map((f) => path.relative(options.dir, f))
-  const surfaceEntries = surface.compute(entrypoints, reflections)
+  const surfaceEntries = surface.compute(entrypoints, result.declarations, result.children)
 
   const hash = readGitHash()
 
@@ -71,7 +73,8 @@ export const generate = async (options: ScanOptions): Promise<ProjectJson> => {
     version,
     readme,
     entrypoints,
-    reflections,
+    declarations: result.declarations,
+    children: result.children,
     exports,
     surface: surfaceEntries,
     links,

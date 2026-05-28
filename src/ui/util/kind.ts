@@ -8,13 +8,14 @@
  */
 export type Kind =
   | 'module'
+  | 'namespace'
+  | 'exports'
   | 'variable'
   | 'function'
   | 'class'
   | 'interface'
   | 'type-alias'
   | 'enum'
-  | 're-export'
   | 'enum-member'
   | 'property'
   | 'method'
@@ -25,13 +26,14 @@ export type Kind =
 
 const LABELS: Record<Kind, string> = {
   module: 'module',
+  namespace: 'namespace',
+  exports: 'exports',
   variable: 'variable',
   function: 'function',
   class: 'class',
   interface: 'interface',
   'type-alias': 'type',
   enum: 'enum',
-  're-export': 'reference',
   'enum-member': 'member',
   property: 'property',
   method: 'method',
@@ -45,6 +47,7 @@ export const labelOf = (kind: Kind | string): string => LABELS[kind as Kind] ?? 
 
 const SHORTS: Partial<Record<Kind, string>> = {
   module: 'M',
+  namespace: 'N',
   variable: 'V',
   function: 'ƒ',
   class: 'C',
@@ -53,13 +56,13 @@ const SHORTS: Partial<Record<Kind, string>> = {
   enum: 'E',
   property: 'p',
   method: 'm',
-  're-export': 'R',
 }
 
 export const shortOf = (kind: Kind | string): string => SHORTS[kind as Kind] ?? '·'
 
 const ROUTABLE: ReadonlySet<Kind> = new Set([
   'module',
+  'namespace',
   'class',
   'interface',
   'function',
@@ -72,13 +75,14 @@ export const isRoutable = (kind: Kind | string): boolean => ROUTABLE.has(kind as
 
 const PLURAL: Record<Kind, string> = {
   module: 'modules',
+  namespace: 'namespaces',
+  exports: 'exports',
   variable: 'variables',
   function: 'functions',
   class: 'classes',
   interface: 'interfaces',
   'type-alias': 'types',
   enum: 'enums',
-  're-export': 'references',
   'enum-member': 'members',
   property: 'properties',
   method: 'methods',
@@ -96,13 +100,13 @@ export const pluralLabel = (kind: Kind | string): string => PLURAL[kind as Kind]
  */
 const GROUP_ORDER = [
   'modules',
+  'namespaces',
   'functions',
   'variables',
   'types',
   'classes',
   'interfaces',
   'enums',
-  'references',
   'properties',
   'methods',
 ]

@@ -1,23 +1,28 @@
 import type * as resolve from '../reflect/resolve.ts'
 
 /**
- * Stamp `slug`, `qualifiedName`, `displayName` on every routable declaration
- * in `modules`. Walks each top-level module top-down, accumulating the
- * qualified-name prefix as it descends into nested namespaces.
+ * Stamp `slug`, `qualifiedName`, `displayName` on every routable declaration.
+ * Walks each top-level module top-down via the flat declarations list,
+ * accumulating the qualified-name prefix as it descends into TS namespaces.
  *
- * Non-routable declarations (`re-export`) are skipped — they do not own a
+ * Non-routable declarations (`exports`) are skipped — they do not own a
  * documentation page.
  *
  * Slug collisions are resolved by appending `-2`, `-3`, … in walk order, so
  * the algorithm is deterministic across runs.
  */
-export const stamp = (modules: resolve.Module[]): void => {
+export const stamp = (declarations: resolve.Declaration[], topIds: number[]): void => {
+  const byId = new Map<number, resolve.Declaration>(declarations.map((d) => [d.id, d]))
   const used = new Set<string>()
-  for (const mod of modules) stampModule(mod, [], used)
+  for (const id of topIds) {
+    const mod = byId.get(id)
+    if (mod && mod.kind === 'module') stampModule(mod, [], used, byId)
+  }
 }
 
 const ROUTABLE_KINDS: ReadonlySet<string> = new Set([
   'module',
+  'namespace',
   'class',
   'interface',
   'function',
@@ -26,7 +31,12 @@ const ROUTABLE_KINDS: ReadonlySet<string> = new Set([
   'type-alias',
 ])
 
-const stampModule = (mod: resolve.Module, parents: string[], used: Set<string>): void => {
+const stampModule = (
+  mod: resolve.Module,
+  parents: string[],
+  used: Set<string>,
+  byId: Map<number, resolve.Declaration>,
+): void => {
   const dn = moduleDisplayName(mod)
   const childPrefix = isAnonymous(mod) ? parents : [...parents, dn]
   const qn = childPrefix.join('.') || dn || mod.name || ''
@@ -34,10 +44,40 @@ const stampModule = (mod: resolve.Module, parents: string[], used: Set<string>):
   mod.qualifiedName = qn
   mod.slug = uniqueSlug(toSlug(qn) || `r-${mod.id}`, used)
 
-  for (const child of mod.children) {
-    if (child.kind === 'module') stampModule(child, childPrefix, used)
-    else if (ROUTABLE_KINDS.has(child.kind)) stampRoutable(child as Routable, childPrefix, used)
+  for (const childId of mod.children) {
+    const child = byId.get(childId)
+    if (!child) continue
+    stampChild(child, childPrefix, used, byId)
   }
+}
+
+const stampNamespace = (
+  ns: resolve.Namespace,
+  parents: string[],
+  used: Set<string>,
+  byId: Map<number, resolve.Declaration>,
+): void => {
+  const childPrefix = [...parents, ns.name]
+  ns.displayName = ns.name
+  ns.qualifiedName = childPrefix.join('.')
+  ns.slug = uniqueSlug(toSlug(ns.qualifiedName) || `r-${ns.id}`, used)
+
+  for (const childId of ns.children) {
+    const child = byId.get(childId)
+    if (!child) continue
+    stampChild(child, childPrefix, used, byId)
+  }
+}
+
+const stampChild = (
+  decl: resolve.Declaration,
+  parents: string[],
+  used: Set<string>,
+  byId: Map<number, resolve.Declaration>,
+): void => {
+  if (decl.kind === 'module') return stampModule(decl, parents, used, byId)
+  if (decl.kind === 'namespace') return stampNamespace(decl, parents, used, byId)
+  if (ROUTABLE_KINDS.has(decl.kind)) stampRoutable(decl as Routable, parents, used)
 }
 
 type Routable = resolve.Declaration & {

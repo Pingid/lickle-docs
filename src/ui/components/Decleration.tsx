@@ -113,11 +113,11 @@ export const DeclarationModule = createSlot('declaration.module', (props) => {
     <Show
       when={display() === 'compact'}
       fallback={
-        <Show when={props.decl?.children?.length}>
+        <Show when={props.decl?.childDecls?.length}>
           <Comment comment={props.decl.comment} />
           <DisplayProvider value={() => 'compact'}>
             <div class="mt-5">
-              <For each={props.decl.children}>{(child) => <Declaration decl={child} />}</For>
+              <For each={props.decl.childDecls}>{(child) => <Declaration decl={child} />}</For>
             </div>
           </DisplayProvider>
         </Show>
@@ -134,85 +134,83 @@ export const DeclarationModule = createSlot('declaration.module', (props) => {
 })
 
 /**
- * Re-export rendering, picked per syntactic form:
- *   - `named`     — list each re-exported target as if declared locally.
- *   - `namespace` — `export * as foo from '…'` — render a single linked
- *                   row pointing at the source module. The alias gives the
- *                   re-export its own identity so it is never flattened.
- *   - `all`       — `export * from '…'` — inline the source module's
- *                   children, matching TS semantics.
- *
- * The form is fixed per declaration instance so a plain branch is safe;
- * each For-row in the parent module hands us a fresh instance when the
- * surrounding decl changes.
+ * TS `export namespace foo { ... }` block. In compact mode renders as a
+ * one-line linked row (the namespace gets its own routable page); in full
+ * mode walks `childDecls` like a module.
  */
-export const DeclarationReExport = createSlot('declaration.re-export', (props) => {
-  const re = props.decl
-  if (re.form === 'named') return <NamedReExportList decl={re} />
-  if (re.form === 'namespace') {
-    const src = re.sourceModuleRef
-    if (!src) return null
-    return <NamespaceLinkRow as={re.as} mod={src} />
-  }
-  return <Show when={re.sourceModuleRef}>{(s) => <InlineModuleChildren mod={s() as docs.Module} />}</Show>
+export const DeclarationNamespace = createSlot('declaration.namespace', (props) => {
+  const display = useDisplay()
+  return (
+    <Show
+      when={display() === 'compact'}
+      fallback={
+        <Show when={props.decl?.childDecls?.length}>
+          <Comment comment={props.decl.comment} />
+          <DisplayProvider value={() => 'compact'}>
+            <div class="mt-5">
+              <For each={props.decl.childDecls}>{(child) => <Declaration decl={child} />}</For>
+            </div>
+          </DisplayProvider>
+        </Show>
+      }
+    >
+      <NamedRow keyword="namespace" id={props.decl.id} name={props.decl.name} comment={props.decl.comment} />
+    </Show>
+  )
 })
 
 /**
- * `export { a, b as c } from 'x'` — render each target inline. The slot
- * dispatch handles the per-target kind, so a re-exported function still
- * uses the function row layout.
+ * `export …` clause. Walks `names[]`, pairing each entry with its resolved
+ * target. Three render shapes:
+ *   - target is a `Module`              -> namespace-link row (e.g. `export * as foo from './x'`)
+ *   - rename (`entry.name` differs)     -> alias row (`export <orig> as <alias>`)
+ *   - same-name                          -> dispatch to `<Declaration>` for the target
  */
-const NamedReExportList = (props: { decl: docs.ReExportNamed }) => {
-  const display = useDisplay()
+export const DeclarationExports = createSlot('declaration.exports', (props) => {
   return (
-    <For each={props.decl.named}>
-      {(entry) => {
-        const target = () => props.decl.targets.find((t) => docs.nameOf(t) === entry.name)
+    <For each={props.decl.names}>
+      {(entry, i) => {
+        const target = () => props.decl.targets[i()]
         return (
           <Show when={target()}>
-            {(t) => (
-              <Show when={entry.as && entry.as !== entry.name} fallback={<Declaration decl={t()} />}>
-                <div class={rowClass(display)}>
-                  <div class="font-mono text-sm leading-relaxed">
-                    <span class="text-accent">export </span>
-                    <Type.NameLink id={t().id} name={entry.as!} class="font-semibold" />
-                    <span class="text-mute"> = </span>
-                    <span class="text-mute">{entry.name}</span>
-                  </div>
-                </div>
-              </Show>
-            )}
+            {(t) => <ExportEntry entry={entry} target={t()} />}
           </Show>
         )
       }}
     </For>
   )
-}
+})
 
-/** Compact link row for `export * as <as> from '<mod>'` pointing at a public module. */
-const NamespaceLinkRow = (props: { as: string; mod: docs.Module }) => {
+const ExportEntry = (props: { entry: { name: string; id: number }; target: docs.Declaration }) => {
   const display = useDisplay()
-  return (
-    <div class={rowClass(display)}>
-      <div class="font-mono text-sm leading-relaxed">
-        <span class="text-accent">namespace </span>
-        <Type.NameLink id={props.mod.id} name={props.as} class="font-semibold" />
-        <span class="text-mute"> — </span>
-        <span class="text-mute">{docs.displayNameOf(props.mod)}</span>
+  if (props.target.kind === 'module') {
+    return (
+      <div class={rowClass(display)}>
+        <div class="font-mono text-sm leading-relaxed">
+          <span class="text-accent">namespace </span>
+          <Type.NameLink id={props.target.id} name={props.entry.name} class="font-semibold" />
+          <span class="text-mute"> — </span>
+          <span class="text-mute">{docs.displayNameOf(props.target)}</span>
+        </div>
+        <Comment comment={props.target.comment} />
       </div>
-      <Comment comment={props.mod.comment} />
-    </div>
-  )
+    )
+  }
+  const targetName = docs.nameOf(props.target)
+  if (targetName && targetName !== props.entry.name) {
+    return (
+      <div class={rowClass(display)}>
+        <div class="font-mono text-sm leading-relaxed">
+          <span class="text-accent">export </span>
+          <Type.NameLink id={props.target.id} name={props.entry.name} class="font-semibold" />
+          <span class="text-mute"> = </span>
+          <span class="text-mute">{targetName}</span>
+        </div>
+      </div>
+    )
+  }
+  return <Declaration decl={props.target} />
 }
-
-/**
- * Inline a module's children at the current level — used to flatten
- * `export * from './x'` and namespace re-exports to internal-only modules.
- * No header, no comment; the surrounding module owns the heading.
- */
-const InlineModuleChildren = (props: { mod: docs.Module }) => (
-  <For each={props.mod.children}>{(child) => <Declaration decl={child} />}</For>
-)
 
 export const DeclarationTypeAlias = createSlot('declaration.type-alias', (props) => {
   const display = useDisplay()
@@ -275,5 +273,6 @@ const RENDERERS: Record<docs.Declaration['kind'], Component<{ decl: any }>> = {
   variable: DeclarationVariable,
   'type-alias': DeclarationTypeAlias,
   module: DeclarationModule,
-  're-export': DeclarationReExport,
+  namespace: DeclarationNamespace,
+  exports: DeclarationExports,
 }

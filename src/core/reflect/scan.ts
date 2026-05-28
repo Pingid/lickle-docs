@@ -18,13 +18,15 @@ export interface Options {
 }
 
 /**
- * Output of the scan pass. `children` is the partially-resolved tree;
- * `context` is an opaque handle threaded into the resolver. The context
- * fields are intentionally not part of the public API surface.
+ * Output of the scan pass. `declarations` is a flat, source-order list of
+ * every declaration encountered (inside source files and TS namespace
+ * blocks); `children` carries the ids of the top-level source-file modules.
+ * `context` is an opaque handle threaded into the resolver — its fields
+ * are intentionally not part of the public API surface.
  */
 export interface Result {
-  children: T.Module<Registry>[]
-  /** Internal handle consumed by `resolve.generation`. */
+  declarations: T.AnyDeclaration<Registry>[]
+  children: number[]
   context: Context
 }
 
@@ -32,18 +34,29 @@ export interface Registry extends T.TypeRegistry {
   types: T.TypeMap<Registry> & {
     reference: T.ReferenceType<Registry> & { targetId?: number }
   }
-  declarations: T.DeclarationMap<Registry> & {
-    're-export': T.ReExport<Registry> & { ids?: number[] }
-  }
+  declarations: T.DeclarationMap<Registry>
 }
+
+/** How a given `Exports` clause should populate its `names` at resolve time. */
+export type ExportsForm = 'named-local' | 'named-from' | 'star' | 'namespace-from'
 
 export interface Context extends Options {
   nextId: () => number
   checker: ts.TypeChecker
   /** Records the symbol behind each declaration id. Used by the resolver. */
   symbolsById: Map<number, ts.Symbol>
-  /** Records the syntactic origin of each `ReExport` declaration. */
-  exportOrigins: Map<T.ReExport, ts.Node>
+  /** Flat list of every declaration encountered, mutated as scan recurses. */
+  declarations: T.AnyDeclaration<Registry>[]
+  /** Per-`Exports`-id: which population strategy resolve should use. */
+  exportsForm: Map<number, ExportsForm>
+  /** Per-`Exports`-id: the source module specifier for `*-from` forms. */
+  exportsSpec: Map<number, string>
+  /** Per-`Exports`-id: the raw `{ name, as? }` entries for `named-*` forms. */
+  exportsEntries: Map<number, { name: string; as?: string }[]>
+  /** Per-`Exports`-id: the alias for `namespace-from` (`export * as <alias>`). */
+  exportsAlias: Map<number, string>
+  /** Per-`Exports`-id: the origin node so resolve can re-ask the checker. */
+  exportsOrigin: Map<number, ts.ExportDeclaration>
   /** Records the syntactic origin of each `ReferenceType` id. */
   referenceOrigins: Map<number, ts.Node>
   /** Cache of `path.relative(rootDir, sf.fileName)` — recomputed once per file. */
@@ -54,7 +67,7 @@ export const files = (rootFiles: string[], options: Options): Result => {
   const program = ts.createProgram(rootFiles, options.compilerOptions)
   const ctx = makeContext(program.getTypeChecker(), options)
   const include = options.include?.file
-  const children: T.Module<Registry>[] = []
+  const children: number[] = []
 
   // BFS over source files starting at `rootFiles`. Root files are always
   // included; transitive re-export targets must pass `include.file`. We mutate
@@ -71,7 +84,7 @@ export const files = (rootFiles: string[], options: Options): Result => {
 
   for (let i = 0; i < queue.length; i++) {
     const sf = queue[i]!
-    children.push(sourceFile(sf, ctx))
+    children.push(sourceFile(sf, ctx).id)
     for (const target of reExportedSources(sf, ctx.checker)) {
       if (seen.has(target)) continue
       if (include && !include(target)) continue
@@ -80,7 +93,7 @@ export const files = (rootFiles: string[], options: Options): Result => {
     }
   }
 
-  return { children, context: ctx }
+  return { declarations: ctx.declarations, children, context: ctx }
 }
 
 /** Source files reachable from `sf` via top-level `export … from '…'` clauses. */
@@ -105,8 +118,13 @@ const makeContext = (checker: ts.TypeChecker, options: Options): Context => {
     exclude: options.exclude ?? {},
     nextId: () => ++id,
     symbolsById: new Map(),
+    declarations: [],
+    exportsForm: new Map(),
+    exportsSpec: new Map(),
+    exportsEntries: new Map(),
+    exportsAlias: new Map(),
+    exportsOrigin: new Map(),
     referenceOrigins: new Map(),
-    exportOrigins: new Map(),
     relPath: new WeakMap(),
   }
 }
@@ -116,57 +134,66 @@ const makeContext = (checker: ts.TypeChecker, options: Options): Context => {
 // ============================================================================
 
 const sourceFile = (sf: ts.SourceFile, ctx: Context): T.Module => {
-  const children: T.AnyDeclaration[] = []
-
-  // console.log(ts.getJSDocCommentsAndTags(sf))
-  for (const stmt of sf.statements) {
-    // console.log(ts.getJSDocCommentsAndTags(stmt))
-    if (isExported(stmt)) appendDeclarations(stmt, ctx, children)
-  }
-
-  return {
+  const children: number[] = []
+  for (const stmt of sf.statements) appendDeclarations(stmt, ctx, children)
+  const mod: T.Module = {
     ...routableModule(sf, ctx),
     kind: 'module',
     path: relPath(sf, ctx),
     name: path.basename(sf.fileName).replace(/\.[^./]+$/, ''),
     children,
   }
+  ctx.declarations.push(mod)
+  return mod
 }
 
 /**
- * Append the declarations carried by a top-level statement to `out`.
+ * Walk a top-level statement, push every declaration it produces onto
+ * `ctx.declarations`, and append the ids of the publicly-exposed children
+ * to `out` (which becomes the enclosing module / namespace's `children`).
+ *
+ * "Publicly exposed" means: the statement carries an `export` modifier, or
+ * the statement is itself an `ExportDeclaration` (`export { … } [from …]`,
+ * `export *`, `export default`). Internal local declarations are still
+ * emitted into `ctx.declarations` so that `Exports` clauses can reference
+ * them, but they don't appear in the parent's `children`.
  *
  * Variable declarations whose effective top-level type is callable (arrow
  * initializer, function-type annotation, or call-signature-only object
  * literal annotation) are surfaced as functions — this matches how TypeDoc
  * (and most readers) think about `export const foo = (x) => …`.
  */
-const appendDeclarations = (node: ts.Node, ctx: Context, out: T.AnyDeclaration[]): void => {
+const appendDeclarations = (node: ts.Node, ctx: Context, out: number[]): void => {
+  const exported = isExported(node)
+  const push = (decl: T.AnyDeclaration): void => {
+    ctx.declarations.push(decl)
+    if (exported) out.push(decl.id)
+  }
   if (ts.isVariableStatement(node)) {
     for (const d of node.declarationList.declarations) {
       if (!ts.isIdentifier(d.name)) continue
-      out.push(isCallableVariable(d) ? variableAsFunction(d, node, ctx) : variable(d, node, ctx))
+      push(isCallableVariable(d) ? variableAsFunction(d, node, ctx) : variable(d, node, ctx))
     }
     return
   }
-  if (ts.isFunctionDeclaration(node) && node.name) return void out.push(function_(node, ctx))
-  if (ts.isClassDeclaration(node) && node.name) return void out.push(class_(node, ctx))
-  if (ts.isInterfaceDeclaration(node)) return void out.push(interface_(node, ctx))
-  if (ts.isTypeAliasDeclaration(node)) return void out.push(typeAlias(node, ctx))
-  if (ts.isEnumDeclaration(node)) return void out.push(enum_(node, ctx))
+  if (ts.isFunctionDeclaration(node) && node.name) return void push(function_(node, ctx))
+  if (ts.isClassDeclaration(node) && node.name) return void push(class_(node, ctx))
+  if (ts.isInterfaceDeclaration(node)) return void push(interface_(node, ctx))
+  if (ts.isTypeAliasDeclaration(node)) return void push(typeAlias(node, ctx))
+  if (ts.isEnumDeclaration(node)) return void push(enum_(node, ctx))
   if (ts.isModuleDeclaration(node)) {
-    const ns = namespace(node, ctx)
-    if (ns) out.push(ns)
+    const ns = namespaceDecl(node, ctx)
+    if (ns) push(ns)
     return
   }
   if (ts.isExportDeclaration(node)) {
-    const exp = export_(node, ctx)
-    if (exp) out.push(exp)
+    const exp = exports_(node, ctx)
+    if (exp) push(exp)
     return
   }
   if (ts.isExportAssignment(node) && !node.isExportEquals) {
     const def = exportDefault(node, ctx)
-    if (def) out.push(def)
+    if (def) push(def)
   }
 }
 
@@ -290,32 +317,47 @@ const enum_ = (node: ts.EnumDeclaration, ctx: Context): T.Enum => ({
   }),
 })
 
-const namespace = (node: ts.ModuleDeclaration, ctx: Context): T.Module | undefined => {
+const namespaceDecl = (node: ts.ModuleDeclaration, ctx: Context): T.Namespace | undefined => {
   if (!node.body || !ts.isModuleBlock(node.body)) return undefined
-  const children: T.AnyDeclaration[] = []
-  for (const stmt of node.body.statements) if (isExported(stmt)) appendDeclarations(stmt, ctx, children)
-  return { ...routableModule(node, ctx), kind: 'module', name: moduleName(node.name), children }
+  const children: number[] = []
+  for (const stmt of node.body.statements) appendDeclarations(stmt, ctx, children)
+  return { ...routableBase(node, ctx), kind: 'namespace', name: moduleName(node.name), children }
 }
 
 const moduleName = (n: ts.ModuleName): string => ('text' in n ? n.text : (n as ts.Node).getText())
 
-/** One `ExportDeclaration` becomes one discriminated `ReExport`. */
-const export_ = (node: ts.ExportDeclaration, ctx: Context): T.ReExport | undefined => {
-  if (!node.moduleSpecifier || !ts.isStringLiteral(node.moduleSpecifier)) return undefined
-  const sourceModule = node.moduleSpecifier.text
-  let exp: T.ReExport
+/**
+ * Every `ExportDeclaration` produces a single `Exports` clause. Names are
+ * resolved later (by `resolve.generation`); here we only stamp the form
+ * and the raw inputs onto `Context` side-tables so the resolver knows
+ * which strategy to apply.
+ */
+const exports_ = (node: ts.ExportDeclaration, ctx: Context): T.Exports | undefined => {
+  const exp: T.Exports = { ...base(node, ctx), kind: 'exports', names: [] }
+  const id = exp.id
+  ctx.exportsOrigin.set(id, node)
+  const spec = node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier.text : undefined
+
   if (!node.exportClause) {
-    exp = { ...base(node, ctx), kind: 're-export', form: 'all', sourceModule }
-  } else if (ts.isNamespaceExport(node.exportClause)) {
-    exp = { ...base(node, ctx), kind: 're-export', form: 'namespace', sourceModule, as: node.exportClause.name.text }
-  } else {
-    const named: T.NamedExport[] = node.exportClause.elements.map((el) => ({
-      name: (el.propertyName ?? el.name).text,
-      ...(el.propertyName ? { as: el.name.text } : {}),
-    }))
-    exp = { ...base(node, ctx), kind: 're-export', form: 'named', sourceModule, named }
+    if (!spec) return undefined
+    ctx.exportsForm.set(id, 'star')
+    ctx.exportsSpec.set(id, spec)
+    return exp
   }
-  ctx.exportOrigins.set(exp, node)
+  if (ts.isNamespaceExport(node.exportClause)) {
+    if (!spec) return undefined
+    ctx.exportsForm.set(id, 'namespace-from')
+    ctx.exportsSpec.set(id, spec)
+    ctx.exportsAlias.set(id, node.exportClause.name.text)
+    return exp
+  }
+  const entries = node.exportClause.elements.map((el) => ({
+    name: (el.propertyName ?? el.name).text,
+    ...(el.propertyName ? { as: el.name.text } : {}),
+  }))
+  ctx.exportsForm.set(id, spec ? 'named-from' : 'named-local')
+  if (spec) ctx.exportsSpec.set(id, spec)
+  ctx.exportsEntries.set(id, entries)
   return exp
 }
 

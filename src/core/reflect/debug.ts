@@ -4,28 +4,38 @@ import type * as T from './types.ts'
 /** Sink for streamed text output. Compatible with `(chunk) => stream.write(chunk)`. */
 export type Writer = (chunk: string) => void
 
-export const printStdout = <R extends T.TypeRegistry>(modules: T.Module<R>[]): void =>
-  print(modules, (chunk) => void process.stdout.write(chunk))
+export const printStdout = <R extends T.TypeRegistry>(declarations: T.AnyDeclaration<R>[], children: number[]): void =>
+  print(declarations, children, (chunk) => void process.stdout.write(chunk))
 
 /** Stream a human-readable module listing through `write`. */
-export const print = <R extends T.TypeRegistry>(modules: T.Module<R>[], write: Writer): void => {
+export const print = <R extends T.TypeRegistry>(
+  declarations: T.AnyDeclaration<R>[],
+  children: number[],
+  write: Writer,
+): void => {
   // The walker doesn't care about the registry shape — it dispatches on `kind`.
   // Erase R at the boundary so internal helpers stay simple.
-  const mods = modules as unknown as T.Module[]
-  const ctx = makePrintContext(mods)
-  for (const m of mods) writeModule(m, 0, ctx, write)
+  const decls = declarations as unknown as T.AnyDeclaration[]
+  const ctx = makePrintContext(decls)
+  for (const id of children) {
+    const m = ctx.byId.get(id)
+    if (m && m.kind === 'module') writeModule(m, 0, ctx, write)
+  }
 }
 
 const writeModule = (mod: T.Module, depth: number, ctx: PrintContext, write: Writer): void => {
   writeLine(write, depth, `module ${modulePath.label(mod)}`)
-  const seen = new Set<string>()
-  for (const child of mod.children) {
-    if (child.kind === 're-export') {
-      writeLine(write, depth + 1, printExport(child))
-      writeFollowExport(mod, child, depth + 2, ctx, seen, write)
-    } else {
-      writeDeclaration(child, depth + 1, ctx, write)
-    }
+  for (const childId of mod.children) {
+    const child = ctx.byId.get(childId)
+    if (child) writeDeclaration(child, depth + 1, ctx, write)
+  }
+}
+
+const writeNamespace = (ns: T.Namespace, depth: number, ctx: PrintContext, write: Writer): void => {
+  writeLine(write, depth, `namespace ${ns.name}`)
+  for (const childId of ns.children) {
+    const child = ctx.byId.get(childId)
+    if (child) writeDeclaration(child, depth + 1, ctx, write)
   }
 }
 
@@ -33,6 +43,8 @@ const writeDeclaration = (decl: T.AnyDeclaration, depth: number, ctx: PrintConte
   switch (decl.kind) {
     case 'module':
       return writeModule(decl, depth, ctx, write)
+    case 'namespace':
+      return writeNamespace(decl, depth, ctx, write)
     case 'variable':
       return writeLine(write, depth, `variable ${decl.name}: ${printType(decl.type)}`)
     case 'function':
@@ -54,8 +66,32 @@ const writeDeclaration = (decl: T.AnyDeclaration, depth: number, ctx: PrintConte
       }
       return
     }
-    case 're-export':
-      return writeLine(write, depth, printExport(decl))
+    case 'exports':
+      return writeExports(decl, depth, ctx, write)
+  }
+}
+
+const writeExports = (exp: T.Exports, depth: number, ctx: PrintContext, write: Writer): void => {
+  if (!exp.names.length) {
+    writeLine(write, depth, 'exports {}')
+    return
+  }
+  for (const entry of exp.names) {
+    const target = ctx.byId.get(entry.id)
+    if (!target) {
+      writeLine(write, depth, `export ${entry.name} (unresolved id ${entry.id})`)
+      continue
+    }
+    if (target.kind === 'module') {
+      writeLine(write, depth, `export namespace ${entry.name} = ${modulePath.label(target)}`)
+      continue
+    }
+    const targetName = (target as { name?: string }).name ?? '<anonymous>'
+    if (entry.name !== targetName) {
+      writeLine(write, depth, `export ${targetName} as ${entry.name}`)
+    } else {
+      writeLine(write, depth, `export ${entry.name}`)
+    }
   }
 }
 
@@ -181,81 +217,15 @@ const printObjectLiteral = (decl: T.ObjectLiteral): string => {
 const printIndexSignature = (sig: T.IndexSignature): string =>
   `[${sig.parameter.name}: ${printType(sig.parameter.type)}]: ${printType(sig.type)}`
 
-// ---------------- Export shape helpers ----------------
-
-const printExport = (exp: T.ReExport): string => {
-  const from = `from ${JSON.stringify(exp.sourceModule)}`
-  if (exp.form === 'all') return `re-export * ${from}`
-  if (exp.form === 'namespace') return `re-export * as ${exp.as} ${from}`
-  const items = exp.named.map((n) => (n.as ? `${n.name} as ${n.as}` : n.name)).join(', ')
-  return `re-export { ${items} } ${from}`
-}
-
-// ---------------- Re-export following ----------------
+// ---------------- Print context ----------------
 
 interface PrintContext {
-  modulesByName: Map<string, T.Module>
+  byId: Map<number, T.AnyDeclaration>
 }
 
-const makePrintContext = (modules: T.Module[]): PrintContext => ({
-  modulesByName: new Map(modules.map((m) => [modulePath.label(m), m] as const)),
+const makePrintContext = (decls: T.AnyDeclaration[]): PrintContext => ({
+  byId: new Map(decls.map((d) => [d.id, d])),
 })
-
-/** Per-module map of non-re-export children keyed by name. Cached so each target
- *  module pays the O(N) build cost at most once across the whole walk. */
-type NamedChild = Exclude<T.AnyDeclaration, T.ReExport>
-const namedChildrenCache = new WeakMap<T.Module, Map<string, NamedChild>>()
-const namedChildren = (mod: T.Module): Map<string, NamedChild> => {
-  const cached = namedChildrenCache.get(mod)
-  if (cached) return cached
-  const map = new Map<string, NamedChild>()
-  for (const c of mod.children) {
-    if (c.kind !== 're-export' && 'name' in c && typeof c.name === 'string') {
-      map.set(c.name, c as NamedChild)
-    }
-  }
-  namedChildrenCache.set(mod, map)
-  return map
-}
-
-const writeFollowExport = (
-  owner: T.Module,
-  exp: T.ReExport,
-  depth: number,
-  ctx: PrintContext,
-  seen: Set<string>,
-  write: Writer,
-): void => {
-  const target = modulePath.resolve(modulePath.label(owner), exp.sourceModule, ctx.modulesByName)
-  if (!target) return writeLine(write, depth, '(unresolved)')
-  const key = `${modulePath.label(owner)}=>${modulePath.label(target)}`
-  if (seen.has(key)) return writeLine(write, depth, '(cycle)')
-
-  if (exp.form === 'named') {
-    const named = namedChildren(target)
-    for (const entry of exp.named) {
-      const decl = named.get(entry.name)
-      if (decl) writeDeclaration(decl, depth, ctx, write)
-      else writeLine(write, depth, `(missing ${entry.name})`)
-    }
-    return
-  }
-
-  writeLine(write, depth, exp.form === 'namespace' ? `namespace ${exp.as}` : `from ${modulePath.label(target)}`)
-  seen.add(key)
-  try {
-    for (const child of target.children) {
-      if (child.kind === 're-export') {
-        writeLine(write, depth + 1, printExport(child))
-        writeFollowExport(target, child, depth + 2, ctx, seen, write)
-      } else {
-        writeDeclaration(child, depth + 1, ctx, write)
-      }
-    }
-  } finally {
-    seen.delete(key)
-  }
-}
 
 // ---------------- Output primitives ----------------
 

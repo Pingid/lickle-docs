@@ -25,9 +25,9 @@
     "./theme.css": "./theme.css",
     "./client": "./client.d.ts",
     "./preset": {
-      "types": "./dist/ts/preset/index.d.ts",
-      "import": "./dist/esm/preset/index.jsx",
-      "require": "./dist/esm/preset/index.jsx"
+      "types": "./dist/ts/solidjs/entry.d.ts",
+      "import": "./dist/esm/solidjs/entry.jsx",
+      "require": "./dist/esm/solidjs/entry.jsx"
     },
     "./ui": {
       "types": "./dist/ts/ui/index.d.ts",
@@ -35,7 +35,7 @@
       "require": "./dist/esm/ui/index.js"
     },
     "./preset/tsconfig.json": "./tsconfig.client.json",
-    "./preset/jsx-runtime": "./dist/ts/preset/solidjs/jsx-runtime.d.ts"
+    "./preset/jsx-runtime": "./dist/ts/solidjs/jsx-runtime.d.ts"
   },
   "scripts": {
     "build": "pnpm tsc"

@@ -1,12 +1,11 @@
-import * as modulePath from './module-path.ts'
 import type * as resolve from './resolve.ts'
 import type * as T from './types.ts'
 import * as walk from './walk.ts'
 
 /**
- * Schema produced after running `indexProject`. Extends the resolved schema
- * by attaching navigation handles (`$`) and replacing numeric ids on
- * references and re-exports with direct object pointers.
+ * Schema produced after running `build`. Extends the resolved schema by
+ * attaching navigation handles (`$`) and resolved object pointers for
+ * type references and exports clauses.
  *
  * Anything reachable via plain field access is a forward edge that was set
  * during indexing. Anything reachable via `$` is a reverse edge or computed
@@ -25,7 +24,8 @@ export interface DeclarationMap extends T.DeclarationMap<Registry> {
   interface: T.Interface<Registry> & WithQuery<DeclarationQueries>
   'type-alias': TypeAlias
   enum: T.Enum<Registry> & WithQuery<DeclarationQueries>
-  're-export': ReExport
+  namespace: Namespace
+  exports: Exports
 }
 
 export type Declaration<K extends keyof DeclarationMap = keyof DeclarationMap> = DeclarationMap[K]
@@ -60,35 +60,31 @@ interface WithQuery<Q> {
  * so a property-style read is honest about cost.
  */
 export interface DeclarationQueries {
-  /** Enclosing module. Set during forward indexing. */
-  readonly module: Module
+  /** Enclosing scope — a file `Module` or a TS `Namespace`. Set during forward indexing. */
+  readonly module: Scope
 
   /**
    * Every in-project `reference` type whose `target` is this declaration.
-   * Excludes references in re-export clauses (those live in `reExportedBy`).
-   *
-   * Returns an iterable so callers can short-circuit (`for...of` with break,
-   * `Array.from(...).slice(0, 10)`). Use `[...decl.$.referencedBy()]` if you
-   * want a concrete array.
+   * Excludes references in re-export clauses (those live in `exportedBy`).
    */
   referencedBy(): Iterable<Reference>
 
-  /** Every `re-export` declaration whose `targets` includes this declaration. */
-  reExportedBy(): Iterable<ReExport>
+  /** Every `Exports` clause whose `names` references this declaration. */
+  exportedBy(): Iterable<Exports>
 }
 
-/** Module-specific queries on top of the declaration ones. */
-export interface ModuleQueries extends DeclarationQueries {
+/** Scope queries — a Module or Namespace. */
+export interface ScopeQueries extends DeclarationQueries {
   /**
-   * Re-exports anywhere in the project whose `sourceModuleRef` resolves to
-   * this module. The inverse of `ReExport.sourceModuleRef`.
+   * Every `Exports` / `Namespace` whose source module is this scope. The
+   * inverse of `Exports.sourceModuleRef`.
    */
-  importedBy(): Iterable<ReExport>
+  importedBy(): Iterable<Exports>
 
   /**
-   * Lookup by exported name. Includes declarations defined locally *and*
-   * names brought in by `export *` (resolved via the re-export's targets).
-   * For `export { foo as bar }`, the key is the external name (`bar`).
+   * Lookup by exposed name. Walks `childDecls`: for `Exports` children
+   * each `names[].name` keys to the resolved target; everything else
+   * keys to its own `name`.
    */
   declarationByName(name: string): T.AnyDeclaration<Registry> | undefined
 }
@@ -96,78 +92,58 @@ export interface ModuleQueries extends DeclarationQueries {
 /** Reference-specific lookup: the enclosing declaration where this ref appears. */
 export interface ReferenceQueries {
   /**
-   * The nearest declaration that contains this reference. For a reference in
-   * a function parameter's type, this is the `function`, not the `signature`.
-   * Set during forward indexing.
+   * The nearest declaration that contains this reference. Set during
+   * forward indexing.
    */
   readonly enclosingDeclaration: T.AnyDeclaration<Registry>
 }
+
+/** A scope is anything that owns child declarations: a file Module or a TS Namespace. */
+export type Scope = Module | Namespace
 
 // ============================================================================
 // SPECIALIZED NODE TYPES
 // ============================================================================
 
-export interface Module extends T.Module<Registry>, WithQuery<ModuleQueries> {
+export interface Module extends T.Module<Registry>, WithQuery<ScopeQueries> {
   /**
-   * The owning project. Set during forward indexing. Lets you walk back up
-   * to global indexes (`module.project.declarationsById`) without threading
-   * state through queries.
+   * The owning project. Lets you walk back up to global indexes without
+   * threading state through queries.
    */
   readonly project: Indexed
+  /** Always undefined — file modules are top-level. */
+  readonly parentModule?: undefined
+  /** Resolved children — non-enumerable, hidden from JSON. */
+  readonly childDecls: ReadonlyArray<T.AnyDeclaration<Registry>>
+}
 
-  /**
-   * Set when this module is a TypeScript namespace nested inside another
-   * module (`namespace Foo { … }` inside a source file). Undefined for
-   * top-level source files.
-   */
-  readonly parentModule?: Module
+export interface Namespace extends T.Namespace<Registry>, WithQuery<ScopeQueries> {
+  readonly project: Indexed
+  /** The enclosing module or namespace block. */
+  readonly parentModule?: Scope
+  /** Resolved children — non-enumerable, hidden from JSON. */
+  readonly childDecls: ReadonlyArray<T.AnyDeclaration<Registry>>
 }
 
 export interface TypeAlias extends T.TypeAlias<Registry>, WithQuery<DeclarationQueries> {
-  /**
-   * Resolved alias body for simple `type Foo = Bar` cases — the declaration
-   * that `Bar` points at. Undefined when the alias body isn't a single
-   * reference (unions, intersections, computed types). For those, walk
-   * `this.type` directly.
-   */
+  /** Resolved alias body for simple `type Foo = Bar` cases. */
   readonly target?: T.AnyDeclaration<Registry>
 }
 
-/**
- * One indexed re-export per discriminated form. The base shape is the
- * scanned `ReExport`; the indexed view adds resolved `targets` and an
- * optional `sourceModuleRef` pointing at the in-project source module.
- */
-export type ReExport = ReExportAll | ReExportNamespace | ReExportNamed
-
-export interface ReExportAll extends T.ReExportAll<Registry>, WithQuery<DeclarationQueries> {
+export interface Exports extends T.Exports<Registry>, WithQuery<DeclarationQueries> {
+  /** Resolved targets, one per `names[]` entry, in the same order. */
   readonly targets: ReadonlyArray<T.AnyDeclaration<Registry>>
-  readonly sourceModuleRef?: Module
-}
-
-export interface ReExportNamespace extends T.ReExportNamespace<Registry>, WithQuery<DeclarationQueries> {
-  readonly targets: ReadonlyArray<T.AnyDeclaration<Registry>>
-  readonly sourceModuleRef?: Module
-}
-
-export interface ReExportNamed extends T.ReExportNamed<Registry>, WithQuery<DeclarationQueries> {
-  readonly targets: ReadonlyArray<T.AnyDeclaration<Registry>>
+  /** Derived: source module for the clause (enclosing module for `export { x }`, the `from` target otherwise). */
   readonly sourceModuleRef?: Module
 }
 
 export interface Reference extends T.ReferenceType<Registry>, WithQuery<ReferenceQueries> {
-  /**
-   * Resolved target declaration. Undefined for external references
-   * (e.g. `Array<T>`, `Promise<U>`). Replaces the `targetId: number` from
-   * `ResolvedRegistry` — same information, but a direct pointer so the
-   * common case (`ref.target?.name`) doesn't need a map lookup.
-   */
+  /** Resolved target declaration. Undefined for external references. */
   readonly target?: T.AnyDeclaration<Registry>
 }
 
 export type Source = T.Source
 export type Routable = T.Routable
-export type NamedExport = T.NamedExport
 export type Variable = T.Variable<Registry>
 export type Func = T.Func<Registry>
 export type Class = T.Class<Registry>
@@ -202,97 +178,114 @@ export type CommentPart = T.CommentPart
 // PROJECT HANDLE
 // ============================================================================
 
-/**
- * Global indexes exposed at the project level. Forward indexes
- * (`declarationsById`, `slugById`, `idBySlug`, `qualifiedNameById`) are
- * built eagerly from the precomputed naming fields. Reverse indexes
- * (`allReferences`, `slugByName`, the maps backing `$.referencedBy()` etc.)
- * are built lazily on first access and cached for the lifetime of the
- * project.
- */
+/** Global indexes exposed at the project level. */
 export interface Indexed {
-  /** Every declaration in the project keyed by its reflection id. */
   readonly declarationsById: ReadonlyMap<number, T.AnyDeclaration<Registry>>
-
-  /** Slug → id. */
   readonly idBySlug: ReadonlyMap<string, number>
-
-  /** Id → slug. Same data, indexed in the more common direction. */
   readonly slugById: ReadonlyMap<number, string>
-
-  /** Id → fully qualified dotted name (`models.User`, `Foo.Inner.Bar`). */
   readonly qualifiedNameById: ReadonlyMap<number, string>
-
-  /**
-   * Bare or qualified name → slug. Built lazily; bare-name entries resolve
-   * to the shallowest matching declaration.
-   */
   readonly slugByName: ReadonlyMap<string, string>
-
-  /**
-   * Every `reference` type in the project, in walk order. Cheap to expose
-   * because it's the same array that backs `$.referencedBy()` lookups.
-   */
   readonly allReferences: ReadonlyArray<Reference>
 
   /** Top-level modules (one per scanned source file), in input order. */
   modules(): ReadonlyArray<Module>
-
-  /**
-   * Find a declaration by stable id. Mostly a convenience over
-   * `declarationsById.get(id)`.
-   */
   declarationById(id: number): T.AnyDeclaration<Registry> | undefined
-
-  /**
-   * Look up a declaration by its fully-qualified name, e.g. "User" or
-   * "src/models.ts:User" or "MyNamespace.Inner". Returns undefined if
-   * not found. O(1) after the first call (lazily indexed).
-   */
   declarationByQualifiedName(name: string): T.AnyDeclaration<Registry> | undefined
-
-  /**
-   * Look up the reference site by its id. Mostly useful when an external
-   * system (a serialized graph, a doc index) hands you a raw id.
-   */
   referenceById(id: number): Reference | undefined
 }
 
 /**
- * Wrap a resolved project with navigation handles. Mutates the input —
+ * Wrap a resolved flat schema with navigation handles. Mutates the input —
  * after calling, the same objects satisfy `Registry` instead of
- * `ResolvedRegistry`. Callers who need both views should clone first.
- *
- * The forward pass (parent pointers, `declarationsById`, attaching `$`)
- * runs synchronously here. Reverse indexes are built on first access.
+ * `resolve.Registry`. Callers who need both views should clone first.
  */
-export const build = (modules: T.Module<resolve.Registry>[]): Indexed => {
+export const build = (declarations: T.AnyDeclaration<resolve.Registry>[], topIds: number[]): Indexed => {
   const proj = {} as Indexed
+  const decls = declarations as unknown as AnyDecl[]
   const state: State = {
     proj,
-    declarationsById: new Map(),
+    declarationsById: new Map(decls.map((d) => [idOf(d), d])),
     idBySlug: new Map(),
     slugById: new Map(),
     qualifiedNameById: new Map(),
     allReferences: [],
     topModules: [],
-    topModulesByLabel: new Map(),
-    declByName: new Map(),
   }
-  for (const mod of modules as unknown as Module[]) {
-    state.topModules.push(mod)
-    state.topModulesByLabel.set(modulePath.label(mod), mod)
-    indexModule(mod, undefined, state)
+
+  // Forward indexes (slug, qualified name) come straight off the decls.
+  for (const decl of decls) {
+    const slug = (decl as { slug?: string }).slug
+    const qn = (decl as { qualifiedName?: string }).qualifiedName
+    if (slug) {
+      state.slugById.set(idOf(decl), slug)
+      state.idBySlug.set(slug, idOf(decl))
+    }
+    if (qn) state.qualifiedNameById.set(idOf(decl), qn)
   }
-  resolveForwardEdges(state)
+
+  // Parent-by-child: walk every container's `children` once.
+  const parentByChild = new Map<number, Scope>()
+  for (const decl of decls) {
+    if (decl.kind !== 'module' && decl.kind !== 'namespace') continue
+    for (const cid of decl.children) {
+      if (!parentByChild.has(cid)) parentByChild.set(cid, decl as Scope)
+    }
+  }
+
+  // Attach `$` and parentModule to every container; record top modules.
+  for (const id of topIds) {
+    const mod = state.declarationsById.get(id)
+    if (mod && mod.kind === 'module') state.topModules.push(mod as Module)
+  }
+  for (const decl of decls) {
+    if (decl.kind === 'module') {
+      hide(decl, 'project', state.proj)
+      hide(decl, '$', makeScopeQueries(decl as Scope, state))
+      continue
+    }
+    if (decl.kind === 'namespace') {
+      hide(decl, 'project', state.proj)
+      const parent = parentByChild.get(decl.id)
+      if (parent) hide(decl, 'parentModule', parent)
+      hide(decl, '$', makeScopeQueries(decl as Scope, state))
+      continue
+    }
+    const parent = parentByChild.get(decl.id)
+    hide(decl, '$', makeDeclarationQueries(decl, parent, state))
+  }
+
+  // References: walk every decl once, collect references with enclosing decl.
+  for (const decl of decls) {
+    walk.Declaration(decl as T.AnyDeclaration, {
+      onReference: (ref) => {
+        const r = ref as Reference
+        state.allReferences.push(r)
+        hide(r, '$', { enclosingDeclaration: decl } satisfies ReferenceQueries)
+      },
+      onExports: () => {
+        // Exports resolution happens in the next pass once $.module is set.
+      },
+    })
+  }
+
+  // Forward edge resolution.
+  for (const ref of state.allReferences) {
+    const tid = (ref as Reference & { targetId?: number }).targetId
+    if (tid === undefined) continue
+    const target = state.declarationsById.get(tid)
+    if (target) hide(ref, 'target', target)
+  }
+  for (const decl of decls) {
+    if (decl.kind === 'exports') resolveExports(decl, state)
+    else if (decl.kind === 'type-alias') resolveTypeAlias(decl)
+  }
+
   attachProjectMethods(state)
   return proj
 }
 
 // ============================================================================
 // INTERNAL STATE
-// Shared by every `$` closure. Forward-edge maps are populated eagerly; the
-// rest are lazy caches keyed off declaration / module ids.
 // ============================================================================
 
 type AnyDecl = T.AnyDeclaration<Registry>
@@ -305,17 +298,15 @@ interface State {
   qualifiedNameById: Map<number, string>
   allReferences: Reference[]
   topModules: Module[]
-  topModulesByLabel: Map<string, Module>
-  declByName: Map<number, Map<string, AnyDecl>>
   referencedBy?: Map<number, Reference[]>
-  reExportedBy?: Map<number, ReExport[]>
-  importedBy?: Map<number, ReExport[]>
+  exportedBy?: Map<number, Exports[]>
+  importedBy?: Map<number, Exports[]>
+  declByName?: Map<number, Map<string, AnyDecl>>
   refById?: Map<number, Reference>
   declByQName?: Map<string, AnyDecl>
   slugByName?: Map<string, string>
 }
 
-/** Attach a hidden field — invisible to JSON, but stable for reads. */
 const hide = (obj: object, key: string, value: unknown): void => {
   Object.defineProperty(obj, key, { value, enumerable: false, configurable: true })
 }
@@ -323,72 +314,32 @@ const hide = (obj: object, key: string, value: unknown): void => {
 const idOf = (d: AnyDecl): number => (d as T.Base<any>).id
 
 // ============================================================================
-// FORWARD PASS
-// One walk that registers every declaration, threads parent/module pointers,
-// and tags every encountered `reference` type with its enclosing declaration.
-// ============================================================================
-
-const indexModule = (mod: Module, parent: Module | undefined, state: State): void => {
-  registerRoutable(mod, state)
-  hide(mod, 'project', state.proj)
-  if (parent) hide(mod, 'parentModule', parent)
-  hide(mod, '$', makeModuleQueries(mod, state))
-  for (const child of mod.children) indexChild(child, mod, state)
-}
-
-const indexChild = (decl: AnyDecl, mod: Module, state: State): void => {
-  if (decl.kind === 'module') return indexModule(decl, mod, state)
-  registerRoutable(decl, state)
-  hide(decl, '$', makeDeclarationQueries(decl, mod, state))
-  walk.Declaration(decl as T.AnyDeclaration, {
-    onReference: (ref) => {
-      const r = ref as Reference
-      state.allReferences.push(r)
-      hide(r, '$', { enclosingDeclaration: decl } satisfies ReferenceQueries)
-    },
-    onReExport: () => {
-      // Re-export resolution happens in `resolveReExport` once $.module is set.
-    },
-  })
-}
-
-const registerRoutable = (decl: AnyDecl, state: State): void => {
-  state.declarationsById.set(idOf(decl), decl)
-  const slug = (decl as { slug?: string }).slug
-  const qn = (decl as { qualifiedName?: string }).qualifiedName
-  if (slug) {
-    state.slugById.set(idOf(decl), slug)
-    state.idBySlug.set(slug, idOf(decl))
-  }
-  if (qn) state.qualifiedNameById.set(idOf(decl), qn)
-}
-
-// ============================================================================
 // FORWARD EDGE RESOLUTION
-// Promotes `targetId` / `ids` to direct object pointers and resolves the
-// module specifier on every re-export.
 // ============================================================================
 
-const resolveForwardEdges = (state: State): void => {
-  for (const ref of state.allReferences) {
-    const tid = (ref as Reference & { targetId?: number }).targetId
-    if (tid === undefined) continue
-    const target = state.declarationsById.get(tid)
-    if (target) hide(ref, 'target', target)
+const resolveExports = (exp: Exports, state: State): void => {
+  const targets = exp.names
+    .map((n) => state.declarationsById.get(n.id))
+    .filter((d): d is AnyDecl => !!d)
+  hide(exp, 'targets', targets)
+  // sourceModuleRef: if any target is itself a Module, it IS the source
+  // (the `export * as foo from './x'` shape). Otherwise climb to the
+  // module that contains the first target.
+  const first = targets[0]
+  if (!first) return
+  if (first.kind === 'module') {
+    hide(exp, 'sourceModuleRef', first)
+    return
   }
-  for (const decl of state.declarationsById.values()) {
-    if (decl.kind === 're-export') resolveReExport(decl, state)
-    else if (decl.kind === 'type-alias') resolveTypeAlias(decl)
-  }
+  const scope = (first as { $?: DeclarationQueries }).$?.module
+  const mod = scope ? topModuleOf(scope) : undefined
+  if (mod) hide(exp, 'sourceModuleRef', mod)
 }
 
-const resolveReExport = (re: ReExport, state: State): void => {
-  const ids = (re as ReExport & { ids?: number[] }).ids ?? []
-  const targets = ids.map((id) => state.declarationsById.get(id)).filter((d): d is AnyDecl => !!d)
-  hide(re, 'targets', targets)
-  const owner = re.$.module
-  const ref = modulePath.resolve(modulePath.label(owner), re.sourceModule, state.topModulesByLabel)
-  if (ref) hide(re, 'sourceModuleRef', ref)
+const topModuleOf = (scope: Scope): Module => {
+  let cur: Scope = scope
+  while (cur.kind === 'namespace' && cur.parentModule) cur = cur.parentModule
+  return cur as Module
 }
 
 const resolveTypeAlias = (alias: TypeAlias): void => {
@@ -399,27 +350,26 @@ const resolveTypeAlias = (alias: TypeAlias): void => {
 
 // ============================================================================
 // QUERY FACTORIES
-// Closures over `state` so reverse lookups can lazily materialize without
-// every declaration carrying its own caches.
 // ============================================================================
 
-const makeDeclarationQueries = (decl: AnyDecl, mod: Module, state: State): DeclarationQueries => ({
-  module: mod,
+const ABSENT_SCOPE: Scope = {} as Scope
+
+const makeDeclarationQueries = (decl: AnyDecl, scope: Scope | undefined, state: State): DeclarationQueries => ({
+  module: scope ?? ABSENT_SCOPE,
   referencedBy: () => referencedByMap(state).get(idOf(decl)) ?? [],
-  reExportedBy: () => reExportedByMap(state).get(idOf(decl)) ?? [],
+  exportedBy: () => exportedByMap(state).get(idOf(decl)) ?? [],
 })
 
-const makeModuleQueries = (mod: Module, state: State): ModuleQueries => ({
-  module: mod,
-  referencedBy: () => referencedByMap(state).get(mod.id) ?? [],
-  reExportedBy: () => reExportedByMap(state).get(mod.id) ?? [],
-  importedBy: () => importedByMap(state).get(mod.id) ?? [],
-  declarationByName: (name) => moduleDeclByName(mod, state).get(name),
+const makeScopeQueries = (scope: Scope, state: State): ScopeQueries => ({
+  module: scope,
+  referencedBy: () => referencedByMap(state).get(scope.id) ?? [],
+  exportedBy: () => exportedByMap(state).get(scope.id) ?? [],
+  importedBy: () => importedByMap(state).get(scope.id) ?? [],
+  declarationByName: (name) => moduleDeclByName(scope, state).get(name),
 })
 
 // ============================================================================
 // LAZY REVERSE CACHES
-// Each map is built once on first call. Subsequent reads are O(1).
 // ============================================================================
 
 const referencedByMap = (state: State): Map<number, Reference[]> => {
@@ -435,11 +385,11 @@ const referencedByMap = (state: State): Map<number, Reference[]> => {
   return (state.referencedBy = map)
 }
 
-const reExportedByMap = (state: State): Map<number, ReExport[]> => {
-  if (state.reExportedBy) return state.reExportedBy
-  const map = new Map<number, ReExport[]>()
+const exportedByMap = (state: State): Map<number, Exports[]> => {
+  if (state.exportedBy) return state.exportedBy
+  const map = new Map<number, Exports[]>()
   for (const decl of state.declarationsById.values()) {
-    if (decl.kind !== 're-export') continue
+    if (decl.kind !== 'exports') continue
     for (const target of decl.targets) {
       const id = idOf(target)
       const arr = map.get(id)
@@ -447,14 +397,14 @@ const reExportedByMap = (state: State): Map<number, ReExport[]> => {
       else map.set(id, [decl])
     }
   }
-  return (state.reExportedBy = map)
+  return (state.exportedBy = map)
 }
 
-const importedByMap = (state: State): Map<number, ReExport[]> => {
+const importedByMap = (state: State): Map<number, Exports[]> => {
   if (state.importedBy) return state.importedBy
-  const map = new Map<number, ReExport[]>()
+  const map = new Map<number, Exports[]>()
   for (const decl of state.declarationsById.values()) {
-    if (decl.kind !== 're-export' || !decl.sourceModuleRef) continue
+    if (decl.kind !== 'exports' || !decl.sourceModuleRef) continue
     const arr = map.get(decl.sourceModuleRef.id)
     if (arr) arr.push(decl)
     else map.set(decl.sourceModuleRef.id, [decl])
@@ -463,40 +413,32 @@ const importedByMap = (state: State): Map<number, ReExport[]> => {
 }
 
 /**
- * Per-module name → declaration map. Local children are keyed by their own
- * name; re-exported names by their external alias (the `as` in
- * `export { foo as bar }`, or the target's own name for `export *`).
+ * Per-scope name → declaration map. Walks the scope's `childDecls`. For
+ * `Exports` children, each `names[].name` keys to the resolved target.
+ * Other children key to their own `name`.
  */
-const moduleDeclByName = (mod: Module, state: State): Map<string, AnyDecl> => {
-  const cached = state.declByName.get(mod.id)
+const moduleDeclByName = (scope: Scope, state: State): Map<string, AnyDecl> => {
+  if (!state.declByName) state.declByName = new Map()
+  const cached = state.declByName.get(scope.id)
   if (cached) return cached
   const map = new Map<string, AnyDecl>()
-  for (const child of mod.children) {
-    if (child.kind === 're-export') {
-      if (child.form === 'named') {
-        for (const entry of child.named) {
-          const target = child.targets.find((t) => (t as { name?: string }).name === entry.name)
-          if (target) map.set(entry.as ?? entry.name, target)
-        }
-      } else {
-        for (const t of child.targets) {
-          const n = (t as { name?: string }).name
-          if (n) map.set(n, t)
-        }
+  for (const child of scope.childDecls) {
+    if (child.kind === 'exports') {
+      for (let i = 0; i < child.names.length; i++) {
+        const target = child.targets[i]
+        if (target) map.set(child.names[i]!.name, target)
       }
-    } else {
-      const n = (child as { name?: string }).name
-      if (n) map.set(n, child)
+      continue
     }
+    const n = (child as { name?: string }).name
+    if (n) map.set(n, child)
   }
-  state.declByName.set(mod.id, map)
+  state.declByName.set(scope.id, map)
   return map
 }
 
 // ============================================================================
 // PROJECT-LEVEL HELPERS
-// Same hidden-property convention as declarations so the project object stays
-// JSON-clean (Maps/functions wouldn't serialize anyway, but consistency wins).
 // ============================================================================
 
 const attachProjectMethods = (state: State): void => {
@@ -515,6 +457,16 @@ const attachProjectMethods = (state: State): void => {
     enumerable: false,
     configurable: true,
   })
+
+  // Hide childDecls on every container.
+  for (const decl of state.declarationsById.values()) {
+    if (decl.kind === 'module' || decl.kind === 'namespace') {
+      const resolved = decl.children
+        .map((id) => state.declarationsById.get(id))
+        .filter((d): d is AnyDecl => !!d)
+      hide(decl, 'childDecls', resolved)
+    }
+  }
 }
 
 const refByIdMap = (state: State): Map<number, Reference> => {
@@ -524,11 +476,6 @@ const refByIdMap = (state: State): Map<number, Reference> => {
   return (state.refById = map)
 }
 
-/**
- * `name` → slug, with bare-name fallback. Bare names resolve to the
- * shallowest matching declaration so that `{@link Foo}` from any context
- * lands on the obvious target.
- */
 const slugByNameMap = (state: State): Map<string, string> => {
   if (state.slugByName) return state.slugByName
   const map = new Map<string, string>()
@@ -547,21 +494,17 @@ const slugByNameMap = (state: State): Map<string, string> => {
   return (state.slugByName = map)
 }
 
-/**
- * `"<topModulePath>:<ns?.>...<name>"` for module-scoped declarations, with a
- * bare-name fallback (shallowest match wins). Mirrors the convention used by
- * the client-side index in `client/src/util/reflection.ts`.
- */
 const declByQNameMap = (state: State): Map<string, AnyDecl> => {
   if (state.declByQName) return state.declByQName
   const map = new Map<string, AnyDecl>()
   const bare: { name: string; depth: number; decl: AnyDecl }[] = []
   for (const decl of state.declarationsById.values()) {
-    if (decl.kind === 'module') continue
+    if (decl.kind === 'module' || decl.kind === 'exports') continue
     const name = (decl as { name?: string }).name
     if (!name) continue
-    const mod = (decl as { $: DeclarationQueries }).$.module
-    const qn = qualify(mod, name)
+    const scope = (decl as { $?: DeclarationQueries }).$?.module
+    if (!scope) continue
+    const qn = qualify(scope, name)
     map.set(qn, decl)
     bare.push({ name, depth: qn.split(/[:.]/).length, decl })
   }
@@ -570,13 +513,13 @@ const declByQNameMap = (state: State): Map<string, AnyDecl> => {
   return (state.declByQName = map)
 }
 
-const qualify = (mod: Module, name: string): string => {
+const qualify = (scope: Scope, name: string): string => {
   const parts: string[] = [name]
-  let cur: Module = mod
-  while (cur.parentModule) {
+  let cur: Scope = scope
+  while (cur.kind === 'namespace' && cur.parentModule) {
     if (cur.name) parts.unshift(cur.name)
     cur = cur.parentModule
   }
-  const top = cur.path ?? cur.name ?? ''
+  const top = (cur as Module).path ?? (cur as { name?: string }).name ?? ''
   return top ? `${top}:${parts.join('.')}` : parts.join('.')
 }

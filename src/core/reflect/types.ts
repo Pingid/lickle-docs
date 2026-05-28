@@ -20,7 +20,8 @@ export interface DeclarationMap<T extends TypeRegistry> {
   interface: Interface<T>
   'type-alias': TypeAlias<T>
   enum: Enum<T>
-  're-export': ReExport<T>
+  namespace: Namespace<T>
+  exports: Exports<T>
 }
 
 export type TypeMap<T extends TypeRegistry> = {
@@ -72,40 +73,32 @@ export interface Module<T extends TypeRegistry = Registry> extends Base<T>, Rout
   kind: 'module'
   path?: string
   name?: string
-  children: AnyDeclaration<T>[]
+  /** Source-order ids of the publicly exposed children — direct `export` decls plus emitted `Exports` / `Namespace` clauses. */
+  children: number[]
 }
 
 /**
- * `export … from '…'` re-export. Three syntactic forms, distinguished by `form`:
- *   - `export * from 'x'`         → `{ form: 'all' }`
- *   - `export * as foo from 'x'`  → `{ form: 'namespace', as: 'foo' }`
- *   - `export { a, b as c } …`    → `{ form: 'named', named: [...] }`
+ * TS `export namespace foo { ... }` block. Owns its members directly — every
+ * id in `children` is declared inside the block. `export * as foo from '…'`
+ * does NOT use this kind; it produces an `Exports` clause whose single
+ * entry points at the source module.
  */
-export type ReExport<T extends TypeRegistry = Registry> = ReExportAll<T> | ReExportNamespace<T> | ReExportNamed<T>
-
-export interface ReExportAll<T extends TypeRegistry = Registry> extends Base<T> {
-  kind: 're-export'
-  form: 'all'
-  sourceModule: string
-}
-
-export interface ReExportNamespace<T extends TypeRegistry = Registry> extends Base<T> {
-  kind: 're-export'
-  form: 'namespace'
-  sourceModule: string
-  as: string
-}
-
-export interface ReExportNamed<T extends TypeRegistry = Registry> extends Base<T> {
-  kind: 're-export'
-  form: 'named'
-  sourceModule: string
-  named: NamedExport[]
-}
-
-export interface NamedExport {
+export interface Namespace<T extends TypeRegistry = Registry> extends Base<T>, Routable {
+  kind: 'namespace'
   name: string
-  as?: string
+  children: number[]
+}
+
+/**
+ * Every `export …` clause — named, star, namespace re-export, or local. The
+ * shape is uniform: `names` lists each exposed name paired with the id of
+ * the underlying declaration. The id can point at any declaration in the
+ * flat list, including a `Module` (this is how `export * as foo from './x'`
+ * is represented: a single entry whose id is the './x' module).
+ */
+export interface Exports<T extends TypeRegistry = Registry> extends Base<T> {
+  kind: 'exports'
+  names: { name: string; id: number }[]
 }
 
 export interface Variable<T extends TypeRegistry = Registry> extends Base<T>, Routable {

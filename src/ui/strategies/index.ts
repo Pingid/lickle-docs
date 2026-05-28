@@ -10,7 +10,7 @@ export type NavItem = {
   slug?: string
   /** Comment to display alongside the item — used by the home page surface list. */
   comment?: docs.Comment
-  /** Nested children for module-style nodes that expose their own sub-tree. */
+  /** Nested children for module/namespace-style nodes that expose their own sub-tree. */
   children?: NavItem[]
 }
 export type NavGroup = {
@@ -23,14 +23,9 @@ export type NavGroup = {
 /** Pluggable sidebar grouping. Take a project, return groups. */
 export type NavStrategy = (project: docs.Project) => NavGroup[]
 
-/** A namespace re-export — `export * as foo from './x'` — stands in for a module. */
-export const isNamespaceReExport = (decl: docs.Declaration): decl is docs.ReExportNamespace =>
-  decl.kind === 're-export' && decl.form === 'namespace'
-
 /**
  * Routable declarations across the project, sorted by kind group then name.
- * Used by the search index. Excludes namespace re-exports — `surface` covers
- * those for navigation.
+ * Used by the search index.
  */
 export const routables = (project: docs.Project): docs.Declaration[] => {
   const out: docs.Declaration[] = []
@@ -62,7 +57,7 @@ export const surface = (project: docs.Project): NavItem[] => {
       if (seen.has(item.id)) continue
       const decl = project.declarationsById.get(item.id)
       if (!decl) continue
-      const nav = leafItem(project, decl, item.kind as Kind)
+      const nav = leafItem(project, decl, item.kind as Kind, item.name)
       if (!nav) continue
       seen.add(item.id)
       out.push(nav)
@@ -83,7 +78,7 @@ export const byKind: NavStrategy = (project) => {
       if (seen.has(item.id)) continue
       const decl = project.declarationsById.get(item.id)
       if (!decl) continue
-      const nav = leafItem(project, decl, item.kind as Kind)
+      const nav = leafItem(project, decl, item.kind as Kind, item.name)
       if (!nav) continue
       seen.add(item.id)
       const title = pluralLabel(nav.kind)
@@ -99,10 +94,9 @@ export const byKind: NavStrategy = (project) => {
 
 /**
  * One group per entry in `project.exports`, listing the routables that
- * entry exposes as a recursive tree. Named modules — TypeScript namespaces
- * and `export * as foo from '…'` re-exports — always become nested
- * `NavItem`s under their own name so the structure of the source survives
- * in the sidebar.
+ * entry exposes as a recursive tree. Namespaces (TypeScript blocks and
+ * `export * as foo from '…'` aliases) always become nested `NavItem`s
+ * under their own name so the source structure survives in the sidebar.
  *
  * Multiple export entries that point at the same source file (e.g. `.` and
  * `./index` both resolve to `src/index.ts`) are de-duplicated; the first
@@ -132,15 +126,17 @@ export const byExports: NavStrategy = (project) => {
 export const auto: NavStrategy = (project) => (project.exports.length > 1 ? byExports(project) : byExports(project))
 
 /**
- * Module chain ending in `id` — outermost module first, the declaration last.
- * Used by the breadcrumb.
+ * Module/namespace chain ending in `id` — outermost first, the declaration
+ * last. Used by the breadcrumb.
  */
 export const ancestors = (project: docs.Project, id: number): docs.Declaration[] => {
   const target = project.declarationsById.get(id)
   if (!target) return []
   const out: docs.Declaration[] = [target]
-  let cur: docs.Module | undefined =
-    target.kind === 'module' ? target.parentModule : (docs.queriesOf(target)?.module as docs.Module | undefined)
+  let cur: docs.Module | docs.Namespace | undefined =
+    target.kind === 'module' || target.kind === 'namespace'
+      ? target.parentModule
+      : (docs.queriesOf(target)?.module as docs.Module | docs.Namespace | undefined)
   while (cur) {
     out.unshift(cur)
     cur = cur.parentModule
@@ -150,22 +146,23 @@ export const ancestors = (project: docs.Project, id: number): docs.Declaration[]
 
 // ============================================================================
 // TREE BUILDING
-// `buildChildren` walks a module's `children` into a NavItem tree. Named
-// modules (TypeScript namespaces and `export * as …` re-exports) become
-// nested nodes; anonymous `export *` and `export { … }` re-exports inline
-// their targets at the current level.
+// `buildChildren` walks a scope's `childDecls` into a NavItem tree.
+// Modules/namespaces nest; `Exports` clauses splice each `(name, target)`
+// pair into the parent — module targets become nested sub-trees keyed by
+// the alias, leaf targets become leaves keyed by the alias.
 // ============================================================================
 
-const buildChildren = (mod: docs.Module, project: docs.Project): NavItem[] => {
+const buildChildren = (scope: docs.Module | docs.Namespace, project: docs.Project): NavItem[] => {
   const out: NavItem[] = []
   const seen = new Set<number>()
-  for (const child of mod.children) addChild(child, project, out, seen)
+  for (const child of scope.childDecls) addChild(child, project, out, seen)
   return out
 }
 
 const addChild = (child: docs.Declaration, project: docs.Project, out: NavItem[], seen: Set<number>): void => {
-  if (child.kind === 'module') return addModule(child, child, project, out, seen)
-  if (child.kind === 're-export') return addReExport(child, project, out, seen)
+  if (child.kind === 'module') return addContainer(child, child.name ?? docs.displayNameOf(child), project, out, seen)
+  if (child.kind === 'namespace') return addContainer(child, child.name, project, out, seen)
+  if (child.kind === 'exports') return addExports(child, project, out, seen)
   if (!isRoutable(child.kind)) return
   if (seen.has(child.id)) return
   const nav = leafItem(project, child, child.kind as Kind)
@@ -174,58 +171,55 @@ const addChild = (child: docs.Declaration, project: docs.Project, out: NavItem[]
   out.push(nav)
 }
 
-/**
- * Attach a module as a nested node. `displayAs` lets a namespace re-export
- * render the target module under the re-export's alias (e.g. `as: 'foo'`)
- * instead of the source module's display name.
- */
-const addModule = (
-  displayAs: docs.Module | docs.ReExportNamespace,
-  target: docs.Module,
+/** Attach a module / namespace as a nested NavItem keyed by `displayName`. */
+const addContainer = (
+  target: docs.Module | docs.Namespace,
+  displayName: string,
   project: docs.Project,
   out: NavItem[],
   seen: Set<number>,
 ): void => {
   if (seen.has(target.id)) return
   seen.add(target.id)
-  const slug = project.slugById.get(target.id)
-  const name = displayAs.kind === 're-export' ? displayAs.as : docs.displayNameOf(target)
   out.push({
     id: target.id,
-    name,
-    kind: 'module',
-    slug,
+    name: displayName,
+    kind: target.kind as Kind,
+    slug: project.slugById.get(target.id),
     comment: target.comment,
     children: sortByGroupThenName(buildChildren(target, project)),
   })
 }
 
-const addReExport = (re: docs.ReExport, project: docs.Project, out: NavItem[], seen: Set<number>): void => {
-  if (re.form === 'namespace') {
-    const src = re.sourceModuleRef
-    if (!src) return
-    return addModule(re, src, project, out, seen)
-  }
-  for (const target of re.targets) {
-    if (target.kind === 'module') {
-      addModule(target, target, project, out, seen)
+const addExports = (exp: docs.Exports, project: docs.Project, out: NavItem[], seen: Set<number>): void => {
+  for (let i = 0; i < exp.names.length; i++) {
+    const entry = exp.names[i]!
+    const target = exp.targets[i]
+    if (!target) continue
+    if (target.kind === 'module' || target.kind === 'namespace') {
+      addContainer(target, entry.name, project, out, seen)
       continue
     }
     if (!isRoutable(target.kind)) continue
     if (seen.has(target.id)) continue
-    const nav = leafItem(project, target, target.kind as Kind)
+    const nav = leafItem(project, target, target.kind as Kind, entry.name)
     if (!nav) continue
     seen.add(target.id)
     out.push(nav)
   }
 }
 
-const leafItem = (project: docs.Project, decl: docs.Declaration, kind: Kind): NavItem | undefined => {
+const leafItem = (
+  project: docs.Project,
+  decl: docs.Declaration,
+  kind: Kind,
+  displayName?: string,
+): NavItem | undefined => {
   const slug = project.slugById.get(decl.id)
   if (!slug) return undefined
   return {
     id: decl.id,
-    name: docs.displayNameOf(decl),
+    name: displayName ?? docs.displayNameOf(decl),
     kind,
     slug,
     comment: decl.comment,

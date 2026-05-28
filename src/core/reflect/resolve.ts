@@ -11,13 +11,10 @@ import * as walk from './walk.ts'
 
 /** Schema produced after running `resolveReferences`. */
 export interface Registry extends T.TypeRegistry {
-  declarations: DeclarationMap
+  declarations: T.DeclarationMap<Registry>
   types: TypeMap
 }
 
-export interface DeclarationMap extends T.DeclarationMap<Registry> {
-  're-export': T.ReExport<Registry> & { ids: number[] }
-}
 export type Declaration = T.AnyDeclaration<Registry>
 
 export interface TypeMap extends T.TypeMap<Registry> {
@@ -28,11 +25,8 @@ export type Type = T.AnyType<Registry>
 export type Source = T.Source
 export type Routable = T.Routable
 export type Module = T.Module<Registry>
-export type ReExport = T.ReExport<Registry>
-export type ReExportAll = T.ReExportAll<Registry>
-export type ReExportNamespace = T.ReExportNamespace<Registry>
-export type ReExportNamed = T.ReExportNamed<Registry>
-export type NamedExport = T.NamedExport
+export type Namespace = T.Namespace<Registry>
+export type Exports = T.Exports<Registry>
 export type Variable = T.Variable<Registry>
 export type Func = T.Func<Registry>
 export type Class = T.Class<Registry>
@@ -63,24 +57,27 @@ export type Comment = T.Comment<Registry>
 export type CommentTag = T.CommentTag<Registry>
 export type CommentPart = T.CommentPart
 
-/**
- * Scan + resolve in one call. Hides the internal scan `Result` from public
- * consumers — only the resolved module tree leaves the boundary.
- */
-export const run = (rootFiles: string[], options: scan.Options): T.Module<Registry>[] =>
-  generation(scan.files(rootFiles, options))
+/** Output of `run` / `generation` — the flat schema, ready for the indexed layer. */
+export interface RunResult {
+  declarations: Declaration[]
+  children: number[]
+}
 
 /**
- * Walk the project and populate `targetId` on every `ReferenceType`, and `ids`
- * on every `ReExport`, whose declarations we know about. References that
- * can't be resolved in-project are tagged with `external` (`stdlib`,
- * `package`, or `anonymous`). Mutates in place.
+ * Scan + resolve in one call. Hides the internal scan `Result` from public
+ * consumers — only the resolved flat schema leaves the boundary.
  */
-export const generation = (generation: Result): T.Module<Registry>[] => {
-  const { children, context: ctx } = generation
-  // Build a lookup from any declaration node belonging to a recorded symbol
-  // back to its reflection id. Symbols can have multiple declarations (merged
-  // interfaces, namespaces) so we index every one.
+export const run = (rootFiles: string[], options: scan.Options): RunResult => generation(scan.files(rootFiles, options))
+
+/**
+ * Walk every declaration once and populate `targetId` on each `ReferenceType`
+ * plus `names[]` on each `Exports` clause. Mutates the input. References that
+ * can't be resolved in-project are tagged with `external`.
+ */
+export const generation = (gen: Result): RunResult => {
+  const { declarations, children, context: ctx } = gen
+
+  // Map any TS declaration node back to its in-project reflection id.
   const idByDecl = new Map<ts.Node, number>()
   for (const [id, sym] of ctx.symbolsById) sym.declarations?.forEach((d) => idByDecl.set(d, id))
 
@@ -93,6 +90,13 @@ export const generation = (generation: Result): T.Module<Registry>[] => {
       if (id !== undefined && !ids.includes(id)) ids.push(id)
     }
     return ids
+  }
+
+  const moduleIdForSpecifier = (origin: ts.ExportDeclaration): number | undefined => {
+    if (!origin.moduleSpecifier) return undefined
+    const sym = ctx.checker.getSymbolAtLocation(origin.moduleSpecifier)
+    if (!sym) return undefined
+    return idsForSymbol(sym)[0]
   }
 
   const resolveRef = (ref: T.ReferenceType): void => {
@@ -116,60 +120,62 @@ export const generation = (generation: Result): T.Module<Registry>[] => {
     r.external = classifySymbol(sym)
   }
 
-  const resolveExport = (exp: T.ReExport): void => {
-    const e = exp as T.ReExport & { ids?: number[] }
-    if (e.ids !== undefined) return
-    const origin = ctx.exportOrigins.get(exp)
-    if (!origin) return
-    const ids =
-      exp.form === 'named'
-        ? idsForNamedExport(exp, origin, ctx.checker, idsForSymbol)
-        : idsForStarExport(origin, ctx.checker, idsForSymbol)
-    e.ids = ids
+  const resolveExports = (exp: T.Exports): void => {
+    if (exp.names.length) return
+    const form = ctx.exportsForm.get(exp.id)
+    const origin = ctx.exportsOrigin.get(exp.id)
+    if (!form || !origin) return
+
+    if (form === 'namespace-from') {
+      const alias = ctx.exportsAlias.get(exp.id)
+      const moduleId = moduleIdForSpecifier(origin)
+      if (alias && moduleId !== undefined) exp.names.push({ name: alias, id: moduleId })
+      return
+    }
+
+    if (form === 'star') {
+      if (!origin.moduleSpecifier) return
+      const moduleSym = ctx.checker.getSymbolAtLocation(origin.moduleSpecifier)
+      if (!moduleSym) return
+      for (const sym of ctx.checker.getExportsOfModule(moduleSym)) {
+        const [id] = idsForSymbol(sym)
+        if (id !== undefined) exp.names.push({ name: sym.getName(), id })
+      }
+      return
+    }
+
+    const entries = ctx.exportsEntries.get(exp.id) ?? []
+
+    if (form === 'named-from') {
+      if (!origin.moduleSpecifier) return
+      const moduleSym = ctx.checker.getSymbolAtLocation(origin.moduleSpecifier)
+      if (!moduleSym) return
+      const exportSyms = ctx.checker.getExportsOfModule(moduleSym)
+      for (const e of entries) {
+        const sym = exportSyms.find((s) => s.getName() === e.name)
+        if (!sym) continue
+        const [id] = idsForSymbol(sym)
+        if (id !== undefined) exp.names.push({ name: e.as ?? e.name, id })
+      }
+      return
+    }
+
+    // named-local: look up each name in the enclosing source-file's locals.
+    if (origin.exportClause && ts.isNamedExports(origin.exportClause)) {
+      for (const el of origin.exportClause.elements) {
+        const sym = ctx.checker.getSymbolAtLocation(el.propertyName ?? el.name)
+        if (!sym) continue
+        const [id] = idsForSymbol(sym)
+        if (id !== undefined) exp.names.push({ name: el.name.text, id })
+      }
+    }
   }
 
-  children.forEach((c) => walk.Declaration(c, { onReference: resolveRef, onReExport: resolveExport }))
-
-  return children as unknown as T.Module<Registry>[]
-}
-
-// ============================================================================
-// EXPORT RESOLUTION
-// ============================================================================
-
-/** `export { a, b as c } from './x'` — resolve each named entry via the source clause. */
-const idsForNamedExport = (
-  exp: T.ReExportNamed,
-  origin: ts.Node,
-  checker: ts.TypeChecker,
-  idsForSymbol: (s: ts.Symbol) => number[],
-): number[] => {
-  if (!ts.isExportDeclaration(origin) || !origin.exportClause || !ts.isNamedExports(origin.exportClause)) return []
-  const ids: number[] = []
-  for (const entry of exp.named) {
-    const spec = origin.exportClause.elements.find((el) => (el.propertyName ?? el.name).text === entry.name)
-    if (!spec) continue
-    const sym = checker.getSymbolAtLocation(spec.propertyName ?? spec.name)
-    if (!sym) continue
-    for (const id of idsForSymbol(sym)) if (!ids.includes(id)) ids.push(id)
+  for (const decl of declarations) {
+    walk.Declaration(decl as T.AnyDeclaration, { onReference: resolveRef, onExports: resolveExports })
   }
-  return ids
-}
 
-/** `export * [as foo] from './x'` — enumerate every export of the source module. */
-const idsForStarExport = (
-  origin: ts.Node,
-  checker: ts.TypeChecker,
-  idsForSymbol: (s: ts.Symbol) => number[],
-): number[] => {
-  if (!ts.isExportDeclaration(origin) || !origin.moduleSpecifier) return []
-  const moduleSym = checker.getSymbolAtLocation(origin.moduleSpecifier)
-  if (!moduleSym) return []
-  const ids: number[] = []
-  for (const exp of checker.getExportsOfModule(moduleSym)) {
-    for (const id of idsForSymbol(exp)) if (!ids.includes(id)) ids.push(id)
-  }
-  return ids
+  return { declarations: declarations as unknown as Declaration[], children }
 }
 
 // ============================================================================

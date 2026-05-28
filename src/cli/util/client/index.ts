@@ -5,13 +5,13 @@ import * as vite from 'vite'
 import path from 'node:path'
 import fs from 'node:fs'
 
-const presetRoot = fileURLToPath(new URL('../../preset/', import.meta.url))
-const uiRoot = fileURLToPath(new URL('../../ui/', import.meta.url))
-const root = fileURLToPath(new URL('../../../', import.meta.url))
+const viteRoot = fileURLToPath(new URL('.', import.meta.url))
+// const uiRoot = fileURLToPath(new URL('../../../ui/', import.meta.url))
+const libRoot = fileURLToPath(new URL('../../../../', import.meta.url))
 
 export const dev = async (args: { docsDir: string; name: string; port?: number }) => {
   const server = await vite.createServer({
-    root: presetRoot,
+    root: viteRoot,
     plugins: [solid(), tailwindcss(), docsPlugin(args)],
     server: { port: args.port },
   })
@@ -23,7 +23,7 @@ export const dev = async (args: { docsDir: string; name: string; port?: number }
 
 export const build = async (args: { docsDir: string; outDir: string; name: string }) =>
   vite.build({
-    root: presetRoot,
+    root: viteRoot,
     plugins: [solid(), tailwindcss(), docsPlugin(args)],
     build: { outDir: args.outDir, emptyOutDir: true },
     forceOptimizeDeps: true,
@@ -37,12 +37,12 @@ const docsPlugin = (p: { docsDir: string; name: string; entry?: string }): vite.
       return {
         resolve: {
           alias: {
-            '@lickle/docs/preset': path.resolve(presetRoot, 'index.tsx'),
-            '@lickle/docs/theme.css': path.resolve(root, 'theme.css'),
-            '@lickle/docs': path.resolve(uiRoot, 'index.ts'),
+            '@lickle/docs/preset': path.resolve(libRoot, './src/solidjs/entry.tsx'),
+            '@lickle/docs/theme.css': path.resolve(libRoot, 'theme.css'),
+            // '@lickle/docs': path.resolve(uiRoot, 'index.ts'),
           },
         },
-        server: { fs: { allow: [root, p.docsDir] } },
+        server: { fs: { allow: [libRoot, p.docsDir] } },
       }
     },
     transformIndexHtml: {

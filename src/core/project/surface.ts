@@ -1,86 +1,74 @@
-import * as modulePath from '../reflect/module-path.ts'
 import type * as resolve from '../reflect/resolve.ts'
 
-export type Kind = 'module' | 'variable' | 'function' | 'class' | 'interface' | 'type-alias' | 'enum'
+export type Kind = 'module' | 'namespace' | 'variable' | 'function' | 'class' | 'interface' | 'type-alias' | 'enum'
+
+export interface SurfaceItem {
+  id: number
+  kind: Kind
+  /** Override label — set when an `Exports` clause exposes the target under a different name. */
+  name?: string
+}
 
 export interface SurfaceEntry {
   /** Relative source path of the entrypoint module. */
   entrypoint: string
   /** Routable items the entrypoint exposes, in source order. */
-  items: { id: number; kind: Kind }[]
+  items: SurfaceItem[]
 }
 
 /**
- * Public surface for each entrypoint — the list of routable items reachable
- * from the entrypoint module, with re-exports flattened to their targets.
- *
- * `namespace` re-exports become a `{ kind: 'module' }` item pointing at the
- * source module so the renderer can link straight there.
+ * Public surface for each entrypoint — the routable items reachable from the
+ * entrypoint module. `Exports` clauses are expanded inline: each `names[]`
+ * entry becomes a surface item using the alias as `name`. `Namespace` decls
+ * are emitted as-is (they own their own children and have their own page).
  */
-export const compute = (entrypoints: string[], modules: resolve.Module[]): SurfaceEntry[] => {
-  const declsById = new Map<number, resolve.Declaration>()
-  const modulesByLabel = new Map<string, resolve.Module>()
-  for (const m of modules) collectIds(m, declsById, modulesByLabel)
+export const compute = (entrypoints: string[], declarations: resolve.Declaration[], topIds: number[]): SurfaceEntry[] => {
+  const byId = new Map<number, resolve.Declaration>(declarations.map((d) => [d.id, d]))
+  const moduleByPath = new Map<string, resolve.Module>()
+  for (const id of topIds) {
+    const mod = byId.get(id)
+    if (mod && mod.kind === 'module' && mod.path) moduleByPath.set(mod.path, mod)
+  }
 
   const out: SurfaceEntry[] = []
   for (const entrypoint of entrypoints) {
-    const mod = modulesByLabel.get(entrypoint)
+    const mod = moduleByPath.get(entrypoint)
     if (!mod) continue
-    const items: SurfaceEntry['items'] = []
+    const items: SurfaceItem[] = []
     const seen = new Set<number>()
-    for (const child of mod.children) emitChild(child, mod, modulesByLabel, declsById, items, seen)
+    for (const childId of mod.children) emitChild(childId, items, seen, byId)
     out.push({ entrypoint, items })
   }
   return out
 }
 
-const collectIds = (
-  mod: resolve.Module,
-  declsById: Map<number, resolve.Declaration>,
-  modulesByLabel: Map<string, resolve.Module>,
-): void => {
-  modulesByLabel.set(modulePath.label(mod), mod)
-  declsById.set(mod.id, mod)
-  for (const child of mod.children) {
-    if (child.kind === 'module') collectIds(child, declsById, modulesByLabel)
-    else declsById.set(child.id, child)
-  }
-}
-
 const emitChild = (
-  child: resolve.Declaration,
-  owner: resolve.Module,
-  modulesByLabel: Map<string, resolve.Module>,
-  declsById: Map<number, resolve.Declaration>,
-  out: { id: number; kind: Kind }[],
+  id: number,
+  out: SurfaceItem[],
   seen: Set<number>,
+  byId: Map<number, resolve.Declaration>,
 ): void => {
-  if (child.kind === 're-export') {
-    if (child.form === 'namespace') {
-      const target = modulePath.resolve(modulePath.label(owner), child.sourceModule, modulesByLabel)
-      if (target && !seen.has(target.id)) {
-        seen.add(target.id)
-        out.push({ id: target.id, kind: 'module' })
-      }
-      return
-    }
-    for (const id of child.ids) {
-      if (seen.has(id)) continue
-      const decl = declsById.get(id)
-      if (!decl || !isRoutableKind(decl.kind)) continue
-      seen.add(id)
-      out.push({ id, kind: decl.kind as Kind })
+  const decl = byId.get(id)
+  if (!decl) return
+  if (decl.kind === 'exports') {
+    for (const entry of decl.names) {
+      if (seen.has(entry.id)) continue
+      const target = byId.get(entry.id)
+      if (!target || !isRoutableKind(target.kind)) continue
+      seen.add(entry.id)
+      out.push({ id: entry.id, kind: target.kind as Kind, name: entry.name })
     }
     return
   }
-  if (!isRoutableKind(child.kind)) return
-  if (seen.has(child.id)) return
-  seen.add(child.id)
-  out.push({ id: child.id, kind: child.kind as Kind })
+  if (!isRoutableKind(decl.kind)) return
+  if (seen.has(id)) return
+  seen.add(id)
+  out.push({ id, kind: decl.kind as Kind })
 }
 
 const ROUTABLE: ReadonlySet<string> = new Set([
   'module',
+  'namespace',
   'variable',
   'function',
   'class',
