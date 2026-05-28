@@ -1,13 +1,14 @@
-import { For, Show, type Component } from 'solid-js'
+import { For, Show, type Component, type JSX } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
 import * as docs from '../../core/client.ts'
 
-import { createSlot, DisplayProvider, useDisplay } from '../context/index.ts'
+import { createSlot, useDisplay } from '../context/index.ts'
+import { groupOrder, pluralLabel, type Kind } from '../util/kind.ts'
 import { Type } from './Type.tsx'
 import { Comment } from './Comment.tsx'
 
-/** Class for a row in the compact module-exports list. Plain in full mode. */
+/** Class for a row in the compact list. Plain in full mode. */
 const rowClass = (display: () => 'compact' | 'full', full = ''): string =>
   display() === 'compact' ? 'border-b border-line/60 last:border-0 py-2' : full
 
@@ -110,19 +111,7 @@ export const DeclarationInterface = createSlot('declaration.interface', (props) 
 export const DeclarationModule = createSlot('declaration.module', (props) => {
   const display = useDisplay()
   return (
-    <Show
-      when={display() === 'compact'}
-      fallback={
-        <Show when={props.decl?.childDecls?.length}>
-          <Comment comment={props.decl.comment} />
-          <DisplayProvider value={() => 'compact'}>
-            <div class="mt-5">
-              <For each={props.decl.childDecls}>{(child) => <Declaration decl={child} />}</For>
-            </div>
-          </DisplayProvider>
-        </Show>
-      }
-    >
+    <Show when={display() === 'compact'} fallback={<ModulePage scope={props.decl} />}>
       <NamedRow
         keyword="module"
         id={props.decl.id}
@@ -136,28 +125,159 @@ export const DeclarationModule = createSlot('declaration.module', (props) => {
 /**
  * TS `export namespace foo { ... }` block. In compact mode renders as a
  * one-line linked row (the namespace gets its own routable page); in full
- * mode walks `childDecls` like a module.
+ * mode renders as a grouped page like a module.
  */
 export const DeclarationNamespace = createSlot('declaration.namespace', (props) => {
   const display = useDisplay()
   return (
-    <Show
-      when={display() === 'compact'}
-      fallback={
-        <Show when={props.decl?.childDecls?.length}>
-          <Comment comment={props.decl.comment} />
-          <DisplayProvider value={() => 'compact'}>
-            <div class="mt-5">
-              <For each={props.decl.childDecls}>{(child) => <Declaration decl={child} />}</For>
-            </div>
-          </DisplayProvider>
-        </Show>
-      }
-    >
+    <Show when={display() === 'compact'} fallback={<ModulePage scope={props.decl} />}>
       <NamedRow keyword="namespace" id={props.decl.id} name={props.decl.name} comment={props.decl.comment} />
     </Show>
   )
 })
+
+// ============================================================================
+// MODULE / NAMESPACE PAGE
+// `childDecls` are flattened (Exports clauses unfolded into their target
+// rows), grouped by kind via `pluralLabel`, and emitted in `GROUP_ORDER` as
+// labelled sections. Each row is a single line: kind glyph + signature-like
+// body, no doc comments inline.
+// ============================================================================
+
+type Row = { kind: Kind; decl: docs.Declaration; displayName?: string }
+
+const ModulePage = (props: { scope: docs.Module | docs.Namespace }) => (
+  <Show when={props.scope?.childDecls?.length}>
+    <Comment comment={props.scope.comment} />
+    <For each={groupRows(props.scope)}>{(group) => <ModuleSection title={group.title} items={group.items} />}</For>
+  </Show>
+)
+
+const ModuleSection = (props: { title: string; items: Row[] }) => (
+  <section class="mt-8">
+    <h2 class="text-xl font-semibold mb-3 capitalize">{props.title}</h2>
+    <div class="font-mono text-sm leading-relaxed">
+      <For each={props.items}>{(row) => <ModuleRow row={row} />}</For>
+    </div>
+  </section>
+)
+
+const ModuleRow = (props: { row: Row }) => (
+  <div class="flex items-baseline gap-3 py-2 border-b border-line/60 last:border-0">
+    <Type.KindBadge kind={props.row.kind} class="w-3 shrink-0" />
+    <div class="min-w-0 flex-1 wrap-break-word">
+      <ModuleRowBody row={props.row} />
+    </div>
+  </div>
+)
+
+/**
+ * Per-kind body. Just the syntax expression — name, params, type, etc.
+ * The kind glyph and row container come from `ModuleRow`.
+ */
+const ModuleRowBody = (props: { row: Row }): JSX.Element => {
+  const { decl, displayName } = props.row
+  const name = displayName ?? docs.nameOf(decl) ?? docs.displayNameOf(decl)
+  switch (decl.kind) {
+    case 'function':
+      return (
+        <For each={decl.signatures}>
+          {(sig, i) => (
+            <div class={i() > 0 ? 'mt-1' : ''}>
+              <Type.NameLink id={decl.id} name={name} class="font-semibold" />
+              <Type.SignatureExpr sig={sig} />
+            </div>
+          )}
+        </For>
+      )
+    case 'variable':
+      return (
+        <>
+          <Type.NameLink id={decl.id} name={name} class="font-semibold" />
+          <span class="text-mute">: </span>
+          <Type type={decl.type} />
+          <Show when={decl.defaultValue}>
+            <span class="text-mute"> = {decl.defaultValue}</span>
+          </Show>
+        </>
+      )
+    case 'type-alias':
+      return (
+        <>
+          <Type.NameLink id={decl.id} name={name} class="font-semibold" />
+          <TypeParamsDecl tps={decl.typeParameters} />
+          <span class="text-mute"> = </span>
+          <Type type={decl.type} />
+        </>
+      )
+    case 'class':
+    case 'interface':
+    case 'enum':
+    case 'module':
+    case 'namespace':
+      return <Type.NameLink id={decl.id} name={name} class="font-semibold" />
+    default:
+      return <Type.NameLink id={decl.id} name={name} class="font-semibold" />
+  }
+}
+
+const TypeParamsDecl = (props: { tps?: docs.TypeParameter[] }) => (
+  <Show when={props.tps?.length}>
+    <span class="text-mute">{'<'}</span>
+    <For each={props.tps!}>
+      {(tp, i) => (
+        <>
+          <Show when={i() > 0}>
+            <span class="text-mute">, </span>
+          </Show>
+          <span>{tp.name}</span>
+          <Show when={tp.constraint}>
+            <>
+              <span class="text-accent"> extends </span>
+              <Type type={tp.constraint!} />
+            </>
+          </Show>
+        </>
+      )}
+    </For>
+    <span class="text-mute">{'>'}</span>
+  </Show>
+)
+
+const groupRows = (scope: docs.Module | docs.Namespace): { title: string; items: Row[] }[] => {
+  const rows: Row[] = []
+  for (const child of scope.childDecls) {
+    if (child.kind === 'exports') {
+      for (let i = 0; i < child.names.length; i++) {
+        const target = child.targets[i]
+        const entry = child.names[i]
+        if (!target || !entry) continue
+        const kind: Kind = target.kind === 'module' ? 'namespace' : (target.kind as Kind)
+        const targetName = docs.nameOf(target)
+        const displayName = entry.name !== targetName ? entry.name : undefined
+        rows.push({ kind, decl: target, displayName })
+      }
+      continue
+    }
+    rows.push({ kind: child.kind as Kind, decl: child })
+  }
+
+  const buckets = new Map<string, Row[]>()
+  for (const row of rows) {
+    const title = pluralLabel(row.kind)
+    const arr = buckets.get(title) ?? []
+    arr.push(row)
+    buckets.set(title, arr)
+  }
+  return [...buckets.entries()]
+    .sort(([a], [b]) => groupOrder(a) - groupOrder(b) || a.localeCompare(b))
+    .map(([title, items]) => ({
+      title,
+      items: items.sort((a, b) => byName(a).localeCompare(byName(b))),
+    }))
+}
+
+const byName = (row: Row): string => row.displayName ?? docs.nameOf(row.decl) ?? ''
 
 /**
  * `export …` clause. Walks `names[]`, pairing each entry with its resolved

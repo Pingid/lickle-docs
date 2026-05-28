@@ -4,7 +4,9 @@ import * as cmd from 'cmd-ts'
 import path from 'node:path'
 
 import { client, watch, promise } from '../cli/util/index.ts'
-import * as project from '../core/project/json.ts'
+import * as project from '../core/project/index.ts'
+import * as debug from '../core/reflect/debug.ts'
+import * as config from '../config/load.ts'
 
 // const corDir = fileURLToPath(new URL('../core', import.meta.url))
 
@@ -12,8 +14,18 @@ export const app = () =>
   cmd.subcommands({
     name: 'docs',
     description: 'Documentation generation',
-    cmds: { json: cmdJson, dev: cmdDev, init: cmdInit, build: cmdBuild },
+    cmds: { json: cmdJson, dev: cmdDev, init: cmdInit, build: cmdBuild, config: configGet },
   })
+
+const configGet = cmd.command({
+  name: 'config',
+  description: 'Config',
+  args: {},
+  handler: async () => {
+    const c = await config.load()
+    debug.printStdout(c.declarations, c.children)
+  },
+})
 
 const cmdJson = cmd.command({
   name: 'json',
@@ -43,7 +55,7 @@ const cmdJson = cmd.command({
     }),
   },
   handler: async (args) => {
-    const opts: project.ScanOptions = { dir: process.cwd(), tsConfigPath: args.tsconfig, exclude: args.exclude }
+    const opts: project.json.ScanOptions = { dir: process.cwd(), tsConfigPath: args.tsconfig, exclude: args.exclude }
     await generate('reflect.json', opts)
   },
 })
@@ -150,8 +162,8 @@ const init = async (args: { docsDir?: string }) => {
   await writeInitFiles(dir)
 }
 
-const generate = async (out: string, opts: project.ScanOptions) => {
-  const p = await project.generate(opts)
+const generate = async (out: string, opts: project.json.ScanOptions) => {
+  const p = await project.json.generate(opts)
   await fs.writeFile(out, JSON.stringify(p))
   return p
 }

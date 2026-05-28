@@ -1,6 +1,14 @@
 import path from 'node:path'
 import ts from 'typescript'
 
+export const get = async (tsconfigPath?: string): Promise<ts.ParsedCommandLine & { json: any }> => {
+  let pth = tsconfigPath
+  if (!pth) pth = await find()
+  if (!pth) throw new Error('No tsconfig.json found')
+  const json = read(pth)
+  return { ...parse(pth, json), json }
+}
+
 export const find = (searchPath: string = process.cwd(), name?: string) =>
   ts.findConfigFile(searchPath, ts.sys.fileExists, name)
 

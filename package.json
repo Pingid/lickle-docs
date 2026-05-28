@@ -29,6 +29,11 @@
       "import": "./dist/esm/solidjs/entry.jsx",
       "require": "./dist/esm/solidjs/entry.jsx"
     },
+    "./config": {
+      "types": "./dist/ts/config/index.d.ts",
+      "import": "./dist/esm/config/index.js",
+      "require": "./dist/esm/config/index.js"
+    },
     "./ui": {
       "types": "./dist/ts/ui/index.d.ts",
       "import": "./dist/esm/ui/index.js",
@@ -55,12 +60,14 @@
   },
   "dependencies": {
     "@lickle/docs": "link:",
+    "@lickle/is": "0.1.0-dev.3",
     "@orama/orama": "^3.1.18",
     "@solidjs/router": "^0.16.1",
     "@tailwindcss/vite": "^4.3.0",
     "cmd-ts": "^0.15.0",
     "codejar": "^4.3.0",
     "fast-glob": "^3.3.3",
+    "jiti": "^2.7.0",
     "marked": "^18.0.4",
     "micromatch": "^4.0.8",
     "shiki": "^4.1.0",

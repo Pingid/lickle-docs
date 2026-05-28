@@ -19,6 +19,8 @@ export interface ProjectJson {
   readme?: string
   /** The main entrypoint of the project. */
   main?: string
+  /** structure */
+
   /** The exports of the project. */
   exports: { name: string; path: string }[]
   /** Git hash of the project. */

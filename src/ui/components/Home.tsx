@@ -2,7 +2,7 @@ import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
 import { createSlot, useProject } from '../context/index.ts'
-import { commentSummaryText } from '../util/comment.ts'
+// import { commentSummaryText } from '../util/comment.ts'
 import { NavItem } from '../strategies/index.ts'
 
 import { Markdown } from './Markdown.tsx'
@@ -44,8 +44,8 @@ const SurfaceRow = (props: { item: NavItem }) => (
         </A>
       )}
     </Show>
-    <Show when={commentSummaryText(props.item.comment)}>
+    {/* <Show when={commentSummaryText(props.item.comment)}>
       <span class="text-sm text-mute truncate">{commentSummaryText(props.item.comment)}</span>
-    </Show>
+    </Show> */}
   </li>
 )
