@@ -37,9 +37,13 @@ const Surfaced = () => {
 const SurfaceRow = (props: { item: NavItem }) => (
   <li class="flex items-baseline gap-3">
     <Type.KindLabel kind={props.item.kind} class="w-20" />
-    <A href={`/r/${props.item.slug}`} class="font-mono font-medium hover:opacity-70">
-      {props.item.name}
-    </A>
+    <Show when={props.item.slug} fallback={<span class="font-mono font-medium">{props.item.name}</span>}>
+      {(slug) => (
+        <A href={`/r/${slug()}`} class="font-mono font-medium hover:opacity-70">
+          {props.item.name}
+        </A>
+      )}
+    </Show>
     <Show when={commentSummaryText(props.item.comment)}>
       <span class="text-sm text-mute truncate">{commentSummaryText(props.item.comment)}</span>
     </Show>

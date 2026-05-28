@@ -1,39 +1,36 @@
 import { For, Show, createSignal } from 'solid-js'
 import { A, useLocation } from '@solidjs/router'
 
-import type { NavGroup } from '../strategies/index.ts'
+import type { NavGroup, NavItem } from '../strategies/index.ts'
 import { useNavGroups } from '../context/project.tsx'
 import { createSlot } from '../context/index.ts'
 import { shortOf } from '../util/kind.ts'
 import { Type } from './Type.tsx'
 
 /**
- * Collapsible navigation. Groups start collapsed; the group containing the
- * active route auto-expands so the current page sits in context. Manual
- * toggles (chevron only) override the auto state for the lifetime of the
- * session.
+ * Collapsible navigation. Groups and module-bearing items start collapsed;
+ * the node containing the active route auto-expands so the current page
+ * sits in context. Manual toggles (chevron only) override the auto state
+ * for the lifetime of the session.
  *
- * When a group has a `slug` (e.g. an export entrypoint that maps to a
- * module), the title acts as a plain link to that module page — clicking
- * it never expands the group; that's the chevron's job.
+ * When a node has a `slug` (an entrypoint or a public sub-module), the
+ * label acts as a plain link and the chevron stays responsible for
+ * expanding — the two affordances are intentionally independent so users
+ * can navigate without losing their current expansion state.
  */
 export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
   const navGroups = useNavGroups()
   const loc = useLocation()
   const [overrides, setOverrides] = createSignal<Record<string, boolean>>({})
 
-  const isActive = (g: NavGroup): boolean => {
-    const path = loc.pathname
-    if (g.slug && path === `/r/${g.slug}`) return true
-    return g.items.some((it) => path === `/r/${it.slug}`)
-  }
+  const path = () => loc.pathname
+  const onPath = (slug?: string): boolean => !!slug && path() === `/r/${slug}`
 
-  const isOpen = (g: NavGroup): boolean => {
-    const ov = overrides()[g.title]
-    return ov !== undefined ? ov : isActive(g)
-  }
+  const isItemActive = (it: NavItem): boolean => onPath(it.slug) || !!it.children?.some(isItemActive)
+  const isGroupActive = (g: NavGroup): boolean => onPath(g.slug) || g.items.some(isItemActive)
 
-  const toggle = (g: NavGroup) => setOverrides((o) => ({ ...o, [g.title]: !isOpen(g) }))
+  const isOpen = (key: string, fallback: boolean): boolean => overrides()[key] ?? fallback
+  const toggle = (key: string, open: boolean) => setOverrides((o) => ({ ...o, [key]: !open }))
 
   return (
     <aside class={`text-sm ${props.class ?? ''}`}>
@@ -50,42 +47,145 @@ export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; 
           </A>
         </div>
         <For each={navGroups}>
-          {(g) => (
-            <div>
-              <GroupHeader
-                group={g}
-                open={isOpen(g)}
-                onToggle={() => toggle(g)}
-                onNavigate={() => props.onNavigate?.()}
-              />
-              <Show when={isOpen(g)}>
-                <ul class="mt-0.5 mb-1.5">
-                  <For each={g.items}>
-                    {(it) => (
-                      <li>
-                        <A
-                          href={`/r/${it.slug}`}
-                          class="flex items-center gap-2 rounded-md pl-7 pr-2.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors"
-                          activeClass="!text-fg !bg-hover font-medium"
-                          onClick={() => props.onNavigate?.()}
-                        >
-                          <Show when={shortOf(it.kind)}>
-                            <Type.KindBadge kind={it.kind} class="!text-[0.7rem] w-3.5" />
-                          </Show>
-                          <span class="font-mono truncate">{it.name}</span>
-                        </A>
-                      </li>
-                    )}
-                  </For>
-                </ul>
-              </Show>
-            </div>
-          )}
+          {(g) => {
+            const key = `g:${g.title}`
+            const open = () => isOpen(key, isGroupActive(g))
+            return (
+              <div>
+                <GroupHeader
+                  group={g}
+                  open={open()}
+                  onToggle={() => toggle(key, open())}
+                  onNavigate={() => props.onNavigate?.()}
+                />
+                <Show when={open()}>
+                  <ul class="mt-0.5 mb-1.5">
+                    <For each={g.items}>
+                      {(it) => (
+                        <NavNode
+                          item={it}
+                          depth={1}
+                          isItemActive={isItemActive}
+                          isOpen={isOpen}
+                          toggle={toggle}
+                          onNavigate={() => props.onNavigate?.()}
+                        />
+                      )}
+                    </For>
+                  </ul>
+                </Show>
+              </div>
+            )
+          }}
         </For>
       </nav>
     </aside>
   )
 })
+
+// ============================================================================
+// NODES
+// `NavNode` is the recursive renderer used inside each group. Leaves render
+// as a single link row; branches add a chevron + collapsible child list.
+// ============================================================================
+
+type NodeProps = {
+  item: NavItem
+  depth: number
+  isItemActive: (it: NavItem) => boolean
+  isOpen: (key: string, fallback: boolean) => boolean
+  toggle: (key: string, open: boolean) => void
+  onNavigate: () => void
+}
+
+const NavNode = (props: NodeProps) => {
+  const key = () => `n:${props.item.id}`
+  const hasChildren = () => !!props.item.children?.length
+  const open = () => props.isOpen(key(), props.isItemActive(props.item))
+
+  return (
+    <li>
+      <Show when={hasChildren()} fallback={<LeafRow {...props} />}>
+        <BranchRow {...props} open={open()} onToggle={() => props.toggle(key(), open())} />
+        <Show when={open()}>
+          <ul>
+            <For each={props.item.children!}>
+              {(child) => <NavNode {...props} item={child} depth={props.depth + 1} />}
+            </For>
+          </ul>
+        </Show>
+      </Show>
+    </li>
+  )
+}
+
+const indent = (depth: number): string => `${0.625 + depth * 0.75}rem`
+
+const LeafRow = (props: NodeProps) => (
+  <Show
+    when={props.item.slug}
+    fallback={
+      <span class="flex items-center gap-2 py-1 pr-2.5 text-mute" style={{ 'padding-left': indent(props.depth + 1) }}>
+        <KindCue kind={props.item.kind} />
+        <span class="font-mono truncate">{props.item.name}</span>
+      </span>
+    }
+  >
+    {(slug) => (
+      <A
+        href={`/r/${slug()}`}
+        class="flex items-center gap-2 rounded-md pr-2.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors"
+        style={{ 'padding-left': indent(props.depth + 1) }}
+        activeClass="!text-fg !bg-hover font-medium"
+        onClick={() => props.onNavigate()}
+      >
+        <KindCue kind={props.item.kind} />
+        <span class="font-mono truncate">{props.item.name}</span>
+      </A>
+    )}
+  </Show>
+)
+
+const BranchRow = (props: NodeProps & { open: boolean; onToggle: () => void }) => (
+  <div class="flex items-center w-full" style={{ 'padding-left': indent(props.depth) }}>
+    <button
+      type="button"
+      aria-label={props.open ? 'Collapse' : 'Expand'}
+      aria-expanded={props.open}
+      onClick={props.onToggle}
+      class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors cursor-pointer"
+    >
+      <Chevron open={props.open} />
+    </button>
+    <Show
+      when={props.item.slug}
+      fallback={
+        <span class="flex-1 flex items-center gap-2 px-1.5 py-1 text-mute">
+          <KindCue kind={props.item.kind} />
+          <span class="font-mono truncate">{props.item.name}</span>
+        </span>
+      }
+    >
+      {(slug) => (
+        <A
+          href={`/r/${slug()}`}
+          class="flex-1 flex items-center gap-2 px-1.5 py-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors"
+          activeClass="!text-fg !bg-hover font-medium"
+          onClick={() => props.onNavigate()}
+        >
+          <KindCue kind={props.item.kind} />
+          <span class="font-mono truncate">{props.item.name}</span>
+        </A>
+      )}
+    </Show>
+  </div>
+)
+
+const KindCue = (props: { kind: NavItem['kind'] }) => (
+  <Show when={shortOf(props.kind)}>
+    <Type.KindBadge kind={props.kind} class="text-[0.7rem]! w-3.5" />
+  </Show>
+)
 
 const Chevron = (props: { open: boolean }) => (
   <svg
@@ -103,9 +203,6 @@ const headerClass =
   'group flex items-center gap-1.5 w-full px-2 py-1 rounded-md text-[0.7rem] uppercase tracking-wider font-semibold text-mute hover:bg-hover hover:text-fg transition-colors cursor-pointer'
 
 const GroupHeader = (props: { group: NavGroup; open: boolean; onToggle: () => void; onNavigate: () => void }) => {
-  // Linkable title: chevron toggles, label navigates. The two affordances
-  // are intentionally independent so the user can navigate without losing
-  // their current expansion state.
   if (props.group.slug) {
     return (
       <div class="flex items-center w-full">

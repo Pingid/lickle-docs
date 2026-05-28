@@ -1,9 +1,11 @@
 import { For, Show } from 'solid-js'
+import { A } from '@solidjs/router'
 
 import type * as docs from '../../core/client.ts'
 
 import { Kind, labelOf, shortOf } from '../util/kind.ts'
 import { useDisplay } from '../context/index.ts'
+import { useSlugFor } from '../hooks/index.ts'
 
 import { Markdown } from './Markdown.tsx'
 import { Comment } from './Comment.tsx'
@@ -12,8 +14,15 @@ import { Link } from './Link.tsx'
 
 type T = docs.Type
 
-export const Type = (props: { type: T | undefined }): any => {
-  const t = props.type
+/**
+ * Render an arbitrary type. The body re-evaluates when `props.type` changes
+ * so that navigating between pages with different type shapes swaps the
+ * sub-renderer instead of freezing on the original branch (a classic Solid
+ * pitfall where a top-level `switch` in a component runs only on mount).
+ */
+export const Type = (props: { type: T | undefined }): any => <>{() => renderType(props.type)}</>
+
+const renderType = (t: T | undefined): any => {
   if (!t) return null
   switch (t.kind) {
     case 'intrinsic':
@@ -253,18 +262,46 @@ Type.KindLabel = (props: { kind: Kind | string; class?: string }) => (
   <span class={`text-xs uppercase tracking-wider text-mute ${props.class ?? ''}`}>{labelOf(props.kind)}</span>
 )
 
+/**
+ * Declaration name rendered as a link to its own page when a routable id
+ * resolves. Used in compact module-export lists where the signature is
+ * read-only context and the name itself is the navigation target.
+ */
+Type.NameLink = (props: { id?: number; name: string; class?: string }) => {
+  const slugs = useSlugFor()
+  const slug = () => (props.id != null ? slugs.byId(props.id) : undefined)
+  return (
+    <Show when={slug()} fallback={<span class={props.class}>{props.name}</span>}>
+      {(s) => (
+        <A
+          href={`/r/${s()}`}
+          class={`${props.class ?? ''} hover:opacity-70 underline decoration-line decoration-dotted underline-offset-[3px]`}
+        >
+          {props.name}
+        </A>
+      )}
+    </Show>
+  )
+}
+
 const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
 const Kw = (p: { children: string }) => <span class="text-accent">{p.children}</span>
 
 const isOptional = (p: docs.Parameter): boolean => p.optional || p.default != null
 
-Type.SignatureLine = (props: { sig: docs.Signature; name?: string; kind?: 'function' | 'method' | 'constructor' }) => (
+Type.SignatureLine = (props: {
+  sig: docs.Signature
+  name?: string
+  /** Owning declaration id — when set, the name renders as a link to its page. */
+  id?: number
+  kind?: 'function' | 'method' | 'constructor'
+}) => (
   <div class="font-mono text-sm leading-relaxed py-2">
     <Show when={props.kind === 'constructor'}>
       <Kw>new </Kw>
     </Show>
     <Show when={props.name}>
-      <span class="font-semibold">{props.name}</span>
+      <Type.NameLink id={props.id} name={props.name!} class="font-semibold" />
     </Show>
     <Show when={props.sig.typeParameters?.length}>
       <Punct>{'<'}</Punct>
@@ -320,15 +357,20 @@ Type.SignatureLine = (props: { sig: docs.Signature; name?: string; kind?: 'funct
  * `@param` tags inside `sig.comment` and are rendered by `<Comment>` itself,
  * so there's no separate parameter table here.
  */
-Type.Signature = (props: { sig: docs.Signature; name?: string; kind?: 'function' | 'method' | 'constructor' }) => {
+Type.Signature = (props: {
+  sig: docs.Signature
+  name?: string
+  id?: number
+  kind?: 'function' | 'method' | 'constructor'
+}) => {
   const display = useDisplay()
   return (
     <Show
       when={display() === 'full'}
-      fallback={<Type.SignatureCompact sig={props.sig} name={props.name} kind={props.kind} />}
+      fallback={<Type.SignatureCompact sig={props.sig} name={props.name} id={props.id} kind={props.kind} />}
     >
       <div class="mb-8">
-        <Type.SignatureLine sig={props.sig} name={props.name} kind={props.kind} />
+        <Type.SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
         <Show when={props.sig.comment}>
           <div class="mt-2">
             <Comment comment={props.sig.comment} />
@@ -342,10 +384,11 @@ Type.Signature = (props: { sig: docs.Signature; name?: string; kind?: 'function'
 Type.SignatureCompact = (props: {
   sig: docs.Signature
   name?: string
+  id?: number
   kind?: 'function' | 'method' | 'constructor'
 }) => (
   <>
-    <Type.SignatureLine sig={props.sig} name={props.name} kind={props.kind} />
+    <Type.SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
     <Comment comment={props.sig.comment} />
   </>
 )
