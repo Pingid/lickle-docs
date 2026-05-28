@@ -29,17 +29,16 @@
       "import": "./dist/esm/preset/index.jsx",
       "require": "./dist/esm/preset/index.jsx"
     },
+    "./ui": {
+      "types": "./dist/ts/ui/index.d.ts",
+      "import": "./dist/esm/ui/index.js",
+      "require": "./dist/esm/ui/index.js"
+    },
     "./preset/tsconfig.json": "./tsconfig.client.json",
     "./preset/jsx-runtime": "./dist/ts/preset/solidjs/jsx-runtime.d.ts"
   },
   "scripts": {
-    "build": "pnpm tsc && pnpm build:tools && pnpm build:lib",
-    "build:tools": "tsc -p ./build/tsconfig.json && tsc -p ./build/tsconfig.cjs.json",
-    "build:lib": "tsc -p ./tsconfig.esm.json && tsc -p ./tsconfig.cjs.json",
-    "format": "prettier --write .",
-    "generate": "npm run build:tools && node ./generate.js",
-    "build:docs": "pnpm -C ./typedoc build",
-    "watch:docs": "pnpm -C ./typedoc watch"
+    "build": "pnpm tsc"
   },
   "devDependencies": {
     "@types/micromatch": "^4.0.10",

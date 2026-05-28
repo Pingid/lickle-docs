@@ -1,12 +1,36 @@
-import { Router, Route } from '@solidjs/router'
+import { Router, Route, useParams } from '@solidjs/router'
+import { Dynamic } from 'solid-js/web'
+import { Show } from 'solid-js'
 
+import { DeclarationScope } from './context/project.tsx'
 import { ThemeProvider } from './context/theme.tsx'
-import { Reflection } from './pages/Reflection.tsx'
-import { Layout } from './theme/slots/index.ts'
-import { Home } from './pages/Home.tsx'
+import { useReflection } from './hooks/index.ts'
+
+import { Link, Page, Layout, Home } from './components/index.ts'
+
+const PathRoute = () => {
+  const params = useParams()
+  const decl = useReflection(() => params['slug'])
+  return (
+    <Show when={decl()} fallback={<NotFound />}>
+      {(d) => (
+        <DeclarationScope id={d().id}>
+          <Dynamic component={Page} decl={d()} />
+          {/* <References id={d().id} /> */}
+        </DeclarationScope>
+      )}
+    </Show>
+  )
+}
 
 /** Fallback for routes that don't match a registered path. */
-export const NotFound = () => <div class="py-20 text-center text-mute">404</div>
+const NotFound = () => (
+  <div class="py-20 text-center">
+    <h1 class="text-2xl font-semibold mb-2">Not found</h1>
+    <p class="text-mute">No declaration matches this URL.</p>
+    <Link href="/">Back home</Link>
+  </div>
+)
 
 /**
  * Stock route table. Exported on its own so a custom `App` can drop it in
@@ -15,7 +39,7 @@ export const NotFound = () => <div class="py-20 text-center text-mute">404</div>
 export const Routes = () => (
   <>
     <Route path="/" component={Home} />
-    <Route path="/r/:slug" component={Reflection} />
+    <Route path="/r/:slug" component={PathRoute} />
     <Route path="*" component={NotFound} />
   </>
 )

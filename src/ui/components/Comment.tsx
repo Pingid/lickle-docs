@@ -1,0 +1,123 @@
+import { createMemo, For, Show } from 'solid-js'
+
+import type * as docs from '../../core/client.ts'
+
+import { useCommentMarkdown } from '../hooks/index.ts'
+import { createSlot, useDisplay } from '../context/index.ts'
+
+import { Markdown } from './Markdown.tsx'
+import { Type } from './Type.tsx'
+import { Tag } from './Tag.tsx'
+
+/**
+ * Render a single doc comment: summary markdown first, then every tag in
+ * source order. Consecutive `@param` (or `@property`) runs are merged into
+ * one labelled table so a five-parameter signature reads as one block.
+ *
+ * Per-tag rendering goes through the component registry — `defaults` from
+ * `theme/tags/`, with user overrides taking precedence. Unknown tags fall
+ * through to {@link UnknownTag}.
+ */
+export const Comment = createSlot('comment', (props) => {
+  const display = useDisplay()
+  return (
+    <Show when={props.comment}>
+      {(c) => {
+        const summary = useCommentMarkdown(c)
+        const groups = createMemo(() => groupTags(c().tags ?? []))
+        const trimmed = createMemo(() => summary().split('\n')[0])
+        const compact = createMemo(() => display() === 'compact')
+        return (
+          <Show when={summary() || props.comment?.tags?.length}>
+            <div class={props.class}>
+              <Show when={compact()}>
+                <Show when={trimmed()}>{(c) => <Markdown.Inline class="text-sm text-mute" source={c()} />}</Show>
+              </Show>
+              <Show when={!compact()}>
+                <Show when={summary()}>{(c) => <Markdown source={c()} />}</Show>
+                <For each={groups()}>
+                  {(g) => {
+                    if (g.kind === '@param') return <Parameters tags={g.items} />
+                    if (g.kind === '@property') return <Properties tags={g.items} />
+                    if (g.tag.tag === '@module') return null
+                    return <Tag tag={g.tag} />
+                  }}
+                </For>
+              </Show>
+            </div>
+          </Show>
+        )
+      }}
+    </Show>
+  )
+})
+
+const Properties = createSlot('comment.properties', (p) => <NamedTable title="Properties" tags={p.tags} />)
+const Parameters = createSlot('comment.parameters', (p) => <NamedTable title="Parameters" tags={p.tags} />)
+
+const NamedTable = (props: {
+  title: string
+  tags: docs.CommentTagMap['@property'][] | docs.CommentTagMap['@param'][]
+}) => {
+  return (
+    <section class="mt-6">
+      <div class="flex items-baseline gap-2 mb-2">
+        <h4 class="text-mute uppercase text-[0.7rem] font-semibold tracking-wider">{props.title}</h4>
+      </div>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
+        <For each={props.tags}>{(it) => <NamedRow item={it} />}</For>
+      </dl>
+    </section>
+  )
+}
+
+const NamedRow = (props: { item: docs.CommentTagMap['@property'] | docs.CommentTagMap['@param'] }) => (
+  <>
+    <dt class="font-mono text-sm whitespace-nowrap">
+      <span class="font-semibold">{props.item.name}</span>
+      <Show when={props.item.optional}>
+        <span class="text-mute">?</span>
+      </Show>
+      <Show when={props.item.type}>
+        <>
+          <span class="text-mute">: </span>
+          <Type type={props.item.type!} />
+        </>
+      </Show>
+      <Show when={props.item.default}>
+        <span class="text-mute"> = {props.item.default}</span>
+      </Show>
+    </dt>
+    <dd class="text-sm text-mute min-w-0">
+      <Show when={trimLead(props.item.text)}>
+        <Markdown class="lk-md-inline" source={trimLead(props.item.text)} />
+      </Show>
+    </dd>
+  </>
+)
+
+type Named = docs.CommentTagMap['@property'] | docs.CommentTagMap['@param']
+
+/** Strip a single leading `- ` so `@param foo - desc` collapses cleanly. */
+const trimLead = (s: string): string => (s ?? '').replace(/^\s*-\s*/, '').trim()
+
+// type Named = TagOf<'@param'> | TagOf<'@property'>
+type Group =
+  | { kind: '@param'; items: docs.CommentTagMap['@param'][] }
+  | { kind: '@property'; items: docs.CommentTagMap['@property'][] }
+  | { kind: 'tag'; tag: docs.CommentTag }
+
+const groupTags = (tags: docs.CommentTag[]): Group[] => {
+  const out: Group[] = []
+  const pushRun = <K extends '@param' | '@property'>(kind: K, item: Named) => {
+    const last = out[out.length - 1]
+    if (last && last.kind === kind) (last.items as Named[]).push(item)
+    else out.push({ kind, items: [item] } as Group)
+  }
+  for (const t of tags) {
+    if (t.tag === '@param') pushRun('@param', t as Named)
+    else if (t.tag === '@property') pushRun('@property', t as Named)
+    else out.push({ kind: 'tag', tag: t })
+  }
+  return out
+}

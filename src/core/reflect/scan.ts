@@ -117,9 +117,13 @@ const makeContext = (checker: ts.TypeChecker, options: Options): Context => {
 
 const sourceFile = (sf: ts.SourceFile, ctx: Context): T.Module => {
   const children: T.AnyDeclaration[] = []
+
+  // console.log(ts.getJSDocCommentsAndTags(sf))
   for (const stmt of sf.statements) {
+    // console.log(ts.getJSDocCommentsAndTags(stmt))
     if (isExported(stmt)) appendDeclarations(stmt, ctx, children)
   }
+
   return {
     ...routableModule(sf, ctx),
     kind: 'module',
@@ -672,7 +676,7 @@ const base = (node: ts.Node, ctx: Context): T.Base => {
   if (sym) ctx.symbolsById.set(id, sym)
   const result: T.Base = { id }
   if (!ctx.exclude?.comments) {
-    const comment = commentFor(node, ctx)
+    const comment = ts.isSourceFile(node) ? commentForModule(node, ctx) : commentForNode(node, ctx)
     if (comment) result.comment = comment
   }
   if (!ctx.exclude?.sources) {
@@ -721,7 +725,7 @@ const heritage = (node: ts.ClassDeclaration, ctx: Context): Pick<T.Class, 'exten
 // COMMENTS
 // ============================================================================
 
-const commentFor = (node: ts.Node, ctx: Context): T.Comment | undefined => {
+const commentForNode = (node: ts.Node, ctx: Context): T.Comment | undefined => {
   const all = ts.getJSDocCommentsAndTags(node)
   if (!all.length) return undefined
   const parts: T.CommentPart[] = []
@@ -731,7 +735,12 @@ const commentFor = (node: ts.Node, ctx: Context): T.Comment | undefined => {
     if (!ts.isJSDoc(b)) continue
     seenBlock = true
     appendCommentBody(b.comment, parts)
-    if (b.tags) for (const t of b.tags) tags.push(buildTag(t, ctx))
+    if (b.tags)
+      for (const t of b.tags) {
+        const tag = buildTag(t, ctx)
+        if (tag.tag === '@module') return undefined
+        tags.push(tag)
+      }
   }
   if (!seenBlock) return undefined
   return { parts, ...(tags.length ? { tags } : {}) }
@@ -840,4 +849,59 @@ const parseExample = (raw: string): T.CommentTagMap['@example'] => {
     if (caption) return { tag: '@example', caption, code: raw.slice(fence).trim() }
   }
   return { tag: '@example', code: raw.trim() }
+}
+
+export const commentForModule = (sf: ts.SourceFile, ctx: Context): T.Comment | undefined => {
+  if (sf.statements.length === 0) return undefined
+
+  // 1. Target the leading comment ranges for the first statement per your rules
+  const sourceText = sf.getFullText()
+  const commentRanges = ts.getLeadingCommentRanges(sourceText, sf.statements[0]!.pos)
+  if (!commentRanges || commentRanges.length === 0) return undefined
+
+  const parts: T.CommentPart[] = []
+  const tags: T.CommentTag[] = []
+  let seenBlock = false
+
+  // 2. Evaluate each comment text range
+  for (let i = 0; i < commentRanges.length; i++) {
+    const range = commentRanges[i]!
+    const commentText = sourceText.slice(range.pos, range.end)
+
+    // Apply your specific layout logic
+    const isModuleComment = i < commentRanges.length - 1 || commentText.includes('@module')
+
+    if (isModuleComment) {
+      // 3. Trick the compiler into parsing the raw text snippet back into an AST Node block
+      // We append an empty statement (;) so the parser attaches the JSDoc to a valid target.
+      const dummyFile = ts.createSourceFile(
+        'dummy.ts',
+        `${commentText}\n;`,
+        ts.ScriptTarget.Latest,
+        true, // Set parent pointers to true
+      )
+
+      // 4. Safely extract the compiled JSDoc node from the dummy file
+      const dummyStmt = dummyFile.statements[0]
+      if (dummyStmt) {
+        const jsdocBlocks = ts.getJSDocCommentsAndTags(dummyStmt)
+        const matchingBlock = jsdocBlocks.find(ts.isJSDoc) as ts.JSDoc | undefined
+
+        if (matchingBlock) {
+          seenBlock = true
+
+          // Feed the generated AST structure down your pipeline seamlessly
+          appendCommentBody(matchingBlock.comment, parts)
+          if (matchingBlock.tags) {
+            for (const t of matchingBlock.tags) {
+              tags.push(buildTag(t, ctx))
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (!seenBlock) return undefined
+  return { parts, ...(tags.length ? { tags } : {}) }
 }

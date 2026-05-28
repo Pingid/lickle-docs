@@ -1,4 +1,6 @@
-import { render, App, type Components, ProjectProvider } from '../ui/index.ts'
+import { render } from 'solid-js/web'
+
+import { App, type Components, ProjectProvider } from '../ui/index.ts'
 import type { NavStrategy } from '../ui/strategies/index.ts'
 import { ProjectJson } from '../core/client.ts'
 

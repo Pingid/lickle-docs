@@ -17,7 +17,7 @@ export interface Registry extends T.TypeRegistry {
   types: TypeMap
 }
 
-interface DeclarationMap extends T.DeclarationMap<Registry> {
+export interface DeclarationMap extends T.DeclarationMap<Registry> {
   module: Module
   variable: T.Variable<Registry> & WithQuery<DeclarationQueries>
   function: T.Func<Registry> & WithQuery<DeclarationQueries>

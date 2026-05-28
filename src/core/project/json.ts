@@ -52,6 +52,7 @@ export const generate = async (options: ScanOptions): Promise<ProjectJson> => {
   const readme = await fs.readFile(path.join(options.dir, 'README.md'), 'utf-8').catch(() => undefined)
   const version = json.version
   const name = json.name ?? 'Unknown'
+
   const reflections = reflect.resolve.run(Array.from(files), {
     compilerOptions: tsConfig.options,
     rootDir: options.dir,

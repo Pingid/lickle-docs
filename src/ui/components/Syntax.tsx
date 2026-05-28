@@ -1,0 +1,10 @@
+export namespace Syntax {
+  /** Muted punctuation — brackets, commas, `=`, etc. */
+  export const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
+
+  /** Accent keyword — `const`, `type`, `extends`, intrinsics. */
+  export const Kw = (p: { children: string }) => <span class="text-accent">{p.children}</span>
+
+  /** Default-styled identifier. */
+  export const Name = (p: { children: string }) => <span>{p.children}</span>
+}

@@ -4,8 +4,7 @@ import type { JSX } from 'solid-js/jsx-runtime'
 import * as docs from '../../core/client.ts'
 
 import { auto, routables, surface, type NavGroup, type NavItem, type NavStrategy } from '../strategies/index.ts'
-import { ComponentsProvider } from '../registry/context.tsx'
-import type { Components } from '../registry/types.ts'
+import { ComponentsProvider, type Components } from './components.tsx'
 
 export type ProjectBag = {
   project: docs.Project
@@ -50,11 +49,11 @@ export const useProject = (): ProjectBag => {
 
 export const useNavGroups = (): NavGroup[] => useProject().navGroups
 
-const ReflectionIdCtx = createContext<number | undefined>(undefined)
+const DeclarationIdContext = createContext<number | undefined>(undefined)
 
 /** Scope a subtree to a reflection id so nested `<Comment>`s pass it to tag handlers. */
-export const ReflectionScope = (props: { id: number; children: JSX.Element }) => (
-  <ReflectionIdCtx.Provider value={props.id}>{props.children}</ReflectionIdCtx.Provider>
+export const DeclarationScope = (props: { id: number; children: JSX.Element }) => (
+  <DeclarationIdContext.Provider value={props.id}>{props.children}</DeclarationIdContext.Provider>
 )
 
-export const useReflectionId = (): number | undefined => useContext(ReflectionIdCtx)
+export const useDeclarationId = (): number | undefined => useContext(DeclarationIdContext)

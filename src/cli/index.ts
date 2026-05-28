@@ -1,9 +1,12 @@
+// import { fileURLToPath } from 'node:url'
 import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
 import path from 'node:path'
 
 import { client, watch, promise } from '../cli/util/index.ts'
 import * as project from '../core/project/json.ts'
+
+// const corDir = fileURLToPath(new URL('../core', import.meta.url))
 
 export const app = () =>
   cmd.subcommands({

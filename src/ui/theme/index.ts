@@ -1,5 +1,0 @@
-export * as components from './components/index.ts'
-export * as pages from './pages/index.ts'
-export * as slots from './slots/index.ts'
-export * as sections from './sections.tsx'
-export * as tags from './tags/index.ts'

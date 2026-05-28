@@ -50,6 +50,7 @@ const itemFor = (project: docs.Project, surfaceItem: { id: number; kind: string 
   if (!decl) return undefined
   const slug = project.slugById.get(decl.id)
   if (!slug) return undefined
+
   return {
     id: decl.id,
     name: docs.displayNameOf(decl),
@@ -138,6 +139,7 @@ export const byExports: NavStrategy = (project) => {
     const slug = mod ? project.slugById.get(mod.id) : undefined
     out.push({ title: exp.name, slug, items: sortByGroupThenName(items) })
   }
+
   return out
 }
 
@@ -145,7 +147,7 @@ export const byExports: NavStrategy = (project) => {
  * Pick a sensible default per project: `byExports` when the package surfaces
  * more than one entrypoint, otherwise the flat `byKind` view.
  */
-export const auto: NavStrategy = (project) => (project.exports.length > 1 ? byExports(project) : byKind(project))
+export const auto: NavStrategy = (project) => (project.exports.length > 1 ? byExports(project) : byExports(project))
 
 /**
  * Module chain ending in `id` — outermost module first, the declaration last.
