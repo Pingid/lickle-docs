@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
       "lib": ["DOM"],
+      "types": ["@lickle/docs/client"],
       "jsx": "preserve",
       "jsxImportSource": "@lickle/docs/preset",
       "noEmit": true,

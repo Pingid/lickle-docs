@@ -5,7 +5,7 @@ import { ProjectJson } from '../core/client.ts'
 export * from './solidjs/index.ts'
 export * from '../ui/index.ts'
 
-import './index.css'
+import '@lickle/docs/theme.css'
 
 export type UIConfig = {
   json: ProjectJson

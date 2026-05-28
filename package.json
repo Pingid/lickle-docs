@@ -23,10 +23,11 @@
       "require": "./dist/esm/ui/index.js"
     },
     "./theme.css": "./theme.css",
+    "./client": "./client.d.ts",
     "./preset": {
       "types": "./dist/ts/preset/index.d.ts",
-      "import": "./dist/esm/preset/index.js",
-      "require": "./dist/esm/preset/index.js"
+      "import": "./dist/esm/preset/index.jsx",
+      "require": "./dist/esm/preset/index.jsx"
     },
     "./preset/tsconfig.json": "./tsconfig.client.json",
     "./preset/jsx-runtime": "./dist/ts/preset/solidjs/jsx-runtime.d.ts"
@@ -66,7 +67,6 @@
     "solid-js": "^1.9.13",
     "tailwindcss": "^4.3.0",
     "typedoc": "^0.28.19",
-    "unbuild": "^3.6.1",
     "vite": "^8.0.14",
     "vite-plugin-solid": "^2.11.12"
   }

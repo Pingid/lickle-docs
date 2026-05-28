@@ -55,8 +55,19 @@ const cmdInit = cmd.command({
       type: cmd.optional(cmd.string),
       description: 'Path to the docs directory',
     }),
+    force: cmd.flag({
+      long: 'force',
+      short: 'f',
+      description: 'Force init even if the docs directory already exists',
+    }),
   },
-  handler: async (args) => init(args),
+  handler: async (args) => {
+    if (args.force) {
+      const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
+      await fs.rm(dir, { recursive: true })
+    }
+    init(args)
+  },
 })
 
 const cmdDev = cmd.command({
@@ -145,7 +156,7 @@ const generate = async (out: string, opts: project.ScanOptions) => {
 const initFiles = {
   '.gitignore': [`docs.json`, `dist`],
   'index.tsx': [
-    `import { create, type ProjectJson } from '@lickle/docs/preset'\n`,
+    `import { create, type ProjectJson } from '@lickle/docs/preset'`,
     `import json from './docs.json'\n`,
     `create({ json: json as ProjectJson })`,
   ],

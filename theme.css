@@ -1,3 +1,4 @@
+@import 'tailwindcss';
 @source './dist';
 
 @theme inline {

@@ -6,13 +6,13 @@ import path from 'node:path'
 import fs from 'node:fs'
 
 const presetRoot = fileURLToPath(new URL('../../preset/', import.meta.url))
-const uiRoot = fileURLToPath(new URL('../../ui/', import.meta.url))
+// const uiRoot = fileURLToPath(new URL('../../ui/', import.meta.url))
 
 export const dev = async (args: { docsDir: string; name: string; port?: number }) => {
   const server = await vite.createServer({
     root: presetRoot,
     plugins: [solid(), tailwindcss(), docsPlugin(args)],
-    server: { port: args.port ?? 3000 },
+    server: { port: args.port },
   })
   await server.listen()
   server.printUrls()
@@ -35,8 +35,8 @@ const docsPlugin = (p: { docsDir: string; name: string; entry?: string }): vite.
       return {
         resolve: {
           alias: {
-            '@lickle/docs/preset': path.resolve(presetRoot, 'index.tsx'),
-            '@lickle/docs': path.resolve(uiRoot, 'index.ts'),
+            // '@lickle/docs/preset': path.resolve(presetRoot, 'index.tsx'),
+            // '@lickle/docs': path.resolve(uiRoot, 'index.ts'),
           },
         },
         server: { fs: { allow: [presetRoot, p.docsDir] } },
