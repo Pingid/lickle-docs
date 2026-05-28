@@ -54,6 +54,7 @@
     "trailingComma": "all"
   },
   "dependencies": {
+    "@lickle/docs": "link:",
     "@orama/orama": "^3.1.18",
     "@solidjs/router": "^0.16.1",
     "@tailwindcss/vite": "^4.3.0",

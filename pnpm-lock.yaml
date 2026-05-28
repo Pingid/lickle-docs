@@ -4,10 +4,16 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@lickle/docs': 'link:'
+
 importers:
 
   .:
     dependencies:
+      '@lickle/docs':
+        specifier: 'link:'
+        version: 'link:'
       '@orama/orama':
         specifier: ^3.1.18
         version: 3.1.18
