@@ -2,10 +2,10 @@ import { For, Show } from 'solid-js'
 
 import type * as docs from '../../../core/client.ts'
 
-import { Comment } from '../../shared/Comment.js'
-import { Members } from '../sections.js'
-import { PageHeader } from '../slots/index.js'
-import { Type } from '../../primitives/Type.js'
+import { Comment } from '../../shared/Comment.tsx'
+import { Members } from '../sections.tsx'
+import { PageHeader } from '../slots/index.ts'
+import { Type } from '../../primitives/Type.tsx'
 
 export const ClassPage = (props: { decl: docs.Declaration<'class'> }) => (
   <article>

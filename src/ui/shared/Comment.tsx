@@ -2,12 +2,12 @@ import { For, Show } from 'solid-js'
 
 import type * as docs from '../../core/client.ts'
 
-import { useProject, useReflectionId } from '../context/project.js'
-import { defaultTags } from '../theme/tags/index.js'
-import { useComponents } from '../registry/context.js'
-import { useSlugFor } from '../hooks/index.js'
-import { Markdown } from './Markdown.js'
-import { Type } from '../primitives/Type.js'
+import { useProject, useReflectionId } from '../context/project.tsx'
+import { defaultTags } from '../theme/tags/index.ts'
+import { useComponents } from '../registry/context.tsx'
+import { useSlugFor } from '../hooks/index.ts'
+import { Markdown } from './Markdown.tsx'
+import { Type } from '../primitives/Type.tsx'
 
 type Tag = docs.CommentTag
 type TagOf<K extends keyof docs.CommentTagMap> = docs.CommentTagMap[K]

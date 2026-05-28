@@ -1,9 +1,9 @@
 import { Show } from 'solid-js'
 import type * as docs from '../../../core/client.ts'
 
-import { Comment } from '../../shared/Comment.js'
-import { Members } from '../sections.js'
-import { PageHeader } from '../slots/index.js'
+import { Comment } from '../../shared/Comment.tsx'
+import { Members } from '../sections.tsx'
+import { PageHeader } from '../slots/index.ts'
 
 export const ModulePage = (props: { decl: docs.Declaration<'module'> }) => (
   <article>

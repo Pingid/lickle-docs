@@ -1,8 +1,8 @@
 import { For, Show } from 'solid-js'
 import type * as docs from '../../../core/client.ts'
 
-import { Type } from '../../primitives/Type.js'
-import { InlineText, TagSection } from './shared.js'
+import { Type } from '../../primitives/Type.tsx'
+import { InlineText, TagSection } from './shared.tsx'
 
 export const TemplateTag = (props: { tag: docs.CommentTagMap['@template'] }) => (
   <TagSection title="Type Parameters">

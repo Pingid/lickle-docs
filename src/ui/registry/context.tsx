@@ -1,7 +1,7 @@
 import { createContext, createMemo, useContext } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
 
-import type { Components } from './types.js'
+import type { Components } from './types.ts'
 
 const ComponentsCtx = createContext<Components>({})
 

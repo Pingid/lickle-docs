@@ -1,10 +1,10 @@
 import { For, Show, createSignal } from 'solid-js'
 import { A, useLocation } from '@solidjs/router'
 
-import { useNavGroups } from '../../context/project.js'
-import type { NavGroup } from '../../strategies/index.js'
-import { shortOf } from '../../util/kind.js'
-import { KindBadge } from '../../primitives/Kind.js'
+import { useNavGroups } from '../../context/project.tsx'
+import type { NavGroup } from '../../strategies/index.ts'
+import { shortOf } from '../../util/kind.ts'
+import { KindBadge } from '../../primitives/Kind.tsx'
 
 /**
  * Collapsible navigation. Groups start collapsed; the group containing the

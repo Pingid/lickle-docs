@@ -4,15 +4,15 @@ import { A } from '@solidjs/router'
 
 import type * as docs from '../../core/client.ts'
 
-import { ReflectionScope } from '../context/project.js'
-import { useSlugFor } from '../hooks/index.js'
-import { groupOrder, pluralLabel, type Kind } from '../util/kind.js'
-import { isNamespaceReExport } from '../strategies/index.js'
-import { SignatureExpr, Type } from '../primitives/Type.js'
-import { KindBadge } from '../primitives/Kind.js'
-import { Comment } from '../shared/Comment.js'
-import { useComponents } from '../registry/context.js'
-import type { ChildSection, MemberSections } from '../registry/types.js'
+import { ReflectionScope } from '../context/project.tsx'
+import { useSlugFor } from '../hooks/index.ts'
+import { groupOrder, pluralLabel, type Kind } from '../util/kind.ts'
+import { isNamespaceReExport } from '../strategies/index.ts'
+import { SignatureExpr, Type } from '../primitives/Type.tsx'
+import { KindBadge } from '../primitives/Kind.tsx'
+import { Comment } from '../shared/Comment.tsx'
+import { useComponents } from '../registry/context.tsx'
+import type { ChildSection, MemberSections } from '../registry/types.ts'
 
 // ============================================================================
 // PUBLIC API

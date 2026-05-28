@@ -1,11 +1,11 @@
 import { createMemo, type Accessor } from 'solid-js'
 import * as docs from '../../core/client.ts'
 
-import { createSearchEngine, type SearchEngine } from '../util/search.js'
-import { useProject, type ProjectBag } from '../context/project.js'
-import type { NavGroup, NavItem } from '../strategies/index.js'
-import { commentSummaryText } from '../util/comment.js'
-import { isRoutable } from '../util/kind.js'
+import { createSearchEngine, type SearchEngine } from '../util/search.ts'
+import { useProject, type ProjectBag } from '../context/project.tsx'
+import type { NavGroup, NavItem } from '../strategies/index.ts'
+import { commentSummaryText } from '../util/comment.ts'
+import { isRoutable } from '../util/kind.ts'
 
 // ============================================================================
 // SELECTOR HOOKS

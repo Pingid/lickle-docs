@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 
-import { useComponents } from '../../registry/context.js'
-import type { Slots } from '../../registry/types.js'
+import { useComponents } from '../../registry/context.tsx'
+import type { Slots } from '../../registry/types.ts'
 
 /**
  * Build a slot dispatcher in one line: look up the override under `key`,

@@ -1,9 +1,9 @@
 import { For, Show } from 'solid-js'
 import type * as docs from '../../../core/client.ts'
 
-import { Comment } from '../../shared/Comment.js'
-import { Type } from '../../primitives/Type.js'
-import { PageHeader } from '../slots/index.js'
+import { Comment } from '../../shared/Comment.tsx'
+import { Type } from '../../primitives/Type.tsx'
+import { PageHeader } from '../slots/index.ts'
 
 export const TypeAliasPage = (props: { decl: docs.Declaration<'type-alias'> }) => (
   <article>

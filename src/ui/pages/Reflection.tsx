@@ -4,12 +4,12 @@ import { Dynamic } from 'solid-js/web'
 
 import type * as docs from '../../core/client.ts'
 
-import { ReflectionScope } from '../context/project.js'
-import { References } from '../theme/slots/index.js'
-import { useReflection } from '../hooks/index.js'
-import { useComponents } from '../registry/context.js'
-import { defaultPages } from '../theme/pages/index.js'
-import type { PageComponent } from '../registry/types.js'
+import { ReflectionScope } from '../context/project.tsx'
+import { References } from '../theme/slots/index.ts'
+import { useReflection } from '../hooks/index.ts'
+import { useComponents } from '../registry/context.tsx'
+import { defaultPages } from '../theme/pages/index.ts'
+import type { PageComponent } from '../registry/types.ts'
 
 type Kind = docs.Declaration['kind']
 

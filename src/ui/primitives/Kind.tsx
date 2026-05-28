@@ -1,4 +1,4 @@
-import { labelOf, shortOf, type Kind } from '../util/kind.js'
+import { labelOf, shortOf, type Kind } from '../util/kind.ts'
 
 /**
  * Single-glyph badge for a declaration kind. Use in dense lists (sidebar,

@@ -1,7 +1,7 @@
 import { onMount, onCleanup, createEffect } from 'solid-js'
 import { CodeJar } from 'codejar'
 
-import { getHighlighter, langOf } from '../util/markdown.js'
+import { getHighlighter, langOf } from '../util/markdown.ts'
 
 export const Editor = (props: {
   code: string

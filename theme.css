@@ -1,3 +1,5 @@
+@source './dist';
+
 @theme inline {
   --color-bg: var(--color-bg);
   --color-panel: var(--color-panel);

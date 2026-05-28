@@ -1,9 +1,9 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 
-import { type SearchHit } from '../util/search.js'
-import { useSearch } from '../hooks/index.js'
-import { KindBadge } from '../primitives/Kind.js'
+import { type SearchHit } from '../util/search.ts'
+import { useSearch } from '../hooks/index.ts'
+import { KindBadge } from '../primitives/Kind.tsx'
 
 const DEBOUNCE_MS = 80
 

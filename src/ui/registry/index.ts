@@ -8,6 +8,6 @@ export type {
   MemberSections,
   ChildSection,
   KnownTagKey,
-} from './types.js'
-export { ComponentsProvider, useComponents } from './context.js'
-export { tag, page } from './authoring.js'
+} from './types.ts'
+export { ComponentsProvider, useComponents } from './context.tsx'
+export { tag, page } from './authoring.ts'

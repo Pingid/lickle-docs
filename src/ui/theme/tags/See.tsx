@@ -2,8 +2,8 @@ import { Show } from 'solid-js'
 import { A } from '@solidjs/router'
 import type * as docs from '../../../core/client.ts'
 
-import { useSlugFor } from '../../hooks/index.js'
-import { InlineText, TagSection } from './shared.js'
+import { useSlugFor } from '../../hooks/index.ts'
+import { InlineText, TagSection } from './shared.tsx'
 
 export const SeeTag = (props: { tag: docs.CommentTagMap['@see'] }) => {
   const slugs = useSlugFor()

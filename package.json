@@ -18,17 +18,18 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/ui/index.d.ts",
-      "import": "./dist/ui/index.mjs",
-      "require": "./dist/ui/index.cjs"
+      "types": "./dist/ts/ui/index.d.ts",
+      "import": "./dist/esm/ui/index.js",
+      "require": "./dist/esm/ui/index.js"
     },
+    "./theme.css": "./theme.css",
     "./preset": {
-      "types": "./dist/preset/index.d.ts",
-      "import": "./dist/preset/index.mjs",
-      "require": "./dist/preset/index.cjs"
+      "types": "./dist/ts/preset/index.d.ts",
+      "import": "./dist/esm/preset/index.js",
+      "require": "./dist/esm/preset/index.js"
     },
     "./preset/tsconfig.json": "./tsconfig.client.json",
-    "./preset/jsx-runtime": "./dist/preset/solidjs/jsx-runtime.d.ts"
+    "./preset/jsx-runtime": "./dist/ts/preset/solidjs/jsx-runtime.d.ts"
   },
   "scripts": {
     "build": "pnpm tsc && pnpm build:tools && pnpm build:lib",

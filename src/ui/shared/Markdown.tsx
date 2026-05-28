@@ -1,7 +1,7 @@
 import { createResource, Show } from 'solid-js'
 
-import { renderMarkdown, renderMarkdownSync, type CodespanLookup } from '../util/markdown.js'
-import { useSlugFor } from '../hooks/index.js'
+import { renderMarkdown, renderMarkdownSync, type CodespanLookup } from '../util/markdown.ts'
+import { useSlugFor } from '../hooks/index.ts'
 
 export const Markdown = (props: { source: string; class?: string }) => {
   const slugs = useSlugFor()

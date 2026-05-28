@@ -2,8 +2,8 @@ import { create, insert, search } from '@orama/orama'
 
 import { nameOf } from '../../core/client.ts'
 
-import type { ProjectBag } from '../context/project.js'
-import { type Kind } from './kind.js'
+import type { ProjectBag } from '../context/project.tsx'
+import { type Kind } from './kind.ts'
 
 export type SearchHit = { name: string; qualified: string; kind: Kind; slug: string }
 

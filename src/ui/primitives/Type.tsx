@@ -2,7 +2,7 @@ import { For, Show } from 'solid-js'
 
 import type * as docs from '../../core/client.ts'
 
-import { Kw, Name, Punct, TypeLink } from './syntax.js'
+import { Kw, Name, Punct, TypeLink } from './syntax.tsx'
 
 type T = docs.Type
 

@@ -1,11 +1,11 @@
 import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { commentSummaryText } from '../util/comment.js'
-import { useProject } from '../context/project.js'
-import { KindLabel } from '../primitives/Kind.js'
-import type { NavItem } from '../strategies/index.js'
-import { Markdown } from '../shared/Markdown.js'
+import { commentSummaryText } from '../util/comment.ts'
+import { useProject } from '../context/project.tsx'
+import { KindLabel } from '../primitives/Kind.tsx'
+import type { NavItem } from '../strategies/index.ts'
+import { Markdown } from '../shared/Markdown.tsx'
 
 export const Home = () => {
   const { project, surface } = useProject()

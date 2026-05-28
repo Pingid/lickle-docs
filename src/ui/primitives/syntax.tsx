@@ -3,7 +3,7 @@ import { A } from '@solidjs/router'
 
 import type * as docs from '../../core/client.ts'
 
-import { useSlugFor } from '../hooks/index.js'
+import { useSlugFor } from '../hooks/index.ts'
 
 /** Muted punctuation — brackets, commas, `=`, etc. */
 export const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>

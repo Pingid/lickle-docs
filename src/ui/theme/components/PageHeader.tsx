@@ -2,8 +2,8 @@ import { Show } from 'solid-js'
 
 import { displayNameOf, type Declaration } from '../../../core/client.ts'
 
-import { KindLabel } from '../../primitives/Kind.js'
-import { Breadcrumb, Source } from '../slots/index.js'
+import { KindLabel } from '../../primitives/Kind.tsx'
+import { Breadcrumb, Source } from '../slots/index.ts'
 
 /** Stock page header: breadcrumb, name, kind, optional deprecated marker, source line. */
 export const PageHeader = (props: { decl: Declaration }) => (

@@ -1,12 +1,12 @@
-import { createSlot } from './slot.js'
+import { createSlot } from './slot.tsx'
 
-import { Breadcrumb as DefaultBreadcrumb } from '../components/Breadcrumb.js'
-import { References as DefaultReferences } from '../components/References.js'
-import { PageHeader as DefaultPageHeader } from '../components/PageHeader.js'
-import { Sidebar as DefaultSidebar } from '../components/Sidebar.js'
-import { Header as DefaultHeader } from '../components/Header.js'
-import { Layout as DefaultLayout } from '../components/Layout.js'
-import { Source as DefaultSource } from '../components/Source.js'
+import { Breadcrumb as DefaultBreadcrumb } from '../components/Breadcrumb.tsx'
+import { References as DefaultReferences } from '../components/References.tsx'
+import { PageHeader as DefaultPageHeader } from '../components/PageHeader.tsx'
+import { Sidebar as DefaultSidebar } from '../components/Sidebar.tsx'
+import { Header as DefaultHeader } from '../components/Header.tsx'
+import { Layout as DefaultLayout } from '../components/Layout.tsx'
+import { Source as DefaultSource } from '../components/Source.tsx'
 
 export const Header = createSlot('header', DefaultHeader)
 export const Sidebar = createSlot('sidebar', DefaultSidebar)

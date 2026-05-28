@@ -2,7 +2,7 @@ import type { Component } from 'solid-js'
 
 import type * as docs from '../../core/client.ts'
 
-import type { PageComponent, TagComponent } from './types.js'
+import type { PageComponent, TagComponent } from './types.ts'
 
 /**
  * Pin a narrow tag type at the call site, broaden it for storage. Use with

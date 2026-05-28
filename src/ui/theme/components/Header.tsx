@@ -1,8 +1,8 @@
 import { For, Show, createMemo } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { useProject } from '../../context/project.js'
-import { ThemeToggle } from '../../shared/ThemeToggle.js'
+import { useProject } from '../../context/project.tsx'
+import { ThemeToggle } from '../../shared/ThemeToggle.tsx'
 
 const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
 

@@ -3,9 +3,9 @@ import type { JSX } from 'solid-js/jsx-runtime'
 
 import * as docs from '../../core/client.ts'
 
-import { auto, routables, surface, type NavGroup, type NavItem, type NavStrategy } from '../strategies/index.js'
-import { ComponentsProvider } from '../registry/context.js'
-import type { Components } from '../registry/types.js'
+import { auto, routables, surface, type NavGroup, type NavItem, type NavStrategy } from '../strategies/index.ts'
+import { ComponentsProvider } from '../registry/context.tsx'
+import type { Components } from '../registry/types.ts'
 
 export type ProjectBag = {
   project: docs.Project

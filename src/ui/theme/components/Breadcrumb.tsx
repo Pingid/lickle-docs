@@ -3,9 +3,9 @@ import { A } from '@solidjs/router'
 
 import { displayNameOf } from '../../../core/client.ts'
 
-import { ancestors } from '../../strategies/index.js'
-import { useProject } from '../../context/project.js'
-import { useSlugFor } from '../../hooks/index.js'
+import { ancestors } from '../../strategies/index.ts'
+import { useProject } from '../../context/project.tsx'
+import { useSlugFor } from '../../hooks/index.ts'
 
 export const Breadcrumb = (props: { id: number }) => {
   const { project } = useProject()

@@ -2,9 +2,9 @@ import { createEffect, createSignal, onCleanup, Show, type Component } from 'sol
 
 import type * as docs from '../../../core/client.ts'
 
-import { Markdown } from '../../shared/Markdown.js'
-import { Editor } from '../../shared/Editor.js'
-import { TagSection } from './shared.js'
+import { Markdown } from '../../shared/Markdown.tsx'
+import { Editor } from '../../shared/Editor.tsx'
+import { TagSection } from './shared.tsx'
 
 /** Wrap raw code in a default ```ts fence if it isn't already fenced. */
 const ensureFenced = (code: string): string => (/^\s*```/.test(code) ? code : '```ts\n' + code + '\n```')

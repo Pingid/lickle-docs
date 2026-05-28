@@ -4,13 +4,13 @@ export { render } from 'solid-js/web'
 export type * from '../core/client.ts'
 
 // ---------------- App shell ----------------
-export { Reflection } from './pages/Reflection.js'
-export { App, Routes, NotFound } from './App.js'
-export { Home } from './pages/Home.js'
+export { Reflection } from './pages/Reflection.tsx'
+export { App, Routes, NotFound } from './App.tsx'
+export { Home } from './pages/Home.tsx'
 
 // ---------------- Providers + context ----------------
-export { ProjectProvider, ReflectionScope, useProject, useReflectionId, type ProjectBag } from './context/project.js'
-export { ThemeProvider, useTheme, type ThemeMode } from './context/theme.js'
+export { ProjectProvider, ReflectionScope, useProject, useReflectionId, type ProjectBag } from './context/project.tsx'
+export { ThemeProvider, useTheme, type ThemeMode } from './context/theme.tsx'
 
 // ---------------- Registry ----------------
 export type {
@@ -23,12 +23,12 @@ export type {
   MemberSections,
   ChildSection,
   KnownTagKey,
-} from './registry/index.js'
-export { ComponentsProvider, useComponents, tag, page } from './registry/index.js'
+} from './registry/index.ts'
+export { ComponentsProvider, useComponents, tag, page } from './registry/index.ts'
 
 // ---------------- Namespaces ----------------
-export * as primitives from './primitives/index.js'
-export * as strategies from './strategies/index.js'
-export * as shared from './shared/index.js'
-export * as hooks from './hooks/index.js'
-export * as theme from './theme/index.js'
+export * as primitives from './primitives/index.ts'
+export * as strategies from './strategies/index.ts'
+export * as shared from './shared/index.ts'
+export * as hooks from './hooks/index.ts'
+export * as theme from './theme/index.ts'

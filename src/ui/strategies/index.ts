@@ -1,6 +1,6 @@
 import * as docs from '../../core/client.ts'
 
-import { isRoutable, pluralLabel, groupOrder, type Kind } from '../util/kind.js'
+import { isRoutable, pluralLabel, groupOrder, type Kind } from '../util/kind.ts'
 
 export type NavItem = {
   id: number

@@ -1,13 +1,13 @@
-import type { PageComponents } from '../../registry/types.js'
-import { page } from '../../registry/authoring.js'
+import type { PageComponents } from '../../registry/types.ts'
+import { page } from '../../registry/authoring.ts'
 
-import { TypeAliasPage } from './TypeAlias.js'
-import { InterfacePage } from './Interface.js'
-import { FunctionPage } from './Function.js'
-import { VariablePage } from './Variable.js'
-import { ModulePage } from './Module.js'
-import { ClassPage } from './Class.js'
-import { EnumPage } from './Enum.js'
+import { TypeAliasPage } from './TypeAlias.tsx'
+import { InterfacePage } from './Interface.tsx'
+import { FunctionPage } from './Function.tsx'
+import { VariablePage } from './Variable.tsx'
+import { ModulePage } from './Module.tsx'
+import { ClassPage } from './Class.tsx'
+import { EnumPage } from './Enum.tsx'
 
 export { FunctionPage, VariablePage, TypeAliasPage, ClassPage, InterfacePage, EnumPage, ModulePage }
 

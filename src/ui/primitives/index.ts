@@ -1,3 +1,3 @@
-export { Type, TypeBlock, TypeBox, SignatureExpr } from './Type.js'
-export { Punct, Kw, Name, TypeLink } from './syntax.js'
-export { KindBadge, KindLabel } from './Kind.js'
+export { Type, TypeBlock, TypeBox, SignatureExpr } from './Type.tsx'
+export { Punct, Kw, Name, TypeLink } from './syntax.tsx'
+export { KindBadge, KindLabel } from './Kind.tsx'

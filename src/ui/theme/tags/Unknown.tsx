@@ -1,7 +1,7 @@
 import type * as docs from '../../../core/client.ts'
 
-import { Markdown } from '../../shared/Markdown.js'
-import { TagSection } from './shared.js'
+import { Markdown } from '../../shared/Markdown.tsx'
+import { TagSection } from './shared.tsx'
 
 /** `@deprecated` → `Deprecated`, `@runnable` → `Runnable`. */
 const prettifyTagName = (tag: string): string => {
