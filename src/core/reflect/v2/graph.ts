@@ -20,29 +20,28 @@ export interface State extends Options {
   checker: ts.TypeChecker
   root: number
   id: number
-  parent: number
-  files: Map<ts.SourceFile, number>
+  scanned: Set<ts.SourceFile>
 
   byId: Map<number, T.Declaration>
-  byNode: Map<ts.Node, number>
-  childs: Map<number, Set<number>>
+  byParent: Map<number, Set<number>>
+  byNode: Map<ts.Node, { id?: number }>
 }
 
-export const make = (files: string[], options: Options, parent = -1): State => {
+export const make = (files: string[], options: Options, root = -1): State => {
   const program = ts.createProgram(files, options.compilerOptions)
   const checker = program.getTypeChecker()
 
   const state: State = {
+    ...options,
     entries: files.map((f) => program.getSourceFile(f)).filter((x) => x !== undefined),
     checker,
-    ...options,
-    root: parent,
-    id: parent,
-    parent,
-    files: new Map(),
+    root: root,
+    id: root,
+    // parent,
+    scanned: new Set(),
+    byParent: new Map(),
     byId: new Map(),
     byNode: new Map(),
-    childs: new Map(),
   }
 
   return state
@@ -50,60 +49,82 @@ export const make = (files: string[], options: Options, parent = -1): State => {
 
 export interface Builder {
   checker: ts.TypeChecker
-  /** Get the next unique id for a node. */
-  id: () => number
   /** Get the relative path of a file. */
   path: (sf: ts.SourceFile) => string
-  /** Get the parent of the current node. */
-  parent: () => number
-  /** Add a node to the graph. */
-  add: (node: ts.Node, make: (b: Builder, node: ts.Node) => T.Declaration | undefined) => number | undefined
-  /** Add a single node to the graph as a child of the file */
-  addIn: (sf: ts.SourceFile, f: (parent: number) => void) => number | undefined
-  /** Add all nodes in a file to the graph as children of the file */
-  addAll: (sf: ts.SourceFile, f: (parent: number) => void) => number | undefined
+
+  idOf: (node: ts.Node) => number | undefined
+
+  add: <const T extends T.Declaration | undefined>(
+    node: ts.Node,
+    decl: () => T,
+  ) => T extends undefined ? undefined : number
+
+  scan: (sf: ts.SourceFile, exported?: boolean) => void
 }
 
-export const createBuilder = (state: State, makeParent: (b: Builder, sf: ts.SourceFile) => T.Declaration): Builder => {
-  const c: Builder = {} as any
-  c.checker = state.checker
-  c.id = () => ++state.id
-  c.path = (sf: ts.SourceFile) => path.relative(state.rootDir, sf.fileName)
-  c.parent = () => state.parent
+export const createBuilder = (
+  state: State,
+  registerModule: (b: Builder, sf: ts.SourceFile, exported: boolean) => T.Declaration,
+  registerStatement: (b: Builder, stmt: ts.Statement) => void,
+): Builder => {
+  const id = () => ++state.id
 
-  c.add = (node, make) => {
-    // if (!state.internal && !isExported(node)) return undefined
-    if (state.byNode.has(node)) return state.byNode.get(node)!
-    const n = make(c, node)
-    if (!n) return undefined as any
+  const getParent = (node: ts.Node) => {
+    if (ts.isSourceFile(node)) return state.root
+    const s = node.getSourceFile()
+    if (state.byNode.has(s)) return state.byNode.get(s)?.id!
+    return register(s, registerModule(c, s, false))
+  }
+
+  const register = (node: ts.Node, n: T.Declaration) => {
+    const parent = getParent(node)
+    n.parent = parent
+    n.id = id()
+    state.byNode.set(node, { id: n.id })
     state.byId.set(n.id, n)
-    state.byNode.set(node, n.id)
-    let childs = state.childs.get(state.parent)
-    if (!childs) state.childs.set(state.parent, (childs = new Set()))
-    childs.add(n.id)
-    return n.id as any
+    let children = state.byParent.get(parent)
+    if (!children) state.byParent.set(parent, (children = new Set()))
+    children.add(n.id)
+    return n.id
   }
-  c.addAll = (sf, f) => {
-    if (!state.include(sf)) return undefined
-    if (state.files.has(sf)) return state.files.get(sf)!
-    const id = c.add(sf, () => makeParent(c, sf))!
-    state.files.set(sf, id)
-    let previous = state.parent
-    state.parent = id
-    f(state.parent)
-    state.parent = previous
-    return id
+
+  const missing = (node: ts.Node) => {
+    state.byNode.set(node, { id: undefined })
+    return undefined
   }
-  c.addIn = (sf, f) => {
-    if (!state.include(sf)) return undefined
-    if (state.files.has(sf)) return state.files.get(sf)!
-    const id = c.add(sf, () => makeParent(c, sf))!
-    let previous = state.parent
-    state.parent = id
-    f(state.parent)
-    state.parent = previous
-    return id
+
+  const add = (node: ts.Node, decl: () => T.Declaration | undefined) => {
+    if (!state.include(ts.isSourceFile(node) ? node : node.getSourceFile())) return
+
+    if (state.byNode.has(node)) return state.byNode.get(node)?.id!
+    const d = decl()
+    if (!d) return missing(node)
+    if (!state.internal && !d.exported) return missing(node)
+    return register(node, d)
+  }
+
+  const scan = (sf: ts.SourceFile, exported: boolean = false) => {
+    if (state.scanned.has(sf)) return
+    state.scanned.add(sf)
+    if (exported) add(sf, () => registerModule(c, sf, true))
+    sf.statements.forEach((stmt) => registerStatement(c, stmt))
+  }
+
+  const c: Builder = {
+    checker: state.checker,
+    path: (sf: ts.SourceFile) => path.relative(state.rootDir, sf.fileName),
+    idOf: (node: ts.Node) => state.byNode.get(node)?.id,
+    add: (node, decl) => add(node, decl) as any,
+    scan: (sf, exported) => scan(sf, exported),
   }
 
   return c
+}
+
+// @ts-ignore
+const debugName = (node: ts.Node): string => {
+  const kindName = ts.SyntaxKind[node.kind]
+  if ('name' in node && node.name && ts.isIdentifier(node.name as ts.Node))
+    return `${kindName} (${(node.name as ts.Identifier).text})`
+  return `${kindName} (anonymous)`
 }

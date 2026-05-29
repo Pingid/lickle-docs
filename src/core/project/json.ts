@@ -1,9 +1,10 @@
+import path from 'node:path'
 import ts from 'typescript'
 import mm from 'micromatch'
 
 import * as reflect from '../reflect/index.ts'
 import * as config from '../../config/load.ts'
-import * as naming from './naming.ts'
+import * as v2 from '../reflect/v2/index.ts'
 
 export interface ProjectJson {
   /** The name of the project. */
@@ -42,19 +43,19 @@ export interface ScanOptions {
 
 export const generate = async (options: ScanOptions): Promise<ProjectJson> => {
   const c = await config.load(options.dir)
-  const scanned = reflect.scanner.scan(Array.from(c.info.entrypoints), {
+
+  v2.generate(Array.from(c.info.entrypoints), {
     compilerOptions: c.compilerOptions,
     rootDir: options.dir,
     include: (sf) => keepFile(sf, options.exclude),
+    internal: false,
+    srcDir: path.join(options.dir, 'src'),
   })
-  const result = reflect.resolver.resolve(scanned)
-
-  naming.stamp(result.declarations)
 
   return {
     ...c.info,
-    declarations: result.declarations,
-    children: result.children,
+    // declarations: result.declarations,
+    // children: result.children,
   }
 }
 

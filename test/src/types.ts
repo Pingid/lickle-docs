@@ -10,14 +10,14 @@ export interface User {
   // role: Role
 }
 
-// /**
-//  * Defines the possible roles for a user.
-//  */
-// export enum Role {
-//   Admin = 'ADMIN',
-//   Member = 'MEMBER',
-//   Guest = 'GUEST',
-// }
+/**
+ * Defines the possible roles for a user.
+ */
+export enum Role {
+  Admin = 'ADMIN',
+  Member = 'MEMBER',
+  Guest = 'GUEST',
+}
 
 // /**
 //  * A type alias for a string or number ID.
