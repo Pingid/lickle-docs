@@ -1,5 +1,6 @@
 /**
  * Main entry point for the test package.
+ * @module test-package
  */
 
 // Local named exports

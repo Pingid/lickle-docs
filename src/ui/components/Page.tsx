@@ -3,12 +3,13 @@ import { A } from '@solidjs/router'
 
 import * as docs from '../../core/client.ts'
 
-import { ReferenceRow, useReferences } from '../hooks/index.ts'
+import { type ReferenceRow, useReferences } from '../hooks/index.ts'
 import { createSlot } from '../context/index.ts'
 import { labelOf } from '../util/kind.ts'
 
 import { Declaration } from './Decleration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'
+import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
 
 export const Page = createSlot('page', (props) => (
@@ -16,6 +17,13 @@ export const Page = createSlot('page', (props) => (
     <PageHeader decl={props.decl} />
     <Declaration decl={props.decl} />
     <Members decl={props.decl} />
+  </article>
+))
+
+/** Renders a markdown page from `project.pages` — its `content` chunks joined and parsed. */
+export const MarkdownPage = createSlot('page.markdown', (props: { page: docs.Page }) => (
+  <article>
+    <Markdown source={props.page.content.join('\n\n')} />
   </article>
 ))
 

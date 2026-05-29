@@ -1,48 +1,22 @@
-// import { fileURLToPath } from 'node:url'
 import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
 import path from 'node:path'
 
 import { client, watch, promise } from '../cli/util/index.ts'
 import * as project from '../core/project/index.ts'
-import * as debug from '../core/reflect/debug.ts'
-import * as config from '../config/load.ts'
-
-// const corDir = fileURLToPath(new URL('../core', import.meta.url))
+import * as lib from '../_lib/index.ts'
 
 export const app = () =>
   cmd.subcommands({
     name: 'docs',
     description: 'Documentation generation',
-    cmds: { json: cmdJson, dev: cmdDev, init: cmdInit, build: cmdBuild, config: configGet },
+    cmds: { json: cmdJson, dev: cmdDev, init: cmdInit, build: cmdBuild },
   })
-
-const configGet = cmd.command({
-  name: 'config',
-  description: 'Config',
-  args: {},
-  handler: async () => {
-    const c = await config.load()
-    debug.printStdout(c.declarations, c.children)
-  },
-})
 
 const cmdJson = cmd.command({
   name: 'json',
   description: 'Json reflections for a project',
   args: {
-    tsconfig: cmd.option({
-      long: 'tsconfig',
-      short: 't',
-      type: cmd.optional(cmd.string),
-      description: 'Path to tsconfig.json',
-    }),
-    packageJson: cmd.option({
-      long: 'package-json',
-      short: 'p',
-      type: cmd.optional(cmd.string),
-      description: 'Path to package.json',
-    }),
     exclude: cmd.multioption({
       long: 'exclude',
       short: 'e',
@@ -55,8 +29,9 @@ const cmdJson = cmd.command({
     }),
   },
   handler: async (args) => {
-    const opts: project.json.ScanOptions = { dir: process.cwd(), tsConfigPath: args.tsconfig, exclude: args.exclude }
-    await generate('reflect.json', opts)
+    const opts: project.json.ScanOptions = { dir: process.cwd(), exclude: args.exclude }
+    await lib.fs.ensureDir('docs')
+    await generate('docs/docs.json', opts)
   },
 })
 
@@ -175,7 +150,7 @@ const initFiles = {
     `import json from './docs.json'\n`,
     `create({ json: json as ProjectJson })`,
   ],
-  'tsconfig.json': [`{`, `  "extends": "@lickle/docs/preset/tsconfig.json",`, `  "include": ["*"],`, `}`],
+  'tsconfig.json': [`{`, `  "extends": "@lickle/docs/tsconfig.json",`, `  "include": ["*"],`, `}`],
 }
 const writeInitFiles = async (dir: string) => {
   for (const [file, content] of Object.entries(initFiles)) {

@@ -1,10 +1,10 @@
-import { spawnSync } from 'node:child_process'
-import fs from 'node:fs/promises'
+import { is } from '@lickle/is'
 import path from 'node:path'
 
-import type { NewProjectConfig, UserConfig } from './types.ts'
-import { pkgJson } from '../core/workspace/index.ts'
-import { pagesFromExports } from './index.ts'
+import type { ProjectJson } from '../core/client.ts'
+import type { UserConfig } from './types.ts'
+
+import * as lib from '../_lib/index.ts'
 
 /**
  * Resolve a partial `UserConfig` into a fully-defaulted `NewProjectConfig`.
@@ -13,59 +13,35 @@ import { pagesFromExports } from './index.ts'
  * (`README.md`) and the working directory. `declarations` / `children` stay
  * empty here — the reflection pass fills them once scanning is wired up.
  */
-export const determine = async (dir: string, c?: UserConfig): Promise<NewProjectConfig> => {
-  const pkgPath = c?.packageJson ?? pkgJson.find(dir)
-  const pkg = pkgPath ? await pkgJson.read(pkgPath).catch(() => undefined) : undefined
+export const apply = async (dir: string, c?: UserConfig): Promise<ProjectJson> => {
+  const pkg = await lib.pkg.read(process.cwd())
+  const info = await lib.repo.info(dir)
+  const readme = await lib.fs.existingPath(path.join(dir, 'README.md'))
+  const defualtLinks = info ? [{ label: 'Repository', href: info.url }] : []
+  const exports = c?.entrypoints ?? (await lib.pkg.resolveExportedSources(dir, pkg))
 
-  const readme = await exists(path.join(dir, 'README.md'))
+  const pages = await Promise.all(
+    (c?.pages ?? (readme ? [{ label: 'README', content: readme }] : [])).map(async (x) => {
+      const contents = is.string(x.content) ? [x.content] : x.content
+      const content = await Promise.all(contents.map(async (c) => lib.fs.readFile(path.resolve(dir, c), 'utf-8')))
+      return { label: x.label, content, slug: lib.slug.make(x.slug ?? x.label) }
+    }),
+  )
 
   return {
     name: c?.name ?? pkg?.name ?? err('No project name found'),
-    version: c?.version ?? pkg?.version,
-    pages: c?.pages ?? (readme ? [{ label: 'README', content: readme }] : []),
-    entrypoints: c?.entrypoints ?? (await pagesFromExports({ packageJson: pkgPath })),
-    links: c?.links ?? defaultLinks(pkg),
-    sourceLink: c?.sourceLink ?? defaultSourceLink(dir, pkg),
-    workdir: c?.workdir ?? dir,
+    version: c?.version ?? pkg?.version ?? info?.tag,
+    pages,
+    exports: exports,
+    entrypoints: exports.map((e) => e.path),
+    links: c?.links ?? defualtLinks,
+    repo: info ? { url: info.url, rev: info.commit, fileUrl: info.fileUrl } : undefined,
+    surface: [],
     declarations: [],
     children: [],
-  }
-}
-
-/** Single repository link when `package.json` declares one. */
-const defaultLinks = (pkg: pkgJson.PackageJson | undefined): NewProjectConfig['links'] => {
-  const repo = cleanRepoUrl(pkg?.repository?.url)
-  return repo ? [{ label: 'Repository', href: repo }] : []
-}
-
-/**
- * Build a `{PATH}`/`{LINE}` source-link template from the repository URL and
- * the current git commit, e.g. `https://github.com/me/proj/blob/<sha>/{PATH}#L{LINE}`.
- * Returns `''` when there is no repository or git is unavailable.
- */
-const defaultSourceLink = (dir: string, pkg: pkgJson.PackageJson | undefined): string => {
-  const repo = cleanRepoUrl(pkg?.repository?.url)
-  const hash = gitHash(dir)
-  return repo && hash ? `${repo}/blob/${hash}/{PATH}#L{LINE}` : ''
-}
-
-/** Normalise an npm repository url: drop the `git+` prefix and `.git` suffix. */
-const cleanRepoUrl = (url: string | undefined): string | undefined => url?.replace(/^git\+/, '').replace(/\.git$/, '')
-
-const gitHash = (cwd: string): string | undefined => {
-  try {
-    return spawnSync('git', ['rev-parse', 'HEAD'], { cwd }).stdout.toString().trim() || undefined
-  } catch {
-    return undefined
   }
 }
 
 const err = (msg: string): never => {
   throw new Error(msg)
 }
-
-const exists = (p: string): Promise<string | undefined> =>
-  fs
-    .access(p)
-    .then(() => p)
-    .catch(() => undefined)

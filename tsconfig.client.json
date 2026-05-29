@@ -1,10 +1,12 @@
 {
-    "compilerOptions": {
-      "lib": ["DOM"],
-      "types": ["@lickle/docs/client"],
-      "jsx": "preserve",
-      "jsxImportSource": "@lickle/docs/preset",
-      "noEmit": true,
-    }
+  "compilerOptions": {
+    "lib": ["DOM"],
+    "types": ["@lickle/docs/client"],
+    "jsx": "preserve",
+    "jsxImportSource": "@lickle/docs/preset",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   }
-  
+}

@@ -7,10 +7,9 @@ import { type UserConfig } from './types.ts'
 
 const EXT = ['ts', 'tsx', 'js', 'jsx', 'cjs', 'mjs', 'json']
 
-export const load = async (dir: string): Promise<UserConfig | null> => {
+export const load = async (dir: string): Promise<UserConfig | undefined> => {
   const file = await find(dir)
-  console.log(file)
-  if (!file) return null
+  if (!file) return undefined
   if (file.endsWith('.json')) return readJson(file)
   return readCode(file)
 }
@@ -22,7 +21,10 @@ const find = async (dir: string): Promise<string | undefined> => {
 }
 
 const readCode = async (file: string): Promise<UserConfig> => {
-  const jti = createJiti(pathToFileURL(import.meta.url).href, { moduleCache: false })
+  const jti = createJiti(pathToFileURL(import.meta.url).href, {
+    moduleCache: false,
+    cache: false,
+  })
   const mod = await jti.import<{ default: any }>(file)
   const fl = await mod.default
   const c: UserConfig = {
@@ -35,7 +37,6 @@ const readCode = async (file: string): Promise<UserConfig> => {
     tsconfig: fl.tsconfig,
     packageJson: fl.packageJson,
     sourceLink: fl.sourceLink,
-    workdir: fl.workdir,
   }
   return c
 }
@@ -53,7 +54,6 @@ const readJson = async (file: string): Promise<UserConfig> => {
     tsconfig: j.tsconfig,
     packageJson: j.packageJson,
     sourceLink: j.sourceLink,
-    workdir: j.workdir,
   }
   return c
 }

@@ -3,7 +3,7 @@ import { A } from '@solidjs/router'
 
 import type * as docs from '../../core/client.ts'
 
-import { Kind, labelOf, shortOf } from '../util/kind.ts'
+import { type Kind, labelOf, shortOf } from '../util/kind.ts'
 import { useDisplay } from '../context/index.ts'
 import { useSlugFor } from '../hooks/index.ts'
 

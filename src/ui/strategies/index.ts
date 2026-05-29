@@ -5,18 +5,24 @@ import { isRoutable, pluralLabel, groupOrder, type Kind } from '../util/kind.ts'
 export type NavItem = {
   id: number
   name: string
-  kind: Kind
-  /** Set when the item has its own route — undefined for inlined non-routable nodes. */
+  /** Declaration kind. Absent for non-declaration items such as markdown pages. */
+  kind?: Kind
+  /** Set when the item routes to a declaration — used to build `/r/:slug`. */
   slug?: string
+  /** Explicit link target. Wins over `slug`; used by markdown page items (`/p/:slug`). */
+  href?: string
   /** Comment to display alongside the item — used by the home page surface list. */
   comment?: docs.Comment
   /** Nested children for module/namespace-style nodes that expose their own sub-tree. */
   children?: NavItem[]
 }
+
 export type NavGroup = {
   title: string
   /** Set when the group corresponds to a routable declaration (typically a module entrypoint). */
   slug?: string
+  /** Explicit link target. Wins over `slug`; used by markdown page groups (`/p/:slug`). */
+  href?: string
   items: NavItem[]
 }
 
@@ -39,7 +45,10 @@ export const routables = (project: docs.Project): docs.Declaration[] => {
 const compareNames = (a: docs.Declaration, b: docs.Declaration): number => docs.nameOf(a).localeCompare(docs.nameOf(b))
 
 const sortByGroupThenName = (items: NavItem[]): NavItem[] => {
-  items.sort((a, b) => groupOrder(pluralLabel(a.kind)) - groupOrder(pluralLabel(b.kind)) || a.name.localeCompare(b.name))
+  items.sort(
+    (a, b) =>
+      groupOrder(pluralLabel(a.kind ?? '')) - groupOrder(pluralLabel(b.kind ?? '')) || a.name.localeCompare(b.name),
+  )
   for (const it of items) if (it.children?.length) sortByGroupThenName(it.children)
   return items
 }
@@ -81,7 +90,7 @@ export const byKind: NavStrategy = (project) => {
       const nav = leafItem(project, decl, item.kind as Kind, item.name)
       if (!nav) continue
       seen.add(item.id)
-      const title = pluralLabel(nav.kind)
+      const title = pluralLabel(nav.kind ?? '')
       const arr = buckets.get(title) ?? []
       arr.push(nav)
       buckets.set(title, arr)
@@ -92,38 +101,59 @@ export const byKind: NavStrategy = (project) => {
     .sort((a, b) => groupOrder(a.title) - groupOrder(b.title) || a.title.localeCompare(b.title))
 }
 
+const normPath = (p: string): string => p.replace(/^\.\//, '')
+
 /**
- * One group per entry in `project.exports`, listing the routables that
- * entry exposes as a recursive tree. Namespaces (TypeScript blocks and
- * `export * as foo from '…'` aliases) always become nested `NavItem`s
- * under their own name so the source structure survives in the sidebar.
+ * Markdown pages from `project.pages` as top-level nav groups. Each page is
+ * its own entry (a plain link, no children) linking to `/p/:slug`.
+ */
+export const pageGroups = (project: docs.Project): NavGroup[] =>
+  (project.pages ?? []).map((p) => ({ title: p.label, href: `/p/${p.slug}`, items: [] }))
+
+/**
+ * One group per entry in `project.exports`. The group title is the export
+ * module's display name (e.g. `ui`) and links to the export module's own page. Inside a
+ * group, namespace re-exports nest as submenus (unless the target is itself
+ * a top-level export — then a non-expanding leaf link), and declarations
+ * appear as leaf links sorted by category then name.
  *
- * Multiple export entries that point at the same source file (e.g. `.` and
- * `./index` both resolve to `src/index.ts`) are de-duplicated; the first
- * occurrence wins so canonical aliases like `.` are preserved.
+ * Multiple export entries that point at the same source file are
+ * de-duplicated; the first occurrence wins.
  */
 export const byExports: NavStrategy = (project) => {
   const out: NavGroup[] = []
   const seenPaths = new Set<string>()
   const moduleByPath = new Map<string, docs.Module>()
-  for (const m of project.modules()) if (m.path) moduleByPath.set(m.path, m)
+  for (const m of project.modules()) if (m.path) moduleByPath.set(normPath(m.path), m)
+
+  // Modules that are themselves a package export — a namespace re-export
+  // pointing at one of these renders as a leaf link rather than expanding.
+  const exportIds = new Set<number>()
   for (const exp of project.exports) {
-    if (seenPaths.has(exp.path)) continue
-    const mod = moduleByPath.get(exp.path)
+    const m = moduleByPath.get(normPath(exp.path))
+    if (m) exportIds.add(m.id)
+  }
+
+  for (const exp of project.exports) {
+    const key = normPath(exp.path)
+    if (seenPaths.has(key)) continue
+    const mod = moduleByPath.get(key)
     if (!mod) continue
-    const items = buildChildren(mod, project)
-    if (!items.length) continue
-    seenPaths.add(exp.path)
-    out.push({ title: exp.name, slug: project.slugById.get(mod.id), items: sortByGroupThenName(items) })
+    seenPaths.add(key)
+    out.push({
+      title: docs.displayNameOf(mod),
+      slug: project.slugById.get(mod.id),
+      items: buildChildren(mod, project, exportIds),
+    })
   }
   return out
 }
 
 /**
- * Pick a sensible default per project: `byExports` when the package surfaces
- * more than one entrypoint, otherwise the flat `byKind` view.
+ * Default sidebar: markdown pages first (each a top-level link), then one
+ * group per export module.
  */
-export const auto: NavStrategy = (project) => (project.exports.length > 1 ? byExports(project) : byExports(project))
+export const auto: NavStrategy = (project) => [...pageGroups(project), ...byExports(project)]
 
 /**
  * Module/namespace chain ending in `id` — outermost first, the declaration
@@ -146,67 +176,91 @@ export const ancestors = (project: docs.Project, id: number): docs.Declaration[]
 
 // ============================================================================
 // TREE BUILDING
-// `buildChildren` walks a scope's `childDecls` into a NavItem tree.
-// Modules/namespaces nest; `Exports` clauses splice each `(name, target)`
-// pair into the parent — module targets become nested sub-trees keyed by
-// the alias, leaf targets become leaves keyed by the alias.
+// `buildChildren` walks a scope's `childDecls` into a NavItem tree:
+//   - TS namespaces and `export * as foo` aliases nest as submenus, EXCEPT a
+//     namespace re-export whose target is itself a top-level export, which
+//     becomes a non-expanding leaf link (avoids duplicating its subtree).
+//   - Plain declarations become leaf links to their own page.
+// Leaves at each level are ordered by category (GROUP_ORDER) then name.
 // ============================================================================
 
-const buildChildren = (scope: docs.Module | docs.Namespace, project: docs.Project): NavItem[] => {
+type Ctx = { project: docs.Project; exportIds: Set<number>; trail: Set<number> }
+
+const buildChildren = (
+  scope: docs.Module | docs.Namespace,
+  project: docs.Project,
+  exportIds: Set<number>,
+  trail: Set<number> = new Set(),
+): NavItem[] => {
+  const ctx: Ctx = { project, exportIds, trail: new Set(trail).add(scope.id) }
   const out: NavItem[] = []
   const seen = new Set<number>()
-  for (const child of scope.childDecls) addChild(child, project, out, seen)
-  return out
+  for (const child of scope.childDecls) addChild(child, ctx, out, seen)
+  return sortByGroupThenName(out)
 }
 
-const addChild = (child: docs.Declaration, project: docs.Project, out: NavItem[], seen: Set<number>): void => {
-  if (child.kind === 'module') return addContainer(child, child.name ?? docs.displayNameOf(child), project, out, seen)
-  if (child.kind === 'namespace') return addContainer(child, child.name, project, out, seen)
-  if (child.kind === 'exports') return addExports(child, project, out, seen)
-  if (!isRoutable(child.kind)) return
-  if (seen.has(child.id)) return
-  const nav = leafItem(project, child, child.kind as Kind)
-  if (!nav) return
-  seen.add(child.id)
-  out.push(nav)
+const addChild = (child: docs.Declaration, ctx: Ctx, out: NavItem[], seen: Set<number>): void => {
+  if (child.kind === 'namespace') return addContainer(child, child.name, ctx, out, seen)
+  if (child.kind === 'exports') return addExports(child, ctx, out, seen)
+  if (isRoutable(child.kind)) addLeaf(child, child.kind as Kind, undefined, ctx, out, seen)
 }
 
-/** Attach a module / namespace as a nested NavItem keyed by `displayName`. */
+const addExports = (exp: docs.Exports, ctx: Ctx, out: NavItem[], seen: Set<number>): void => {
+  for (let i = 0; i < exp.names.length; i++) {
+    const entry = exp.names[i]!
+    const target = exp.targets[i]
+    if (!target) continue
+    if (target.kind === 'module') {
+      // `export * as foo from './x'` — leaf link when the target is itself a
+      // top-level export, otherwise expand its members inline.
+      if (ctx.exportIds.has(target.id)) addLeaf(target, 'namespace', entry.name, ctx, out, seen)
+      else addContainer(target, entry.name, ctx, out, seen)
+    } else if (target.kind === 'namespace') {
+      addContainer(target, entry.name, ctx, out, seen)
+    } else if (isRoutable(target.kind)) {
+      addLeaf(target, target.kind as Kind, entry.name, ctx, out, seen)
+    }
+  }
+}
+
+/**
+ * Attach a module / namespace as a nested submenu. Falls back to a leaf link
+ * when the target is already on the current path (cycle) so mutual
+ * `export * as` re-exports don't recurse forever.
+ */
 const addContainer = (
   target: docs.Module | docs.Namespace,
   displayName: string,
-  project: docs.Project,
+  ctx: Ctx,
   out: NavItem[],
   seen: Set<number>,
 ): void => {
   if (seen.has(target.id)) return
   seen.add(target.id)
+  if (ctx.trail.has(target.id)) return void addLeaf(target, 'namespace', displayName, ctx, out, new Set())
   out.push({
     id: target.id,
     name: displayName,
-    kind: target.kind as Kind,
-    slug: project.slugById.get(target.id),
+    kind: 'namespace',
+    slug: ctx.project.slugById.get(target.id),
     comment: target.comment,
-    children: sortByGroupThenName(buildChildren(target, project)),
+    children: buildChildren(target, ctx.project, ctx.exportIds, ctx.trail),
   })
 }
 
-const addExports = (exp: docs.Exports, project: docs.Project, out: NavItem[], seen: Set<number>): void => {
-  for (let i = 0; i < exp.names.length; i++) {
-    const entry = exp.names[i]!
-    const target = exp.targets[i]
-    if (!target) continue
-    if (target.kind === 'module' || target.kind === 'namespace') {
-      addContainer(target, entry.name, project, out, seen)
-      continue
-    }
-    if (!isRoutable(target.kind)) continue
-    if (seen.has(target.id)) continue
-    const nav = leafItem(project, target, target.kind as Kind, entry.name)
-    if (!nav) continue
-    seen.add(target.id)
-    out.push(nav)
-  }
+const addLeaf = (
+  decl: docs.Declaration,
+  kind: Kind,
+  displayName: string | undefined,
+  ctx: Ctx,
+  out: NavItem[],
+  seen: Set<number>,
+): void => {
+  if (seen.has(decl.id)) return
+  const slug = ctx.project.slugById.get(decl.id)
+  if (!slug) return
+  seen.add(decl.id)
+  out.push({ id: decl.id, name: displayName ?? docs.displayNameOf(decl), kind, slug, comment: decl.comment })
 }
 
 const leafItem = (

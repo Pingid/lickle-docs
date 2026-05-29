@@ -24,10 +24,14 @@ export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; 
   const [overrides, setOverrides] = createSignal<Record<string, boolean>>({})
 
   const path = () => loc.pathname
-  const onPath = (slug?: string): boolean => !!slug && path() === `/r/${slug}`
-
-  const isItemActive = (it: NavItem): boolean => onPath(it.slug) || !!it.children?.some(isItemActive)
-  const isGroupActive = (g: NavGroup): boolean => onPath(g.slug) || g.items.some(isItemActive)
+  const isItemActive = (it: NavItem): boolean => {
+    const href = hrefOf(it)
+    return (!!href && path() === href) || !!it.children?.some(isItemActive)
+  }
+  const isGroupActive = (g: NavGroup): boolean => {
+    const href = groupHref(g)
+    return (!!href && path() === href) || g.items.some(isItemActive)
+  }
 
   const isOpen = (key: string, fallback: boolean): boolean => overrides()[key] ?? fallback
   const toggle = (key: string, open: boolean) => setOverrides((o) => ({ ...o, [key]: !open }))
@@ -35,17 +39,6 @@ export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; 
   return (
     <aside class={`text-sm ${props.class ?? ''}`}>
       <nav class="pt-6 pb-12 px-4 space-y-1">
-        <div class="mb-3">
-          <A
-            href="/"
-            end
-            class="block rounded-md px-2.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors"
-            activeClass="!text-fg !bg-hover font-medium"
-            onClick={() => props.onNavigate?.()}
-          >
-            Overview
-          </A>
-        </div>
         <For each={navGroups}>
           {(g) => {
             const key = `g:${g.title}`
@@ -121,9 +114,12 @@ const NavNode = (props: NodeProps) => {
 
 const indent = (depth: number): string => `${0.625 + depth * 0.75}rem`
 
+/** Resolve a nav item's link target — explicit `href` wins over a declaration `slug`. */
+const hrefOf = (it: NavItem): string | undefined => it.href ?? (it.slug ? `/r/${it.slug}` : undefined)
+
 const LeafRow = (props: NodeProps) => (
   <Show
-    when={props.item.slug}
+    when={hrefOf(props.item)}
     fallback={
       <span class="flex items-center gap-2 py-1 pr-2.5 text-mute" style={{ 'padding-left': indent(props.depth + 1) }}>
         <KindCue kind={props.item.kind} />
@@ -131,9 +127,9 @@ const LeafRow = (props: NodeProps) => (
       </span>
     }
   >
-    {(slug) => (
+    {(href) => (
       <A
-        href={`/r/${slug()}`}
+        href={href()}
         class="flex items-center gap-2 rounded-md pr-2.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors"
         style={{ 'padding-left': indent(props.depth + 1) }}
         activeClass="!text-fg !bg-hover font-medium"
@@ -158,7 +154,7 @@ const BranchRow = (props: NodeProps & { open: boolean; onToggle: () => void }) =
       <Chevron open={props.open} />
     </button>
     <Show
-      when={props.item.slug}
+      when={hrefOf(props.item)}
       fallback={
         <span class="flex-1 flex items-center gap-2 px-1.5 py-1 text-mute">
           <KindCue kind={props.item.kind} />
@@ -166,9 +162,9 @@ const BranchRow = (props: NodeProps & { open: boolean; onToggle: () => void }) =
         </span>
       }
     >
-      {(slug) => (
+      {(href) => (
         <A
-          href={`/r/${slug()}`}
+          href={href()}
           class="flex-1 flex items-center gap-2 px-1.5 py-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors"
           activeClass="!text-fg !bg-hover font-medium"
           onClick={() => props.onNavigate()}
@@ -181,9 +177,9 @@ const BranchRow = (props: NodeProps & { open: boolean; onToggle: () => void }) =
   </div>
 )
 
-const KindCue = (props: { kind: NavItem['kind'] }) => (
-  <Show when={shortOf(props.kind)}>
-    <Type.KindBadge kind={props.kind} class="text-[0.7rem]! w-3.5" />
+const KindCue = (props: { kind?: NavItem['kind'] }) => (
+  <Show when={props.kind && shortOf(props.kind)}>
+    <Type.KindBadge kind={props.kind!} class="text-[0.7rem]! w-3.5" />
   </Show>
 )
 
@@ -201,9 +197,25 @@ const Chevron = (props: { open: boolean }) => (
 
 const headerClass =
   'group flex items-center gap-1.5 w-full px-2 py-1 rounded-md text-[0.7rem] uppercase tracking-wider font-semibold text-mute hover:bg-hover hover:text-fg transition-colors cursor-pointer'
+const headerLinkClass =
+  'flex-1 px-1.5 py-1 rounded-md text-[0.7rem] uppercase tracking-wider font-semibold text-mute hover:bg-hover hover:text-fg transition-colors truncate'
+
+/** Link target for a group — explicit `href` (pages) wins over a module `slug`. */
+const groupHref = (g: NavGroup): string | undefined => g.href ?? (g.slug ? `/r/${g.slug}` : undefined)
 
 const GroupHeader = (props: { group: NavGroup; open: boolean; onToggle: () => void; onNavigate: () => void }) => {
-  if (props.group.slug) {
+  const href = () => groupHref(props.group)
+
+  // Item-less group (e.g. a markdown page): a plain top-level link, no chevron.
+  if (href() && !props.group.items.length) {
+    return (
+      <A href={href()!} class={`${headerLinkClass} block`} activeClass="!text-fg !bg-hover" onClick={props.onNavigate}>
+        {props.group.title}
+      </A>
+    )
+  }
+
+  if (href()) {
     return (
       <div class="flex items-center w-full">
         <button
@@ -215,12 +227,7 @@ const GroupHeader = (props: { group: NavGroup; open: boolean; onToggle: () => vo
         >
           <Chevron open={props.open} />
         </button>
-        <A
-          href={`/r/${props.group.slug}`}
-          class="flex-1 px-1.5 py-1 rounded-md text-[0.7rem] uppercase tracking-wider font-semibold text-mute hover:bg-hover hover:text-fg transition-colors truncate"
-          activeClass="!text-fg !bg-hover"
-          onClick={props.onNavigate}
-        >
+        <A href={href()!} class={headerLinkClass} activeClass="!text-fg !bg-hover" onClick={props.onNavigate}>
           {props.group.title}
         </A>
       </div>

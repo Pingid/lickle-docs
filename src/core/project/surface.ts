@@ -1,4 +1,4 @@
-import type * as resolve from '../reflect/resolve.ts'
+import type * as resolve from '../reflect/resolver.ts'
 
 export type Kind = 'module' | 'namespace' | 'variable' | 'function' | 'class' | 'interface' | 'type-alias' | 'enum'
 
@@ -22,7 +22,11 @@ export interface SurfaceEntry {
  * entry becomes a surface item using the alias as `name`. `Namespace` decls
  * are emitted as-is (they own their own children and have their own page).
  */
-export const compute = (entrypoints: string[], declarations: resolve.Declaration[], topIds: number[]): SurfaceEntry[] => {
+export const compute = (
+  entrypoints: string[],
+  declarations: resolve.Declaration[],
+  topIds: number[],
+): SurfaceEntry[] => {
   const byId = new Map<number, resolve.Declaration>(declarations.map((d) => [d.id, d]))
   const moduleByPath = new Map<string, resolve.Module>()
   for (const id of topIds) {
@@ -42,12 +46,7 @@ export const compute = (entrypoints: string[], declarations: resolve.Declaration
   return out
 }
 
-const emitChild = (
-  id: number,
-  out: SurfaceItem[],
-  seen: Set<number>,
-  byId: Map<number, resolve.Declaration>,
-): void => {
+const emitChild = (id: number, out: SurfaceItem[], seen: Set<number>, byId: Map<number, resolve.Declaration>): void => {
   const decl = byId.get(id)
   if (!decl) return
   if (decl.kind === 'exports') {

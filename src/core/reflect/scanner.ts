@@ -1,45 +1,31 @@
 import path from 'node:path'
 import ts from 'typescript'
-
 import type * as T from './types.ts'
-
 // ============================================================================
 // PUBLIC API
 // ============================================================================
-
 export interface Options {
   /** The root directory of the project. Paths are relative to this. */
   rootDir: string
   /** The compiler options for the project. */
   compilerOptions: ts.CompilerOptions
   /** Exclude certain kinds of nodes from the generated project. */
-  exclude?: { sources?: boolean; comments?: boolean; typeParameters?: boolean }
-  include?: { file?: (sf: ts.SourceFile) => boolean }
+  fields?: { sources?: false; comments?: false; typeParameters?: false }
+  include: (sf: ts.SourceFile) => boolean
 }
-
-/**
- * Output of the scan pass. `declarations` is a flat, source-order list of
- * every declaration encountered (inside source files and TS namespace
- * blocks); `children` carries the ids of the top-level source-file modules.
- * `context` is an opaque handle threaded into the resolver — its fields
- * are intentionally not part of the public API surface.
- */
 export interface Result {
   declarations: T.AnyDeclaration<Registry>[]
   children: number[]
   context: Context
 }
-
 export interface Registry extends T.TypeRegistry {
   types: T.TypeMap<Registry> & {
     reference: T.ReferenceType<Registry> & { targetId?: number }
   }
   declarations: T.DeclarationMap<Registry>
 }
-
 /** How a given `Exports` clause should populate its `names` at resolve time. */
 export type ExportsForm = 'named-local' | 'named-from' | 'star' | 'namespace-from'
-
 export interface Context extends Options {
   nextId: () => number
   checker: ts.TypeChecker
@@ -61,43 +47,51 @@ export interface Context extends Options {
   referenceOrigins: Map<number, ts.Node>
   /** Cache of `path.relative(rootDir, sf.fileName)` — recomputed once per file. */
   relPath: WeakMap<ts.SourceFile, string>
+  /** Set of visited source files. */
+  seen: Set<ts.SourceFile>
+  /** The root directory of the project. Paths are relative to this. */
+  rootDir: string
+  /** The compiler options for the project. */
+  compilerOptions: ts.CompilerOptions
+  /** Exclude certain kinds of nodes from the generated project. */
+  exclude?: { sources?: boolean; comments?: boolean; typeParameters?: boolean }
+  /** Whether to include a file in the scan. */
+  include: (file: ts.SourceFile) => boolean
 }
-
-export const files = (rootFiles: string[], options: Options): Result => {
+export const scan = (rootFiles: string[], options: Options): Result => {
   const program = ts.createProgram(rootFiles, options.compilerOptions)
-  const ctx = makeContext(program.getTypeChecker(), options)
-  const include = options.include?.file
+  const checker = program.getTypeChecker()
+  const ctx = makeContext(checker, options)
   const children: number[] = []
-
-  // BFS over source files starting at `rootFiles`. Root files are always
-  // included; transitive re-export targets must pass `include.file`. We mutate
-  // `queue` during iteration so a single indexed loop suffices.
-  const seen = new Set<ts.SourceFile>()
+  // Worklist scan. Root files become top-level children; any source file
+  // reachable through an `export … from '…'` clause is scanned transitively
+  // so its declarations exist and `symbolsById` is populated — without which
+  // the resolver can't map re-exported symbols back to in-project ids — but
+  // re-exported files are NOT added to `children` (only roots are top-level).
   const queue: ts.SourceFile[] = []
-  for (const f of rootFiles) {
-    const sf = program.getSourceFile(f)
-    if (sf && !seen.has(sf)) {
-      seen.add(sf)
+  const enqueue = (sf: ts.SourceFile): void => {
+    if (!ctx.seen.has(sf) && ctx.include(sf)) {
+      ctx.seen.add(sf)
       queue.push(sf)
     }
   }
-
-  for (let i = 0; i < queue.length; i++) {
-    const sf = queue[i]!
-    children.push(sourceFile(sf, ctx).id)
-    for (const target of reExportedSources(sf, ctx.checker)) {
-      if (seen.has(target)) continue
-      if (include && !include(target)) continue
-      seen.add(target)
-      queue.push(target)
+  for (const f of rootFiles) {
+    const sf = program.getSourceFile(f)
+    if (sf && !ctx.seen.has(sf) && ctx.include(sf)) {
+      ctx.seen.add(sf)
+      children.push(sourceFile(sf, ctx).id)
+      for (const reExported of reExportedSources(sf, checker)) enqueue(reExported)
     }
   }
-
+  while (queue.length) {
+    const sf = queue.shift()!
+    sourceFile(sf, ctx)
+    for (const reExported of reExportedSources(sf, checker)) enqueue(reExported)
+  }
   return { declarations: ctx.declarations, children, context: ctx }
 }
-
 /** Source files reachable from `sf` via top-level `export … from '…'` clauses. */
-const reExportedSources = (sf: ts.SourceFile, checker: ts.TypeChecker): ts.SourceFile[] => {
+export const reExportedSources = (sf: ts.SourceFile, checker: ts.TypeChecker): ts.SourceFile[] => {
   const out: ts.SourceFile[] = []
   for (const stmt of sf.statements) {
     if (!ts.isExportDeclaration(stmt) || !stmt.moduleSpecifier) continue
@@ -108,14 +102,11 @@ const reExportedSources = (sf: ts.SourceFile, checker: ts.TypeChecker): ts.Sourc
   }
   return out
 }
-
 const makeContext = (checker: ts.TypeChecker, options: Options): Context => {
   let id = 0
   return {
+    ...options,
     checker,
-    rootDir: options.rootDir,
-    compilerOptions: options.compilerOptions,
-    exclude: options.exclude ?? {},
     nextId: () => ++id,
     symbolsById: new Map(),
     declarations: [],
@@ -126,13 +117,12 @@ const makeContext = (checker: ts.TypeChecker, options: Options): Context => {
     exportsOrigin: new Map(),
     referenceOrigins: new Map(),
     relPath: new WeakMap(),
+    seen: new Set(),
   }
 }
-
 // ============================================================================
 // MODULES & DECLARATIONS
 // ============================================================================
-
 const sourceFile = (sf: ts.SourceFile, ctx: Context): T.Module => {
   const children: number[] = []
   for (const stmt of sf.statements) appendDeclarations(stmt, ctx, children)
@@ -146,28 +136,10 @@ const sourceFile = (sf: ts.SourceFile, ctx: Context): T.Module => {
   ctx.declarations.push(mod)
   return mod
 }
-
-/**
- * Walk a top-level statement, push every declaration it produces onto
- * `ctx.declarations`, and append the ids of the publicly-exposed children
- * to `out` (which becomes the enclosing module / namespace's `children`).
- *
- * "Publicly exposed" means: the statement carries an `export` modifier, or
- * the statement is itself an `ExportDeclaration` (`export { … } [from …]`,
- * `export *`, `export default`). Internal local declarations are still
- * emitted into `ctx.declarations` so that `Exports` clauses can reference
- * them, but they don't appear in the parent's `children`.
- *
- * Variable declarations whose effective top-level type is callable (arrow
- * initializer, function-type annotation, or call-signature-only object
- * literal annotation) are surfaced as functions — this matches how TypeDoc
- * (and most readers) think about `export const foo = (x) => …`.
- */
 const appendDeclarations = (node: ts.Node, ctx: Context, out: number[]): void => {
-  const exported = isExported(node)
   const push = (decl: T.AnyDeclaration): void => {
     ctx.declarations.push(decl)
-    if (exported) out.push(decl.id)
+    out.push(decl.id)
   }
   if (ts.isVariableStatement(node)) {
     for (const d of node.declarationList.declarations) {
@@ -188,15 +160,16 @@ const appendDeclarations = (node: ts.Node, ctx: Context, out: number[]): void =>
   }
   if (ts.isExportDeclaration(node)) {
     const exp = exports_(node, ctx)
-    if (exp) push(exp)
+    if (!exp) return
+    push(exp)
     return
   }
   if (ts.isExportAssignment(node) && !node.isExportEquals) {
     const def = exportDefault(node, ctx)
     if (def) push(def)
+    return
   }
 }
-
 /**
  * Anything whose top-level type resolves to a callable. Three cases that
  * land at the same answer:
@@ -218,7 +191,6 @@ const isCallableVariable = (d: ts.VariableDeclaration): boolean => {
   }
   return false
 }
-
 const variable = (d: ts.VariableDeclaration, _stmt: ts.VariableStatement, ctx: Context): T.Variable => ({
   ...routableBase(d, ctx),
   kind: 'variable',
@@ -226,14 +198,12 @@ const variable = (d: ts.VariableDeclaration, _stmt: ts.VariableStatement, ctx: C
   type: d.type ? typeNode(d.type, ctx) : typeOf(ctx.checker.getTypeAtLocation(d), ctx),
   ...(d.initializer ? { defaultValue: d.initializer.getText() } : {}),
 })
-
 const variableAsFunction = (d: ts.VariableDeclaration, _stmt: ts.VariableStatement, ctx: Context): T.Func => ({
   ...routableBase(d, ctx),
   kind: 'function',
   name: (d.name as ts.Identifier).text,
   signatures: callableSignatures(d, ctx),
 })
-
 /** Resolve signatures from whichever syntactic vehicle made the variable callable. */
 const callableSignatures = (d: ts.VariableDeclaration, ctx: Context): T.Signature[] => {
   if (d.initializer && (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer))) {
@@ -247,14 +217,12 @@ const callableSignatures = (d: ts.VariableDeclaration, ctx: Context): T.Signatur
   const t = ctx.checker.getTypeAtLocation(d)
   return t.getCallSignatures().map((s) => checkerSignature(s, d, ctx))
 }
-
 const function_ = (node: ts.FunctionDeclaration, ctx: Context): T.Func => ({
   ...routableBase(node, ctx),
   kind: 'function',
   name: node.name!.text,
   signatures: collectSignatures(node, ctx),
 })
-
 const class_ = (node: ts.ClassDeclaration, ctx: Context): T.Class => {
   const members = partitionClassMembers(node.members, ctx)
   return {
@@ -269,7 +237,6 @@ const class_ = (node: ts.ClassDeclaration, ctx: Context): T.Class => {
     ...(members.indexSignature ? { indexSignature: members.indexSignature } : {}),
   }
 }
-
 const interface_ = (node: ts.InterfaceDeclaration, ctx: Context): T.Interface => {
   const members = partitionInterfaceMembers(node.members, ctx)
   let extendsTypes: T.AnyType[] | undefined
@@ -292,7 +259,6 @@ const interface_ = (node: ts.InterfaceDeclaration, ctx: Context): T.Interface =>
     ...(members.indexSignature ? { indexSignature: members.indexSignature } : {}),
   }
 }
-
 const typeAlias = (node: ts.TypeAliasDeclaration, ctx: Context): T.TypeAlias => ({
   ...routableBase(node, ctx),
   kind: 'type-alias',
@@ -300,7 +266,6 @@ const typeAlias = (node: ts.TypeAliasDeclaration, ctx: Context): T.TypeAlias => 
   ...(node.typeParameters ? { typeParameters: node.typeParameters.map((tp) => typeParameter(tp, ctx)) } : {}),
   type: typeNode(node.type, ctx),
 })
-
 const enum_ = (node: ts.EnumDeclaration, ctx: Context): T.Enum => ({
   ...routableBase(node, ctx),
   kind: 'enum',
@@ -316,28 +281,18 @@ const enum_ = (node: ts.EnumDeclaration, ctx: Context): T.Enum => ({
     }
   }),
 })
-
 const namespaceDecl = (node: ts.ModuleDeclaration, ctx: Context): T.Namespace | undefined => {
   if (!node.body || !ts.isModuleBlock(node.body)) return undefined
   const children: number[] = []
   for (const stmt of node.body.statements) appendDeclarations(stmt, ctx, children)
   return { ...routableBase(node, ctx), kind: 'namespace', name: moduleName(node.name), children }
 }
-
 const moduleName = (n: ts.ModuleName): string => ('text' in n ? n.text : (n as ts.Node).getText())
-
-/**
- * Every `ExportDeclaration` produces a single `Exports` clause. Names are
- * resolved later (by `resolve.generation`); here we only stamp the form
- * and the raw inputs onto `Context` side-tables so the resolver knows
- * which strategy to apply.
- */
 const exports_ = (node: ts.ExportDeclaration, ctx: Context): T.Exports | undefined => {
   const exp: T.Exports = { ...base(node, ctx), kind: 'exports', names: [] }
   const id = exp.id
   ctx.exportsOrigin.set(id, node)
   const spec = node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier.text : undefined
-
   if (!node.exportClause) {
     if (!spec) return undefined
     ctx.exportsForm.set(id, 'star')
@@ -360,13 +315,6 @@ const exports_ = (node: ts.ExportDeclaration, ctx: Context): T.Exports | undefin
   ctx.exportsEntries.set(id, entries)
   return exp
 }
-
-/**
- * `export default <expr>`. Surfaces as a `default`-named function (when the
- * expression is a function/arrow) or variable (everything else). The bare
- * declaration form `export default function foo() {}` already arrives via
- * the `FunctionDeclaration` branch since it carries the export modifier.
- */
 const exportDefault = (node: ts.ExportAssignment, ctx: Context): T.AnyDeclaration | undefined => {
   const expr = node.expression
   if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) {
@@ -387,18 +335,12 @@ const exportDefault = (node: ts.ExportAssignment, ctx: Context): T.AnyDeclaratio
     defaultValue: expr.getText(),
   }
 }
-
-// ============================================================================
-// CLASS / INTERFACE MEMBERS
-// ============================================================================
-
 interface ClassMemberBuckets {
   constructors: T.Signature[]
   properties: T.Property[]
   methods: T.Method[]
   indexSignature?: T.IndexSignature
 }
-
 const partitionClassMembers = (members: ts.NodeArray<ts.ClassElement>, ctx: Context): ClassMemberBuckets => {
   const buckets: ClassMemberBuckets = { constructors: [], properties: [], methods: [] }
   for (const m of members) {
@@ -409,7 +351,6 @@ const partitionClassMembers = (members: ts.NodeArray<ts.ClassElement>, ctx: Cont
   }
   return buckets
 }
-
 interface InterfaceMemberBuckets {
   properties: T.Property[]
   methods: T.Method[]
@@ -417,7 +358,6 @@ interface InterfaceMemberBuckets {
   constructSignatures: T.Signature[]
   indexSignature?: T.IndexSignature
 }
-
 const partitionInterfaceMembers = (members: ts.NodeArray<ts.TypeElement>, ctx: Context): InterfaceMemberBuckets => {
   const buckets: InterfaceMemberBuckets = {
     properties: [],
@@ -440,7 +380,6 @@ const partitionInterfaceMembers = (members: ts.NodeArray<ts.TypeElement>, ctx: C
   }
   return buckets
 }
-
 const property = (node: ts.PropertyDeclaration, ctx: Context): T.Property => ({
   ...base(node, ctx),
   kind: 'property',
@@ -449,7 +388,6 @@ const property = (node: ts.PropertyDeclaration, ctx: Context): T.Property => ({
   ...(node.initializer ? { defaultValue: node.initializer.getText() } : {}),
   ...(node.questionToken ? { optional: true } : {}),
 })
-
 const propertySignature = (node: ts.PropertySignature, ctx: Context): T.Property => ({
   ...base(node, ctx),
   kind: 'property',
@@ -457,32 +395,27 @@ const propertySignature = (node: ts.PropertySignature, ctx: Context): T.Property
   type: node.type ? typeNode(node.type, ctx) : intrinsic('unknown'),
   ...(node.questionToken ? { optional: true } : {}),
 })
-
 const method = (node: ts.MethodDeclaration, ctx: Context): T.Method => ({
   ...base(node, ctx),
   kind: 'method',
   name: (node.name as ts.Identifier).text,
   signatures: collectSignatures(node, ctx),
 })
-
 const indexSignature = (node: ts.IndexSignatureDeclaration, ctx: Context): T.IndexSignature => ({
   ...base(node, ctx),
   kind: 'index-signature',
   parameter: parameter(node.parameters[0]!, ctx),
   type: node.type ? typeNode(node.type, ctx) : intrinsic('unknown'),
 })
-
 // ============================================================================
 // SIGNATURES, PARAMETERS, TYPE PARAMETERS
 // ============================================================================
-
 /** Pull all overload + implementation signatures from a function-like declaration. */
 const collectSignatures = (node: ts.SignatureDeclaration, ctx: Context): T.Signature[] => {
   const t = ctx.checker.getTypeAtLocation(node)
   const sigs = t.getCallSignatures()
   return sigs.length ? sigs.map((s) => checkerSignature(s, node, ctx)) : [signature(node, ctx)]
 }
-
 /** Build a signature from a syntactic declaration (preserves origin nodes for references). */
 const signature = (node: ts.SignatureDeclaration, ctx: Context): T.Signature => ({
   ...base(node, ctx),
@@ -494,7 +427,6 @@ const signature = (node: ts.SignatureDeclaration, ctx: Context): T.Signature => 
     ? typeNode(node.type, ctx)
     : typeOf(ctx.checker.getReturnTypeOfSignature(ctx.checker.getSignatureFromDeclaration(node)!), ctx),
 })
-
 /** Build a signature from a checker `ts.Signature` (used when overloads have no declaration). */
 const checkerSignature = (sig: ts.Signature, enclosing: ts.Node, ctx: Context): T.Signature => {
   // Prefer the syntactic conversion when we have a declaration — it preserves
@@ -511,7 +443,6 @@ const checkerSignature = (sig: ts.Signature, enclosing: ts.Node, ctx: Context): 
     type: typeOf(ctx.checker.getReturnTypeOfSignature(sig), ctx),
   }
 }
-
 const parameter = (node: ts.ParameterDeclaration, ctx: Context): T.Parameter => ({
   ...base(node, ctx),
   kind: 'parameter',
@@ -521,7 +452,6 @@ const parameter = (node: ts.ParameterDeclaration, ctx: Context): T.Parameter => 
   ...(node.dotDotDotToken ? { rest: true } : {}),
   ...(node.initializer ? { default: node.initializer.getText() } : {}),
 })
-
 const symbolAsParameter = (sym: ts.Symbol, ctx: Context): T.Parameter => {
   const decl = sym.valueDeclaration as ts.ParameterDeclaration | undefined
   if (decl && ts.isParameter(decl)) return parameter(decl, ctx)
@@ -534,13 +464,11 @@ const symbolAsParameter = (sym: ts.Symbol, ctx: Context): T.Parameter => {
     optional: !!(sym.flags & ts.SymbolFlags.Optional),
   }
 }
-
 const typeParameter = (node: ts.TypeParameterDeclaration, ctx: Context): T.TypeParameter => ({
   name: node.name.text,
   ...(node.constraint ? { constraint: typeNode(node.constraint, ctx) } : {}),
   ...(node.default ? { default: typeNode(node.default, ctx) } : {}),
 })
-
 const typeParameterFromType = (tp: ts.TypeParameter, ctx: Context): T.TypeParameter => {
   const constraint = tp.getConstraint()
   const dflt = tp.getDefault()
@@ -550,14 +478,12 @@ const typeParameterFromType = (tp: ts.TypeParameter, ctx: Context): T.TypeParame
     ...(dflt ? { default: typeOf(dflt, ctx) } : {}),
   }
 }
-
 // ============================================================================
 // TYPES
 // Two entry points: a syntactic one (TypeNode → AnyType) and a semantic one
 // (ts.Type → AnyType). Syntactic preserves what the author wrote; semantic is
 // the fallback for inferred types.
 // ============================================================================
-
 const typeNode = (node: ts.TypeNode, ctx: Context): T.AnyType => {
   if (ts.isLiteralTypeNode(node)) {
     const lit = node.literal
@@ -567,10 +493,8 @@ const typeNode = (node: ts.TypeNode, ctx: Context): T.AnyType => {
     if (lit.kind === ts.SyntaxKind.TrueKeyword) return { kind: 'literal', value: true }
     if (lit.kind === ts.SyntaxKind.FalseKeyword) return { kind: 'literal', value: false }
   }
-
   const kw = INTRINSIC_KEYWORDS[node.kind]
   if (kw) return intrinsic(kw)
-
   if (ts.isArrayTypeNode(node)) return { kind: 'array', elementType: typeNode(node.elementType, ctx) }
   if (ts.isTupleTypeNode(node)) return { kind: 'tuple', elements: node.elements.map((el) => tupleElement(el, ctx)) }
   if (ts.isUnionTypeNode(node)) return { kind: 'union', types: node.types.map((t) => typeNode(t, ctx)) }
@@ -595,11 +519,9 @@ const typeNode = (node: ts.TypeNode, ctx: Context): T.AnyType => {
     )
   }
   if (ts.isTypeLiteralNode(node)) return { kind: 'reflection', declaration: typeLiteral(node, ctx) }
-
   // Fallback: hand off to the semantic resolver.
   return typeOf(ctx.checker.getTypeFromTypeNode(node), ctx)
 }
-
 const tupleElement = (el: ts.TypeNode, ctx: Context): T.TupleElement => {
   if (ts.isNamedTupleMember(el)) {
     return {
@@ -613,7 +535,6 @@ const tupleElement = (el: ts.TypeNode, ctx: Context): T.TupleElement => {
   if (ts.isRestTypeNode(el)) return { type: typeNode(el.type, ctx), rest: true }
   return { type: typeNode(el, ctx) }
 }
-
 const typeOf = (t: ts.Type, ctx: Context): T.AnyType => {
   const flags = t.flags
   if (flags & ts.TypeFlags.String) return intrinsic('string')
@@ -627,13 +548,10 @@ const typeOf = (t: ts.Type, ctx: Context): T.AnyType => {
   if (flags & ts.TypeFlags.Never) return intrinsic('never')
   if (flags & ts.TypeFlags.Any) return intrinsic('any')
   if (flags & ts.TypeFlags.Unknown) return intrinsic('unknown')
-
   if (t.isStringLiteral()) return { kind: 'literal', value: t.value }
   if (t.isNumberLiteral()) return { kind: 'literal', value: t.value }
-
   if (t.isUnion()) return { kind: 'union', types: t.types.map((x) => typeOf(x, ctx)) }
   if (t.isIntersection()) return { kind: 'intersection', types: t.types.map((x) => typeOf(x, ctx)) }
-
   const sym = t.getSymbol() ?? t.aliasSymbol
   const origin = sym?.declarations?.[0]
   const name = sym?.getName() ?? ctx.checker.typeToString(t)
@@ -643,7 +561,6 @@ const typeOf = (t: ts.Type, ctx: Context): T.AnyType => {
   if (origin) return reference(ctx, origin, name, args)
   return anonymousReference(ctx, name, args)
 }
-
 const typeLiteral = (node: ts.TypeLiteralNode, ctx: Context): T.ObjectLiteral => {
   const buckets = partitionInterfaceMembers(node.members, ctx)
   return {
@@ -656,7 +573,6 @@ const typeLiteral = (node: ts.TypeLiteralNode, ctx: Context): T.ObjectLiteral =>
     ...(buckets.indexSignature ? { indexSignature: buckets.indexSignature } : {}),
   }
 }
-
 const INTRINSIC_KEYWORDS: Partial<Record<ts.SyntaxKind, T.IntrinsicType['name']>> = {
   [ts.SyntaxKind.StringKeyword]: 'string',
   [ts.SyntaxKind.NumberKeyword]: 'number',
@@ -670,26 +586,21 @@ const INTRINSIC_KEYWORDS: Partial<Record<ts.SyntaxKind, T.IntrinsicType['name']>
   [ts.SyntaxKind.UnknownKeyword]: 'unknown',
   [ts.SyntaxKind.ObjectKeyword]: 'object',
 }
-
 const TYPE_OPERATORS: Partial<Record<ts.SyntaxKind, 'keyof' | 'readonly' | 'unique'>> = {
   [ts.SyntaxKind.KeyOfKeyword]: 'keyof',
   [ts.SyntaxKind.ReadonlyKeyword]: 'readonly',
   [ts.SyntaxKind.UniqueKeyword]: 'unique',
 }
-
 // ============================================================================
 // HELPERS
 // ============================================================================
-
 const intrinsic = (name: T.IntrinsicType['name']): T.IntrinsicType => ({ kind: 'intrinsic', name })
-
 /** Build a `ReferenceType`, registering its origin node so the resolver can find it. */
 const reference = (ctx: Context, origin: ts.Node, name: string, typeArguments?: T.AnyType[]): T.ReferenceType => {
   const id = ctx.nextId()
   ctx.referenceOrigins.set(id, origin)
   return { kind: 'reference', id, name, ...(typeArguments?.length ? { typeArguments } : {}) }
 }
-
 /** A reference with no syntactic origin — pre-classified as anonymous. */
 const anonymousReference = (ctx: Context, name: string, typeArguments?: T.AnyType[]): T.ReferenceType => ({
   kind: 'reference',
@@ -698,7 +609,6 @@ const anonymousReference = (ctx: Context, name: string, typeArguments?: T.AnyTyp
   external: 'anonymous',
   ...(typeArguments?.length ? { typeArguments } : {}),
 })
-
 /** Routable declarations (every kind that owns a documentation page) get the naming triple. */
 const routableBase = (node: ts.Node, ctx: Context): T.Base & T.Routable => ({
   ...base(node, ctx),
@@ -708,15 +618,13 @@ const routableBase = (node: ts.Node, ctx: Context): T.Base & T.Routable => ({
   qualifiedName: '',
   displayName: '',
 })
-
 const routableModule = (node: ts.Node, ctx: Context): T.Base & T.Routable => routableBase(node, ctx)
-
 const base = (node: ts.Node, ctx: Context): T.Base => {
   const id = ctx.nextId()
   const named = (node as { name?: ts.Node }).name
   const sym = ctx.checker.getSymbolAtLocation(named ?? node)
   if (sym) ctx.symbolsById.set(id, sym)
-  const result: T.Base = { id }
+  const result: T.Base = { id, exported: isExported(node) }
   if (!ctx.exclude?.comments) {
     const comment = ts.isSourceFile(node) ? commentForModule(node, ctx) : commentForNode(node, ctx)
     if (comment) result.comment = comment
@@ -733,13 +641,11 @@ const base = (node: ts.Node, ctx: Context): T.Base => {
   }
   return result
 }
-
 const sourceOf = (node: ts.Node, ctx: Context): T.Source => {
   const sf = node.getSourceFile()
   const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart())
   return { file: relPath(sf, ctx), line: line + 1, column: character + 1 }
 }
-
 const relPath = (sf: ts.SourceFile, ctx: Context): string => {
   const cached = ctx.relPath.get(sf)
   if (cached !== undefined) return cached
@@ -747,13 +653,11 @@ const relPath = (sf: ts.SourceFile, ctx: Context): string => {
   ctx.relPath.set(sf, rel)
   return rel
 }
-
 const isExported = (node: ts.Node): boolean => {
   if (ts.isExportDeclaration(node) || ts.isExportAssignment(node)) return true
   const mods = (node as { modifiers?: ts.NodeArray<ts.ModifierLike> }).modifiers
   return !!mods?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
 }
-
 const heritage = (node: ts.ClassDeclaration, ctx: Context): Pick<T.Class, 'extends' | 'implements'> => {
   const result: Pick<T.Class, 'extends' | 'implements'> = {}
   node.heritageClauses?.forEach((h) => {
@@ -762,11 +666,9 @@ const heritage = (node: ts.ClassDeclaration, ctx: Context): Pick<T.Class, 'exten
   })
   return result
 }
-
 // ============================================================================
 // COMMENTS
 // ============================================================================
-
 const commentForNode = (node: ts.Node, ctx: Context): T.Comment | undefined => {
   const all = ts.getJSDocCommentsAndTags(node)
   if (!all.length) return undefined
@@ -787,7 +689,6 @@ const commentForNode = (node: ts.Node, ctx: Context): T.Comment | undefined => {
   if (!seenBlock) return undefined
   return { parts, ...(tags.length ? { tags } : {}) }
 }
-
 /** Flatten a JSDoc comment into `parts`. */
 const appendCommentBody = (
   comment: string | ts.NodeArray<ts.JSDocComment> | undefined,
@@ -810,11 +711,9 @@ const appendCommentBody = (
     parts.push({ kind: 'link', target, ...(linkText ? { text: linkText } : {}), ...(style ? { style } : {}) })
   }
 }
-
 const buildTag = (tag: ts.JSDocTag, ctx: Context): T.CommentTag => {
   const text = ts.getTextOfJSDocComment(tag.comment)?.trim() ?? ''
   const exprType = (te?: ts.JSDocTypeExpression) => (te ? typeNode(te.type, ctx) : undefined)
-
   if (ts.isJSDocPropertyTag(tag)) {
     return {
       tag: '@property',
@@ -850,14 +749,12 @@ const buildTag = (tag: ts.JSDocTag, ctx: Context): T.CommentTag => {
   }
   if (ts.isJSDocAugmentsTag(tag)) return { tag: '@augments', class: typeNode(tag.class, ctx), text }
   if (ts.isJSDocImplementsTag(tag)) return { tag: '@implements', class: typeNode(tag.class, ctx), text }
-
   const name = '@' + tag.tagName.text
   // `@example` carries semantic indentation; re-extract from source so the
   // leader-strip never eats author tabs (see `rawTagBody`).
   if (name === '@example') return parseExample(rawTagBody(tag))
   return { tag: name, text }
 }
-
 /**
  * Reconstruct the body of a JSDoc tag from source, stripping the per-line
  * `*` leader and at most one *space* of separator. Unlike
@@ -874,7 +771,6 @@ const rawTagBody = (tag: ts.JSDocTag): string => {
     .join('\n')
     .trim()
 }
-
 /**
  * Pull an optional caption out of an `@example` body. Two forms are recognised:
  *   1. Legacy JSDoc: `<caption>…</caption>` prefix.
@@ -892,27 +788,21 @@ const parseExample = (raw: string): T.CommentTagMap['@example'] => {
   }
   return { tag: '@example', code: raw.trim() }
 }
-
 export const commentForModule = (sf: ts.SourceFile, ctx: Context): T.Comment | undefined => {
   if (sf.statements.length === 0) return undefined
-
   // 1. Target the leading comment ranges for the first statement per your rules
   const sourceText = sf.getFullText()
   const commentRanges = ts.getLeadingCommentRanges(sourceText, sf.statements[0]!.pos)
   if (!commentRanges || commentRanges.length === 0) return undefined
-
   const parts: T.CommentPart[] = []
   const tags: T.CommentTag[] = []
   let seenBlock = false
-
   // 2. Evaluate each comment text range
   for (let i = 0; i < commentRanges.length; i++) {
     const range = commentRanges[i]!
     const commentText = sourceText.slice(range.pos, range.end)
-
     // Apply your specific layout logic
     const isModuleComment = i < commentRanges.length - 1 || commentText.includes('@module')
-
     if (isModuleComment) {
       // 3. Trick the compiler into parsing the raw text snippet back into an AST Node block
       // We append an empty statement (;) so the parser attaches the JSDoc to a valid target.
@@ -922,16 +812,13 @@ export const commentForModule = (sf: ts.SourceFile, ctx: Context): T.Comment | u
         ts.ScriptTarget.Latest,
         true, // Set parent pointers to true
       )
-
       // 4. Safely extract the compiled JSDoc node from the dummy file
       const dummyStmt = dummyFile.statements[0]
       if (dummyStmt) {
         const jsdocBlocks = ts.getJSDocCommentsAndTags(dummyStmt)
         const matchingBlock = jsdocBlocks.find(ts.isJSDoc) as ts.JSDoc | undefined
-
         if (matchingBlock) {
           seenBlock = true
-
           // Feed the generated AST structure down your pipeline seamlessly
           appendCommentBody(matchingBlock.comment, parts)
           if (matchingBlock.tags) {
@@ -943,7 +830,6 @@ export const commentForModule = (sf: ts.SourceFile, ctx: Context): T.Comment | u
       }
     }
   }
-
   if (!seenBlock) return undefined
   return { parts, ...(tags.length ? { tags } : {}) }
 }

@@ -1,4 +1,4 @@
-import type * as resolve from './resolve.ts'
+import type * as resolve from './resolver.ts'
 import type * as T from './types.ts'
 import * as walk from './walk.ts'
 
@@ -318,9 +318,7 @@ const idOf = (d: AnyDecl): number => (d as T.Base<any>).id
 // ============================================================================
 
 const resolveExports = (exp: Exports, state: State): void => {
-  const targets = exp.names
-    .map((n) => state.declarationsById.get(n.id))
-    .filter((d): d is AnyDecl => !!d)
+  const targets = exp.names.map((n) => state.declarationsById.get(n.id)).filter((d): d is AnyDecl => !!d)
   hide(exp, 'targets', targets)
   // sourceModuleRef: if any target is itself a Module, it IS the source
   // (the `export * as foo from './x'` shape). Otherwise climb to the
@@ -461,9 +459,7 @@ const attachProjectMethods = (state: State): void => {
   // Hide childDecls on every container.
   for (const decl of state.declarationsById.values()) {
     if (decl.kind === 'module' || decl.kind === 'namespace') {
-      const resolved = decl.children
-        .map((id) => state.declarationsById.get(id))
-        .filter((d): d is AnyDecl => !!d)
+      const resolved = decl.children.map((id) => state.declarationsById.get(id)).filter((d): d is AnyDecl => !!d)
       hide(decl, 'childDecls', resolved)
     }
   }

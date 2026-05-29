@@ -17,18 +17,6 @@
     "ldocs": "./src/cli.ts"
   },
   "exports": {
-    ".": {
-      "types": "./dist/ts/ui/index.d.ts",
-      "import": "./dist/esm/ui/index.js",
-      "require": "./dist/esm/ui/index.js"
-    },
-    "./theme.css": "./theme.css",
-    "./client": "./client.d.ts",
-    "./preset": {
-      "types": "./dist/ts/solidjs/entry.d.ts",
-      "import": "./dist/esm/solidjs/entry.jsx",
-      "require": "./dist/esm/solidjs/entry.jsx"
-    },
     "./config": {
       "types": "./dist/ts/config/index.d.ts",
       "import": "./dist/esm/config/index.js",
@@ -39,15 +27,24 @@
       "import": "./dist/esm/ui/index.js",
       "require": "./dist/esm/ui/index.js"
     },
-    "./preset/tsconfig.json": "./tsconfig.client.json",
-    "./preset/jsx-runtime": "./dist/ts/solidjs/jsx-runtime.d.ts"
+    "./preset": {
+      "types": "./dist/ts/solidjs/entry.d.ts",
+      "import": "./dist/esm/solidjs/entry.jsx",
+      "require": "./dist/esm/solidjs/entry.jsx"
+    },
+    "./client": "./client.d.ts",
+    "./theme.css": "./theme.css",
+    "./tsconfig.json": "./tsconfig.client.json",
+    "./jsx-runtime": "./dist/ts/solidjs/jsx-runtime.d.ts"
   },
   "scripts": {
     "build": "pnpm tsc"
   },
   "devDependencies": {
+    "@types/hosted-git-info": "^3.0.5",
     "@types/micromatch": "^4.0.10",
     "@types/node": "^25.9.1",
+    "hosted-git-info": "^10.1.1",
     "prettier": "^3.8.3",
     "sucrase": "^3.35.1",
     "typescript": "^6.0.3"
@@ -67,9 +64,12 @@
     "cmd-ts": "^0.15.0",
     "codejar": "^4.3.0",
     "fast-glob": "^3.3.3",
+    "get-tsconfig": "^4.14.0",
     "jiti": "^2.7.0",
     "marked": "^18.0.4",
     "micromatch": "^4.0.8",
+    "pkg-exports": "^0.2.0",
+    "resolve.exports": "^2.0.3",
     "shiki": "^4.1.0",
     "solid-js": "^1.9.13",
     "tailwindcss": "^4.3.0",

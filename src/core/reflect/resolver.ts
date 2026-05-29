@@ -1,27 +1,20 @@
 import ts from 'typescript'
-
-import type { Result } from './scan.ts'
+import type { Result } from './scanner.ts'
 import type * as T from './types.ts'
-import * as scan from './scan.ts'
 import * as walk from './walk.ts'
-
 // ============================================================================
 // PUBLIC API
 // ============================================================================
-
 /** Schema produced after running `resolveReferences`. */
 export interface Registry extends T.TypeRegistry {
   declarations: T.DeclarationMap<Registry>
   types: TypeMap
 }
-
 export type Declaration = T.AnyDeclaration<Registry>
-
 export interface TypeMap extends T.TypeMap<Registry> {
   reference: T.ReferenceType<Registry> & { targetId?: number }
 }
 export type Type = T.AnyType<Registry>
-
 export type Source = T.Source
 export type Routable = T.Routable
 export type Module = T.Module<Registry>
@@ -56,49 +49,46 @@ export type ObjectLiteral = T.ObjectLiteral<Registry>
 export type Comment = T.Comment<Registry>
 export type CommentTag = T.CommentTag<Registry>
 export type CommentPart = T.CommentPart
-
 /** Output of `run` / `generation` — the flat schema, ready for the indexed layer. */
 export interface RunResult {
   declarations: Declaration[]
   children: number[]
 }
-
-/**
- * Scan + resolve in one call. Hides the internal scan `Result` from public
- * consumers — only the resolved flat schema leaves the boundary.
- */
-export const run = (rootFiles: string[], options: scan.Options): RunResult => generation(scan.files(rootFiles, options))
-
 /**
  * Walk every declaration once and populate `targetId` on each `ReferenceType`
  * plus `names[]` on each `Exports` clause. Mutates the input. References that
  * can't be resolved in-project are tagged with `external`.
  */
-export const generation = (gen: Result): RunResult => {
+export const resolve = (gen: Result): RunResult => {
   const { declarations, children, context: ctx } = gen
-
   // Map any TS declaration node back to its in-project reflection id.
   const idByDecl = new Map<ts.Node, number>()
   for (const [id, sym] of ctx.symbolsById) sym.declarations?.forEach((d) => idByDecl.set(d, id))
-
   /** All in-project reflection ids contributed by `sym` (after following aliases). */
   const idsForSymbol = (sym: ts.Symbol): number[] => {
-    const target = sym.flags & ts.SymbolFlags.Alias ? ctx.checker.getAliasedSymbol(sym) : sym
+    const collect = (s: ts.Symbol, out: number[]): void => {
+      for (const decl of s.declarations ?? []) {
+        const id = idByDecl.get(decl)
+        if (id !== undefined && !out.includes(id)) out.push(id)
+      }
+    }
     const ids: number[] = []
-    for (const decl of target.declarations ?? []) {
-      const id = idByDecl.get(decl)
-      if (id !== undefined && !ids.includes(id)) ids.push(id)
+    collect(sym, ids)
+    // Export specifiers / import aliases declare themselves as the symbol's
+    // declarations, which are never in `idByDecl`. Follow the alias chain so
+    // local re-exports (`export { Foo }`) and re-exported re-exports resolve.
+    if (sym.flags & ts.SymbolFlags.Alias) {
+      const target = ctx.checker.getAliasedSymbol(sym)
+      if (target !== sym) collect(target, ids)
     }
     return ids
   }
-
   const moduleIdForSpecifier = (origin: ts.ExportDeclaration): number | undefined => {
     if (!origin.moduleSpecifier) return undefined
     const sym = ctx.checker.getSymbolAtLocation(origin.moduleSpecifier)
     if (!sym) return undefined
     return idsForSymbol(sym)[0]
   }
-
   const resolveRef = (ref: T.ReferenceType): void => {
     const r = ref as T.ReferenceType & { targetId?: number }
     if (r.targetId !== undefined || r.external) return
@@ -119,20 +109,17 @@ export const generation = (gen: Result): RunResult => {
     }
     r.external = classifySymbol(sym)
   }
-
   const resolveExports = (exp: T.Exports): void => {
     if (exp.names.length) return
     const form = ctx.exportsForm.get(exp.id)
     const origin = ctx.exportsOrigin.get(exp.id)
     if (!form || !origin) return
-
     if (form === 'namespace-from') {
       const alias = ctx.exportsAlias.get(exp.id)
       const moduleId = moduleIdForSpecifier(origin)
       if (alias && moduleId !== undefined) exp.names.push({ name: alias, id: moduleId })
       return
     }
-
     if (form === 'star') {
       if (!origin.moduleSpecifier) return
       const moduleSym = ctx.checker.getSymbolAtLocation(origin.moduleSpecifier)
@@ -143,9 +130,7 @@ export const generation = (gen: Result): RunResult => {
       }
       return
     }
-
     const entries = ctx.exportsEntries.get(exp.id) ?? []
-
     if (form === 'named-from') {
       if (!origin.moduleSpecifier) return
       const moduleSym = ctx.checker.getSymbolAtLocation(origin.moduleSpecifier)
@@ -159,7 +144,6 @@ export const generation = (gen: Result): RunResult => {
       }
       return
     }
-
     // named-local: look up each name in the enclosing source-file's locals.
     if (origin.exportClause && ts.isNamedExports(origin.exportClause)) {
       for (const el of origin.exportClause.elements) {
@@ -170,19 +154,15 @@ export const generation = (gen: Result): RunResult => {
       }
     }
   }
-
   for (const decl of declarations) {
     walk.Declaration(decl as T.AnyDeclaration, { onReference: resolveRef, onExports: resolveExports })
   }
-
   return { declarations: declarations as unknown as Declaration[], children }
 }
-
 // ============================================================================
 // SYMBOL LOOKUP
 // Re-asks the checker which symbol `name` resolves to at the origin node.
 // ============================================================================
-
 const symbolAt = (origin: ts.Node, name: string, checker: ts.TypeChecker): ts.Symbol | undefined => {
   // Common case: the origin is a TypeReference — its symbol is exactly what we want.
   if (ts.isTypeReferenceNode(origin) || ts.isExpressionWithTypeArguments(origin)) {
@@ -196,7 +176,6 @@ const symbolAt = (origin: ts.Node, name: string, checker: ts.TypeChecker): ts.Sy
   const inScope = checker.getSymbolsInScope(origin, ts.SymbolFlags.Type | ts.SymbolFlags.Value)
   return inScope.find((s) => s.getName() === root)
 }
-
 /**
  * Bucket an external symbol into the schema's `external` taxonomy by its
  * declaration file path. The renderer uses this to style references — e.g.

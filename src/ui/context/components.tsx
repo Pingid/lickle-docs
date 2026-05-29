@@ -58,6 +58,7 @@ export interface Components {
 
   // Page slots
   page?: Component<WithDefault<{ decl: docs.Declaration }>>
+  'page.markdown'?: Component<WithDefault<{ page: docs.Page }>>
   'page.header'?: Component<WithDefault<{ decl: docs.Declaration }>>
   'page.header.breadcrumb'?: Component<WithDefault<{ id: number }>>
   'page.source'?: Component<WithDefault<{ sources?: docs.Source[] }>>

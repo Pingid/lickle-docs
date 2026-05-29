@@ -1,4 +1,5 @@
-import { For, JSX, Show } from 'solid-js'
+import type { JSX } from 'solid-js/jsx-runtime'
+import { For, Show } from 'solid-js'
 
 import type * as docs from '../../core/client.ts'
 

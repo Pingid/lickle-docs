@@ -3,7 +3,7 @@
     /* Language and Environment */
     "target": "es2022",
     "lib": ["DOM", "ESNext"],
-    "types": ["node", "vite/client"],
+    "types": ["node"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
 
@@ -50,6 +50,7 @@
     "rewriteRelativeImportExtensions": true /* Rewrite relative import extensions to the specified module resolution. */,
     /* Completeness */
     "skipLibCheck": true /* Skip type checking all .d.ts files. */,
+    "verbatimModuleSyntax": true /* Enable verbatim module syntax. */,
   },
   "include": ["src"],
 }
