@@ -46,8 +46,8 @@ export interface Base<T extends TypeRegistry = Registry> {
   comment?: Comment<T>
   /** All source locations contributing to this reflection. */
   sources?: Source[]
-  /** Whether the declaration is exported. */
-  exported: boolean
+
+  exported?: boolean
 }
 
 export interface Source {

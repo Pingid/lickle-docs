@@ -3,28 +3,28 @@
  */
 export interface User {
   /** The user's unique identifier. */
-  id: string;
+  id: string
   /** The user's full name. */
-  name: string;
+  name: string
   /** The user's role. */
-  role: Role;
+  // role: Role
 }
 
-/**
- * Defines the possible roles for a user.
- */
-export enum Role {
-  Admin = 'ADMIN',
-  Member = 'MEMBER',
-  Guest = 'GUEST',
-}
+// /**
+//  * Defines the possible roles for a user.
+//  */
+// export enum Role {
+//   Admin = 'ADMIN',
+//   Member = 'MEMBER',
+//   Guest = 'GUEST',
+// }
 
-/**
- * A type alias for a string or number ID.
- */
-export type ID = string | number;
+// /**
+//  * A type alias for a string or number ID.
+//  */
+// export type ID = string | number;
 
-/**
- * A generic result type.
- */
-export type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };
+// /**
+//  * A generic result type.
+//  */
+// export type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };

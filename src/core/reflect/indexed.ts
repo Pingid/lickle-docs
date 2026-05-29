@@ -181,6 +181,7 @@ export type CommentPart = T.CommentPart
 /** Global indexes exposed at the project level. */
 export interface Indexed {
   readonly declarationsById: ReadonlyMap<number, T.AnyDeclaration<Registry>>
+  readonly modulesByPath: ReadonlyMap<string, Module>
   readonly idBySlug: ReadonlyMap<string, number>
   readonly slugById: ReadonlyMap<number, string>
   readonly qualifiedNameById: ReadonlyMap<number, string>
@@ -189,6 +190,7 @@ export interface Indexed {
 
   /** Top-level modules (one per scanned source file), in input order. */
   modules(): ReadonlyArray<Module>
+  moduleByPath(path: string): Module | undefined
   declarationById(id: number): T.AnyDeclaration<Registry> | undefined
   declarationByQualifiedName(name: string): T.AnyDeclaration<Registry> | undefined
   referenceById(id: number): Reference | undefined
@@ -204,7 +206,8 @@ export const build = (declarations: T.AnyDeclaration<resolve.Registry>[], topIds
   const decls = declarations as unknown as AnyDecl[]
   const state: State = {
     proj,
-    declarationsById: new Map(decls.map((d) => [idOf(d), d])),
+    declarationsById: new Map(),
+    modulesByPath: new Map(),
     idBySlug: new Map(),
     slugById: new Map(),
     qualifiedNameById: new Map(),
@@ -214,6 +217,8 @@ export const build = (declarations: T.AnyDeclaration<resolve.Registry>[], topIds
 
   // Forward indexes (slug, qualified name) come straight off the decls.
   for (const decl of decls) {
+    state.declarationsById.set(idOf(decl), decl)
+    if (decl.kind === 'module') state.modulesByPath.set(decl.path!, decl as Module)
     const slug = (decl as { slug?: string }).slug
     const qn = (decl as { qualifiedName?: string }).qualifiedName
     if (slug) {
@@ -293,6 +298,7 @@ type AnyDecl = T.AnyDeclaration<Registry>
 interface State {
   proj: Indexed
   declarationsById: Map<number, AnyDecl>
+  modulesByPath: Map<string, Module>
   idBySlug: Map<string, number>
   slugById: Map<number, string>
   qualifiedNameById: Map<number, string>
@@ -450,6 +456,8 @@ const attachProjectMethods = (state: State): void => {
   hide(p, 'declarationById', (id: number) => state.declarationsById.get(id))
   hide(p, 'referenceById', (id: number) => refByIdMap(state).get(id))
   hide(p, 'declarationByQualifiedName', (name: string) => declByQNameMap(state).get(name))
+  hide(p, 'modulesByPath', state.modulesByPath)
+  hide(p, 'moduleByPath', (path: string) => state.modulesByPath.get(path))
   Object.defineProperty(p, 'slugByName', {
     get: () => slugByNameMap(state),
     enumerable: false,

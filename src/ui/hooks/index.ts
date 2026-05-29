@@ -3,8 +3,8 @@ import * as docs from '../../core/client.ts'
 
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
 import { useProject, type ProjectBag } from '../context/project.tsx'
-import type { NavGroup, NavItem } from '../strategies/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
+import type { NavGroup } from '../strategies/index.ts'
 import { isRoutable } from '../util/kind.ts'
 
 // ============================================================================
@@ -43,9 +43,6 @@ export const useSlugFor = () => {
     byName: (name: string) => project.slugByName.get(name),
   }
 }
-
-/** Public surface from the entrypoint(s) — direct routables + namespace re-exports. */
-export const useSurface = (): NavItem[] => useProject().surface
 
 /** Sidebar groups produced by the active `NavStrategy`. */
 export const useNavGroups = (): NavGroup[] => useProject().navGroups

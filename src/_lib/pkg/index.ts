@@ -154,7 +154,7 @@ async function resolveViaTsconfig(
 // --- helpers --------------------------------------------------------------
 
 function toPosixRelative(from: string, to: string): string {
-  return './' + path.relative(from, to).split(path.sep).join('/')
+  return path.relative(from, to).split(path.sep).join('/')
 }
 
 async function exists(p: string): Promise<boolean> {

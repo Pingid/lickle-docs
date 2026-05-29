@@ -44,10 +44,7 @@ export const DeclarationClass = createSlot('declaration.class', (props) => {
 export const DeclarationEnum = createSlot('declaration.enum', (props) => {
   const display = useDisplay()
   return (
-    <Show
-      when={display() === 'compact'}
-      fallback={<div class="text-mute">TODO {props.decl.kind}</div>}
-    >
+    <Show when={display() === 'compact'} fallback={<div class="text-mute">TODO {props.decl.kind}</div>}>
       <NamedRow keyword="enum" id={props.decl.id} name={props.decl.name} comment={props.decl.comment} />
     </Show>
   )
@@ -99,10 +96,7 @@ export const DeclarationFunction = createSlot('declaration.function', (props) =>
 export const DeclarationInterface = createSlot('declaration.interface', (props) => {
   const display = useDisplay()
   return (
-    <Show
-      when={display() === 'compact'}
-      fallback={<ExtendsLine label="extends" types={props.decl.extends} />}
-    >
+    <Show when={display() === 'compact'} fallback={<ExtendsLine label="extends" types={props.decl.extends} />}>
       <NamedRow keyword="interface" id={props.decl.id} name={props.decl.name} comment={props.decl.comment} />
     </Show>
   )
@@ -291,11 +285,7 @@ export const DeclarationExports = createSlot('declaration.exports', (props) => {
     <For each={props.decl.names}>
       {(entry, i) => {
         const target = () => props.decl.targets[i()]
-        return (
-          <Show when={target()}>
-            {(t) => <ExportEntry entry={entry} target={t()} />}
-          </Show>
-        )
+        return <Show when={target()}>{(t) => <ExportEntry entry={entry} target={t()} />}</Show>
       }}
     </For>
   )

@@ -1,10 +1,8 @@
-import path from 'node:path'
 import ts from 'typescript'
 import mm from 'micromatch'
 
 import * as reflect from '../reflect/index.ts'
 import * as config from '../../config/load.ts'
-import * as surface from './surface.ts'
 import * as naming from './naming.ts'
 
 export interface ProjectJson {
@@ -26,8 +24,6 @@ export interface ProjectJson {
   declarations: reflect.resolver.Declaration[]
   /** Top-level module ids — one per scanned source file. */
   children: number[]
-  /** Per-entrypoint public surface (id + kind), precomputed once at scan time. */
-  surface: surface.SurfaceEntry[]
 }
 
 export type Page = {
@@ -55,14 +51,10 @@ export const generate = async (options: ScanOptions): Promise<ProjectJson> => {
 
   naming.stamp(result.declarations)
 
-  const entrypoints = Array.from(c.info.entrypoints).map((f) => path.relative(options.dir, f))
-  const surfaceEntries = surface.compute(entrypoints, result.declarations, result.children)
-
   return {
     ...c.info,
     declarations: result.declarations,
     children: result.children,
-    surface: surfaceEntries,
   }
 }
 

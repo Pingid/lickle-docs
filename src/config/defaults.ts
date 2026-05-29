@@ -36,7 +36,6 @@ export const apply = async (dir: string, c?: UserConfig): Promise<ProjectJson> =
     entrypoints: exports.map((e) => e.path),
     links: c?.links ?? defualtLinks,
     repo: info ? { url: info.url, rev: info.commit, fileUrl: info.fileUrl } : undefined,
-    surface: [],
     declarations: [],
     children: [],
   }

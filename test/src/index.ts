@@ -3,18 +3,22 @@
  * @module test-package
  */
 
-// Local named exports
-export { MathUtils } from './namespaces'
+// import { UserService } from './other'
 
-// Re-export everything from reexports
-export * from './reexports'
+// export { UserService as RenamedUserService }
 
-// Exporting a local declaration
-/**
- * The version of the package.
- */
-export const VERSION = '1.0.0'
+// // Local named exports
+// export { MathUtils } from './namespaces'
 
-// Exporting an imported module as a namespace
+// // Re-export everything from reexports
+// export * from './reexports'
+
+// // Exporting a local declaration
+// /**
+//  * The version of the package.
+//  */
+// export const VERSION = '1.0.0'
+
+// // // Exporting an imported module as a namespace
 import * as types from './types'
 export { types }

@@ -1,9 +1,7 @@
+import type * as T from './types.ts'
 import path from 'node:path'
 import ts from 'typescript'
-import type * as T from './types.ts'
-// ============================================================================
-// PUBLIC API
-// ============================================================================
+
 export interface Options {
   /** The root directory of the project. Paths are relative to this. */
   rootDir: string
@@ -11,13 +9,17 @@ export interface Options {
   compilerOptions: ts.CompilerOptions
   /** Exclude certain kinds of nodes from the generated project. */
   fields?: { sources?: false; comments?: false; typeParameters?: false }
+  /** Whether to include a file in the scan. */
   include: (sf: ts.SourceFile) => boolean
 }
+
+/** The result of the scan. */
 export interface Result {
   declarations: T.AnyDeclaration<Registry>[]
   children: number[]
   context: Context
 }
+
 export interface Registry extends T.TypeRegistry {
   types: T.TypeMap<Registry> & {
     reference: T.ReferenceType<Registry> & { targetId?: number }

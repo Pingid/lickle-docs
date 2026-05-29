@@ -1,6 +1,6 @@
 const slugBuilder = () => {
   const used = new Set<string>()
-  return (sl: string) => uniqueSlug(toSlug(stripExt(sl)), used)
+  return (sl: string) => uniqueSlug(toSlug(sl), used)
 }
 
 export const make = slugBuilder()

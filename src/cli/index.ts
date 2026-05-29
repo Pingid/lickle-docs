@@ -112,7 +112,7 @@ const dev = async (args: { docsDir?: string; port?: number }) => {
   const rebuild = promise.serial(async () => {
     console.log(`Rebuilding project...`)
     const p = await generate(docsPath, { dir: process.cwd() })
-    dirs = Array.from(new Set(p.surface.map((s) => path.resolve(path.dirname(s.entrypoint)))))
+    dirs = Array.from(new Set(p.exports.map((s) => path.resolve(path.dirname(s.path)))))
     name = p.name
     console.log(`Project rebuilt: ${p.name}`)
   })

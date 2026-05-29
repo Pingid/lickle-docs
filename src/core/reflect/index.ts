@@ -1,5 +1,6 @@
 export * as resolver from './resolver.ts'
 export * as scanner from './scanner.ts'
+export * as v2 from './v2/index.ts'
 export * as index from './indexed.ts'
 export * as debug from './debug.ts'
 export * as T from './types.ts'

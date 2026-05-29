@@ -53,54 +53,6 @@ const sortByGroupThenName = (items: NavItem[]): NavItem[] => {
   return items
 }
 
-/**
- * Public surface from the entrypoint module(s) — direct routables plus any
- * namespace re-exports, both treated as first-class nav items. The home
- * page uses this list as its "Exports" overview.
- */
-export const surface = (project: docs.Project): NavItem[] => {
-  const out: NavItem[] = []
-  const seen = new Set<number>()
-  for (const entry of project.surface) {
-    for (const item of entry.items) {
-      if (seen.has(item.id)) continue
-      const decl = project.declarationsById.get(item.id)
-      if (!decl) continue
-      const nav = leafItem(project, decl, item.kind as Kind, item.name)
-      if (!nav) continue
-      seen.add(item.id)
-      out.push(nav)
-    }
-  }
-  return sortByGroupThenName(out)
-}
-
-/**
- * Default kind-bucketed sidebar: every routable item from every entrypoint
- * flattened into one group per `pluralLabel(item.kind)`.
- */
-export const byKind: NavStrategy = (project) => {
-  const buckets = new Map<string, NavItem[]>()
-  const seen = new Set<number>()
-  for (const entry of project.surface) {
-    for (const item of entry.items) {
-      if (seen.has(item.id)) continue
-      const decl = project.declarationsById.get(item.id)
-      if (!decl) continue
-      const nav = leafItem(project, decl, item.kind as Kind, item.name)
-      if (!nav) continue
-      seen.add(item.id)
-      const title = pluralLabel(nav.kind ?? '')
-      const arr = buckets.get(title) ?? []
-      arr.push(nav)
-      buckets.set(title, arr)
-    }
-  }
-  return [...buckets.entries()]
-    .map(([title, items]) => ({ title, items: items.sort((a, b) => a.name.localeCompare(b.name)) }))
-    .sort((a, b) => groupOrder(a.title) - groupOrder(b.title) || a.title.localeCompare(b.title))
-}
-
 const normPath = (p: string): string => p.replace(/^\.\//, '')
 
 /**
@@ -121,6 +73,7 @@ export const pageGroups = (project: docs.Project): NavGroup[] =>
  * de-duplicated; the first occurrence wins.
  */
 export const byExports: NavStrategy = (project) => {
+  build(project)
   const out: NavGroup[] = []
   const seenPaths = new Set<string>()
   const moduleByPath = new Map<string, docs.Module>()
@@ -147,6 +100,28 @@ export const byExports: NavStrategy = (project) => {
     })
   }
   return out
+}
+
+const build = (project: docs.Project) => {
+  const top: NavItem[] = []
+  for (const exp of project.exports) {
+    const m = project.moduleByPath(normPath(exp.path))
+    if (m) {
+      top.push({
+        id: m.id,
+        name: docs.displayNameOf(m),
+        kind: 'module',
+        slug: m.path,
+        // items: buildChildren(m, project, exportIds),
+      })
+    }
+  }
+  // console.log(project.exports, project.modulesByPath)
+  console.log(top)
+  // for (const child of project.children) {
+  //   const c = project.declarationById(child)
+  //   console.log(c)
+  // }
 }
 
 /**
@@ -263,19 +238,19 @@ const addLeaf = (
   out.push({ id: decl.id, name: displayName ?? docs.displayNameOf(decl), kind, slug, comment: decl.comment })
 }
 
-const leafItem = (
-  project: docs.Project,
-  decl: docs.Declaration,
-  kind: Kind,
-  displayName?: string,
-): NavItem | undefined => {
-  const slug = project.slugById.get(decl.id)
-  if (!slug) return undefined
-  return {
-    id: decl.id,
-    name: displayName ?? docs.displayNameOf(decl),
-    kind,
-    slug,
-    comment: decl.comment,
-  }
-}
+// const leafItem = (
+//   project: docs.Project,
+//   decl: docs.Declaration,
+//   kind: Kind,
+//   displayName?: string,
+// ): NavItem | undefined => {
+//   const slug = project.slugById.get(decl.id)
+//   if (!slug) return undefined
+//   return {
+//     id: decl.id,
+//     name: displayName ?? docs.displayNameOf(decl),
+//     kind,
+//     slug,
+//     comment: decl.comment,
+//   }
+// }

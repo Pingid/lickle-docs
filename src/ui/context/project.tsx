@@ -3,7 +3,7 @@ import type { JSX } from 'solid-js/jsx-runtime'
 
 import * as docs from '../../core/client.ts'
 
-import { auto, routables, surface, type NavGroup, type NavItem, type NavStrategy } from '../strategies/index.ts'
+import { auto, routables, type NavGroup, type NavStrategy } from '../strategies/index.ts'
 import { ComponentsProvider, type Components } from './components.tsx'
 
 export type ProjectBag = {
@@ -11,7 +11,7 @@ export type ProjectBag = {
   navGroups: NavGroup[]
   routables: docs.Declaration[]
   /** Public surface from the entrypoint(s): direct routables + namespace re-exports. */
-  surface: NavItem[]
+  // surface: NavItem[]
 }
 
 const ProjectCtx = createContext<Accessor<ProjectBag>>()
@@ -31,7 +31,7 @@ export const ProjectProvider = (props: {
       project,
       navGroups: strategy(project),
       routables: routables(project),
-      surface: surface(project),
+      // surface: surface(project),
     }
   })
   return (
