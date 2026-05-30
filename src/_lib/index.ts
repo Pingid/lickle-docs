@@ -1,5 +1,7 @@
+export * as tsconfig from './tsconfig/index.ts'
 export * as info from './repo/index.ts'
 export * as repo from './repo/index.ts'
-export * as slug from './slug/index.ts'
+export * as path from './path/index.ts'
 export * as pkg from './pkg/index.ts'
+export type * as t from './t.ts'
 export * as fs from './fs.ts'

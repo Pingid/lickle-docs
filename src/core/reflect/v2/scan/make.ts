@@ -1,6 +1,6 @@
 import ts from 'typescript'
 
-import type * as context from '../graph.ts'
+import type * as context from '../graph/index.ts'
 import type * as T from '../types.ts'
 
 // ---------------- Transform Helpers ----------------
@@ -13,6 +13,7 @@ export const typeOf = (b: context.Builder, node: ts.TypeNode): T.Type => {
   if (ts.isIntersectionTypeNode(node)) return intersection(b, node)
   if (ts.isTypeOperatorNode(node)) return typeOperator(b, node)
   if (ts.isFunctionTypeNode(node) || ts.isConstructorTypeNode(node)) return functionType(b, node)
+  if (ts.isTypeLiteralNode(node)) return reflection(b, node)
   const name = INTRINSICS[node.kind]
   if (name) return intrinsic(b, node, name)
   return reference(b, node)
@@ -52,6 +53,9 @@ const reference = (
   const args = (node as { typeArguments?: ts.NodeArray<ts.TypeNode> }).typeArguments
   return kind(b, node, 'reference', { ...(args?.length ? { typeArguments: args.map((a) => typeOf(b, a)) } : {}) })
 }
+
+const reflection = (b: context.Builder, node: ts.TypeLiteralNode): T.Type<'reflection'> =>
+  kind(b, node, 'reflection', objectMembers(b, node.members))
 
 // ---------------- Type Components ----------------
 const signature = (b: context.Builder, node: ts.SignatureDeclarationBase): T.Part<'signature'> =>
@@ -136,7 +140,10 @@ export const variableBody = (b: context.Builder, n: ts.VariableDeclaration): T.D
   ...(n.initializer ? { defaultValue: n.initializer.getText() } : {}),
 })
 
-export const functionBody = (b: context.Builder, n: ts.SignatureDeclarationBase): T.DeclerationDefinitions['function'] => ({
+export const functionBody = (
+  b: context.Builder,
+  n: ts.SignatureDeclarationBase,
+): T.DeclerationDefinitions['function'] => ({
   signatures: [signature(b, n)],
 })
 
@@ -161,13 +168,23 @@ export const classBody = (b: context.Builder, n: ts.ClassDeclaration): T.Declera
   }
 }
 
-export const interfaceBody = (b: context.Builder, n: ts.InterfaceDeclaration): T.DeclerationDefinitions['interface'] => {
+export const interfaceBody = (
+  b: context.Builder,
+  n: ts.InterfaceDeclaration,
+): T.DeclerationDefinitions['interface'] => ({
+  ...generics(b, n),
+  ...interfaceExtends(b, n),
+  ...objectMembers(b, n.members),
+})
+
+/** Partition the members shared by interfaces, type literals, and object types. */
+const objectMembers = (b: context.Builder, members: ts.NodeArray<ts.TypeElement>) => {
   const properties: T.Part<'property'>[] = []
   const methods: T.Part<'method'>[] = []
   const callSignatures: T.Part<'signature'>[] = []
   const constructSignatures: T.Part<'signature'>[] = []
   let index: T.Part<'index-signature'> | undefined
-  for (const m of n.members) {
+  for (const m of members) {
     if (ts.isPropertySignature(m) && ts.isIdentifier(m.name)) properties.push(property(b, m))
     else if (ts.isMethodSignature(m) && ts.isIdentifier(m.name)) methods.push(method(b, m))
     else if (ts.isCallSignatureDeclaration(m)) callSignatures.push(signature(b, m))
@@ -175,8 +192,6 @@ export const interfaceBody = (b: context.Builder, n: ts.InterfaceDeclaration): T
     else if (ts.isIndexSignatureDeclaration(m)) index = indexSignature(b, m)
   }
   return {
-    ...generics(b, n),
-    ...interfaceExtends(b, n),
     properties,
     methods,
     ...(callSignatures.length ? { callSignatures } : {}),
@@ -287,14 +302,14 @@ const sourceOf = (b: context.Builder, node: ts.Node): T.Source => {
 }
 
 // ---------------- Naming ----------------
-export const moduleName = (b: context.Builder, sf: ts.SourceFile): string => {
-  const pth = b.path(sf)
-  const n = pth.split('/')
-  if (!n.length) return ''
-  if (n[n.length - 1]!.startsWith('index')) n.pop()
-  else n[n.length - 1] = n[n.length - 1]!.replace(/\.[^/.]+$/, '')
-  return n.join('.')
-}
+// export const moduleName = (b: context.Builder, sf: ts.SourceFile): string => {
+//   const pth = b.path(sf)
+//   const n = pth.split('/')
+//   if (!n.length) return ''
+//   if (n[n.length - 1]!.startsWith('index')) n.pop()
+//   else n[n.length - 1] = n[n.length - 1]!.replace(/\.[^/.]+$/, '')
+//   return n.join('.')
+// }
 
 // ---------------- Comments ----------------
 const commentForNode = (b: context.Builder, node: ts.Node): T.Comment | undefined => {

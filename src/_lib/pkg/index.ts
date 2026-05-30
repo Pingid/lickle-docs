@@ -1,16 +1,18 @@
 import { exports as resolveExports, type Package } from 'resolve.exports'
-import { getTsconfig } from 'get-tsconfig'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+
+import * as tsconfig from '../tsconfig/index.ts'
+import { memo1 } from '../util/index.ts'
 
 export interface PackageJson extends Package {
   repository?: { type: string; url: string; directory?: string } | string
 }
 
-export const read = async (projectDir: string) => {
+export const read = memo1(async (projectDir: string) => {
   const pkg = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'))
   return pkg as PackageJson
-}
+})
 
 export type ExportedSource = { path: string; as: string }
 
@@ -27,11 +29,11 @@ interface Options {
  * file back to its source via `.d.ts.map`/`.js.map` source maps when available,
  * and otherwise via the tsconfig `outDir`/`rootDir` swap.
  */
-export async function resolveExportedSources(
+export const resolveExportedSources = async (
   projectDir: string,
   pkg: PackageJson,
   options: Options = {},
-): Promise<ExportedSource[]> {
+): Promise<ExportedSource[]> => {
   // --- 1. enumerate (subpath -> dist file) -------------------------------
   const entries: { as: string; dist: string }[] = []
 
@@ -52,11 +54,7 @@ export async function resolveExportedSources(
   }
 
   // --- 2. tsconfig fallback paths ----------------------------------------
-  const tsconfigResult = getTsconfig(projectDir) // resolves `extends`, JSONC, etc.
-  const opts = tsconfigResult?.config.compilerOptions ?? {}
-  const tsconfigDir = tsconfigResult ? path.dirname(tsconfigResult.path) : projectDir
-  const outDir = path.resolve(tsconfigDir, opts.outDir ?? 'dist')
-  const rootDir = path.resolve(tsconfigDir, opts.rootDir ?? 'src')
+  const { outDir, rootDir } = tsconfig.resolve(projectDir)
 
   // --- 3. dist -> source --------------------------------------------------
   const results: ExportedSource[] = []
@@ -81,7 +79,7 @@ export async function resolveExportedSources(
 // --- exports enumeration --------------------------------------------------
 
 /** List the subpath keys of an `exports` field (".", "./foo", ...). */
-function listExportSubpaths(exportsField: unknown): string[] {
+const listExportSubpaths = (exportsField: unknown): string[] => {
   if (typeof exportsField === 'string') return ['.']
   if (exportsField == null || typeof exportsField !== 'object') return []
 
@@ -94,7 +92,7 @@ function listExportSubpaths(exportsField: unknown): string[] {
 
 // --- dist -> source: source maps -----------------------------------------
 
-async function resolveViaSourceMap(distAbs: string, projectDir: string): Promise<string | null> {
+const resolveViaSourceMap = async (distAbs: string, projectDir: string): Promise<string | null> => {
   // Prefer the declaration map, then the js map.
   const mapCandidates = [
     distAbs.replace(/\.d\.ts$/, '.d.ts.map'),
@@ -129,12 +127,12 @@ async function resolveViaSourceMap(distAbs: string, projectDir: string): Promise
 
 // --- dist -> source: tsconfig outDir/rootDir swap ------------------------
 
-async function resolveViaTsconfig(
+const resolveViaTsconfig = async (
   distAbs: string,
   projectDir: string,
   outDir: string,
   rootDir: string,
-): Promise<string | null> {
+): Promise<string | null> => {
   const rel = path.relative(outDir, distAbs)
   if (rel.startsWith('..')) return null
 

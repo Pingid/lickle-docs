@@ -15,8 +15,8 @@ importers:
         specifier: 'link:'
         version: 'link:'
       '@lickle/is':
-        specifier: 0.1.0-dev.3
-        version: 0.1.0-dev.3
+        specifier: 0.1.0-dev.6
+        version: 0.1.0-dev.6
       '@orama/orama':
         specifier: ^3.1.18
         version: 3.1.18
@@ -205,8 +205,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@lickle/is@0.1.0-dev.3':
-    resolution: {integrity: sha512-xem83PMZrwOXOpTK0xtX/ijBazmcA9dYdAu9yBrSdRKLg6Mia529cdytar5NGYM9mfvnT/jNyeWYawGMlPKDGg==}
+  '@lickle/is@0.1.0-dev.6':
+    resolution: {integrity: sha512-8Uji0BVYMZbBFOa3DorLS7PfkqVHVxCgoZOJspZtrD/wipgR9jvdafkpOLCBCwyRrOsy1wbwuFEAIzoY/hmhxA==}
 
   '@napi-rs/wasm-runtime@1.1.4':
     resolution: {integrity: sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow==}
@@ -1332,7 +1332,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lickle/is@0.1.0-dev.3': {}
+  '@lickle/is@0.1.0-dev.6': {}
 
   '@napi-rs/wasm-runtime@1.1.4(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:

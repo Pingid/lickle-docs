@@ -1,12 +1,12 @@
 import ts from 'typescript'
 
-import * as make from './make/index.ts'
-import type * as T from './types.ts'
-import * as graph from './graph.ts'
+import * as graph from '../graph/index.ts'
+import type * as T from '../types.ts'
+import * as make from './make.ts'
 
 type Context = graph.Builder
 
-export const execute = (state: graph.State) => {
+export const execute = (state: graph.BuilderState) => {
   const b = graph.createBuilder(state, module_, statement)
   state.entries.forEach((sf) => b.scan(sf, true))
 }
@@ -25,7 +25,6 @@ const statement = (ctx: Context, node: ts.Node) => {
 }
 
 // ---------------- Declaration Construction ----------------
-
 const wrap =
   <const A extends any[], N extends ts.Node = ts.Node>(cb: (ctx: Context, node: N, ...args: A) => T.Declaration) =>
   (ctx: Context, node: N, ...args: A) =>
@@ -34,7 +33,7 @@ const wrap =
 const module_ = (ctx: Context, sf: ts.SourceFile, exported: boolean = false) => {
   const d = make.decl(ctx, sf, 'module', { path: ctx.path(sf) })
   d.exported = exported
-  d.name = make.moduleName(ctx, sf)
+  // d.name = make.moduleName(ctx, sf)
   return d
 }
 
@@ -50,7 +49,16 @@ const class_ = wrap((c, n: ts.ClassDeclaration) => make.decl(c, n, 'class', make
 const interface_ = wrap((c, n: ts.InterfaceDeclaration) => make.decl(c, n, 'interface', make.interfaceBody(c, n)))
 const alias_ = wrap((c, n: ts.TypeAliasDeclaration) => make.decl(c, n, 'type-alias', make.aliasBody(c, n)))
 const enum_ = wrap((c, n: ts.EnumDeclaration) => make.decl(c, n, 'enum', make.enumBody(c, n)))
-const namespace_ = wrap((c, n: ts.ModuleDeclaration) => make.decl(c, n, 'namespace', {}))
+const namespace_ = (ctx: Context, n: ts.ModuleDeclaration): number | undefined => {
+  ctx.add(n, () => make.decl(ctx, n, 'namespace', {}))
+  const id = ctx.idOf(n)
+  const body = n.body
+  if (id === undefined || !body) return id
+  // `namespace A { … }` → scan the block; `namespace A.B { … }` → recurse on `B`.
+  if (ts.isModuleBlock(body)) ctx.within(id, () => body.statements.forEach((s) => statement(ctx, s)))
+  else if (ts.isModuleDeclaration(body)) ctx.within(id, () => namespace_(ctx, body))
+  return id
+}
 const export_ = wrap((ctx, node, name: string, ref: number, star: boolean = false) =>
   make.decl(ctx, node, 'export', { name, ref, exported: true, star }),
 )
@@ -81,7 +89,15 @@ exports_.named = (ctx: Context, clause: ts.NamedExports) => {
   for (const c of clause.elements) {
     const symbol = ctx.checker.getSymbolAtLocation(c.name)
     if (!symbol) continue
-    exportSymbols(ctx, symbol, (id) => export_(ctx, c.name, c.name.text, id))
+    const sourceSymbol = make.findSourceSymbol(ctx, symbol)
+    const decl = sourceSymbol?.declarations
+    if (!decl) return undefined
+    for (const d of decl) {
+      if (ts.isSourceFile(d)) ctx.scan(d)
+      else statement(ctx, d)
+      const id = ctx.idOf(d)
+      if (id !== undefined) export_(ctx, c.name, c.name.text, id)
+    }
   }
 }
 
@@ -95,22 +111,3 @@ exports_.star = (ctx: Context, node: ts.Expression) => {
   const id = ctx.idOf(sourceFile)
   if (id !== undefined) export_(ctx, node, '', id, true)
 }
-
-const exportSymbols = (ctx: Context, symbol: ts.Symbol, exports: (id: number) => void) => {
-  const sourceSymbol = make.findSourceSymbol(ctx, symbol)
-  const decl = sourceSymbol?.declarations
-  if (!decl) return undefined
-  for (const d of decl) {
-    if (ts.isSourceFile(d)) ctx.scan(d)
-    else statement(ctx, d)
-    const id = ctx.idOf(d)
-    if (id !== undefined) exports(id)
-  }
-}
-
-// const debugName = (node: ts.Node): string => {
-//   const kindName = ts.SyntaxKind[node.kind]
-//   if ('name' in node && node.name && ts.isIdentifier(node.name as ts.Node))
-//     return `${kindName} (${(node.name as ts.Identifier).text})`
-//   return `${kindName} (anonymous)`
-// }

@@ -1,5 +1,7 @@
-export type Source = { file: string; line: number; column: number }
+import type { t } from '../../../_lib/index.ts'
+
 export type Base = { id: number; name: string; parent: number; sources: Source[]; comment?: Comment }
+export type Source = { file: string; line: number; column: number }
 export type DeclarationBase = Base & { exported: boolean }
 
 export interface DeclerationDefinitions {
@@ -40,6 +42,14 @@ export interface TypeDefinitions {
   tuple: { elements: Part<'tuple-element'>[] }
   'function-type': { signatures: Part<'signature'>[] }
   'type-operator': { operator: 'keyof' | 'readonly' | 'unique'; target: Type }
+  /** Inline object type, e.g. `{ x: number; f(): void }`. */
+  reflection: {
+    properties: Part<'property'>[]
+    methods: Part<'method'>[]
+    callSignatures?: Part<'signature'>[]
+    constructSignatures?: Part<'signature'>[]
+    indexSignature?: Part<'index-signature'>
+  }
 }
 
 export interface TypeComponentDefinitions {
@@ -73,15 +83,19 @@ export type Part<K extends keyof PartMap = keyof PartMap> = PartMap[K]
 export type Any<K extends keyof KindsMap = keyof KindsMap> = KindsMap[K]
 
 // ---------------- Remapped with kind and base ----------------
-export type DeclarationMap = WithKind<DeclerationDefinitions, DeclarationBase>
-export type TypeMap = WithKind<TypeDefinitions, Base>
-export type PartMap = WithKind<TypeComponentDefinitions, Base>
+export type DeclarationMap = t.MapKind<DeclerationDefinitions, 'kind', DeclarationBase>
+export type TypeMap = t.MapKind<TypeDefinitions, 'kind', Base>
+export type PartMap = t.MapKind<TypeComponentDefinitions, 'kind', Base>
 export type KindsMap = DeclarationMap & TypeMap & PartMap
 
 // ---------------- COMMENTS ----------------
-export type CommentPart =
-  | { kind: 'text'; text: string }
-  | { kind: 'link'; target: string; text?: string; style?: 'code' | 'plain' }
+export type CommentPart = t.MapKindUnion<
+  {
+    text: { text: string }
+    link: { target: string; text?: string; style?: 'code' | 'plain' }
+  },
+  'kind'
+>
 
 interface CommentTagDefinitions {
   '@param': { name: string; type?: Type; optional?: boolean; default?: string; text: string }
@@ -103,13 +117,9 @@ export interface Comment {
   tags?: CommentTag[]
 }
 
-export type CommentTagMap = { [K in keyof CommentTagDefinitions]: Compute<CommentTagDefinitions[K] & { tag: K }> }
+export type CommentTagMap = t.MapKind<CommentTagDefinitions, 'tag'>
 export type CommentTag<K extends keyof CommentTagMap = keyof CommentTagMap> =
   | CommentTagMap[K]
   | { tag: string; name?: string; text: string }
 
 // ---------------- Utilities ----------------
-type WithKind<T extends Record<string, any>, E extends Record<string, any>> = {
-  [K in keyof T]: Compute<T[K] & E & { kind: K }>
-}
-type Compute<T> = { [K in keyof T]: T[K] } & {}

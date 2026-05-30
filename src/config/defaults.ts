@@ -1,8 +1,6 @@
-import { is } from '@lickle/is'
 import path from 'node:path'
 
-import type { ProjectJson } from '../core/client.ts'
-import type { UserConfig } from './types.ts'
+import type { ConfigJson } from './types.ts'
 
 import * as lib from '../_lib/index.ts'
 
@@ -13,34 +11,24 @@ import * as lib from '../_lib/index.ts'
  * (`README.md`) and the working directory. `declarations` / `children` stay
  * empty here — the reflection pass fills them once scanning is wired up.
  */
-export const apply = async (dir: string, c?: UserConfig): Promise<ProjectJson> => {
+export const apply = async (dir: string, c?: Partial<ConfigJson>): Promise<ConfigJson> => {
   const pkg = await lib.pkg.read(process.cwd())
   const info = await lib.repo.info(dir)
   const readme = await lib.fs.existingPath(path.join(dir, 'README.md'))
   const defualtLinks = info ? [{ label: 'Repository', href: info.url }] : []
-  const exports = c?.entrypoints ?? (await lib.pkg.resolveExportedSources(dir, pkg))
+  const entrypoints = c?.entrypoints ?? (await lib.pkg.resolveExportedSources(dir, pkg))
+  const tsconfig = lib.tsconfig.resolve(dir)
 
-  const pages = await Promise.all(
-    (c?.pages ?? (readme ? [{ label: 'README', content: readme }] : [])).map(async (x) => {
-      const contents = is.string(x.content) ? [x.content] : x.content
-      const content = await Promise.all(contents.map(async (c) => lib.fs.readFile(path.resolve(dir, c), 'utf-8')))
-      return { label: x.label, content, slug: lib.slug.make(x.slug ?? x.label) }
-    }),
-  )
+  const name = c?.name ?? pkg?.name
+  if (!name) throw new Error('No project name found')
 
   return {
-    name: c?.name ?? pkg?.name ?? err('No project name found'),
+    name,
     version: c?.version ?? pkg?.version ?? info?.tag,
-    pages,
-    exports: exports,
-    entrypoints: exports.map((e) => e.path),
+    readme,
+    entrypoints,
     links: c?.links ?? defualtLinks,
-    repo: info ? { url: info.url, rev: info.commit, fileUrl: info.fileUrl } : undefined,
-    declarations: [],
-    children: [],
+    repository: info ? { url: info.url, rev: info.commit, fileUrl: info.fileUrl } : undefined,
+    srcDir: c?.srcDir ?? tsconfig.rootDir,
   }
-}
-
-const err = (msg: string): never => {
-  throw new Error(msg)
 }

@@ -1,12 +1,11 @@
 import ts from 'typescript'
 import path from 'path'
 
-import type * as T from './types.ts'
+import { createGraph, type Graph } from './graph.ts'
+import type * as T from '../types.ts'
 
-export interface Options {
+export interface BuilderOptions {
   rootDir: string
-  /** The source directory of the project. Modules are named based on files relative to this. */
-  srcDir: string
   /** The compiler options for the project. */
   compilerOptions: ts.CompilerOptions
   /** Whether to include a file in the scan. */
@@ -15,7 +14,7 @@ export interface Options {
   internal: boolean
 }
 
-export interface State extends Options {
+export interface BuilderState extends BuilderOptions {
   entries: ts.SourceFile[]
   checker: ts.TypeChecker
   root: number
@@ -25,13 +24,15 @@ export interface State extends Options {
   byId: Map<number, T.Declaration>
   byParent: Map<number, Set<number>>
   byNode: Map<ts.Node, { id?: number }>
+
+  graph(): Graph
 }
 
-export const make = (files: string[], options: Options, root = -1): State => {
+export const make = (files: string[], options: BuilderOptions, root = -1): BuilderState => {
   const program = ts.createProgram(files, options.compilerOptions)
   const checker = program.getTypeChecker()
 
-  const state: State = {
+  const state: BuilderState = {
     ...options,
     entries: files.map((f) => program.getSourceFile(f)).filter((x) => x !== undefined),
     checker,
@@ -42,6 +43,7 @@ export const make = (files: string[], options: Options, root = -1): State => {
     byParent: new Map(),
     byId: new Map(),
     byNode: new Map(),
+    graph: () => createGraph({ root, byId: state.byId, byParent: state.byParent }),
   }
 
   return state
@@ -54,26 +56,41 @@ export interface Builder {
 
   idOf: (node: ts.Node) => number | undefined
 
-  add: <const T extends T.Declaration | undefined>(
-    node: ts.Node,
-    decl: () => T,
-  ) => T extends undefined ? undefined : number
+  add: (node: ts.Node, decl: () => T.Declaration | undefined) => void
 
   scan: (sf: ts.SourceFile, exported?: boolean) => void
+
+  /** Run `fn` with `parent` as the owner of any declarations it registers. */
+  within: (parent: number, fn: () => void) => void
 }
 
 export const createBuilder = (
-  state: State,
-  registerModule: (b: Builder, sf: ts.SourceFile, exported: boolean) => T.Declaration,
-  registerStatement: (b: Builder, stmt: ts.Statement) => void,
+  state: BuilderState,
+  module: (b: Builder, sf: ts.SourceFile, exported: boolean) => T.Declaration,
+  statement: (b: Builder, stmt: ts.Statement) => void,
 ): Builder => {
   const id = () => ++state.id
 
+  // Owner for declarations registered in the current scope. `undefined` means
+  // "the enclosing module" — set by `within` while scanning a namespace body.
+  let scope: number | undefined
+
   const getParent = (node: ts.Node) => {
     if (ts.isSourceFile(node)) return state.root
+    if (scope !== undefined) return scope
     const s = node.getSourceFile()
     if (state.byNode.has(s)) return state.byNode.get(s)?.id!
-    return register(s, registerModule(c, s, false))
+    return register(s, module(c, s, false))
+  }
+
+  const within = (parent: number, fn: () => void) => {
+    const prev = scope
+    scope = parent
+    try {
+      fn()
+    } finally {
+      scope = prev
+    }
   }
 
   const register = (node: ts.Node, n: T.Declaration) => {
@@ -95,7 +112,6 @@ export const createBuilder = (
 
   const add = (node: ts.Node, decl: () => T.Declaration | undefined) => {
     if (!state.include(ts.isSourceFile(node) ? node : node.getSourceFile())) return
-
     if (state.byNode.has(node)) return state.byNode.get(node)?.id!
     const d = decl()
     if (!d) return missing(node)
@@ -106,8 +122,11 @@ export const createBuilder = (
   const scan = (sf: ts.SourceFile, exported: boolean = false) => {
     if (state.scanned.has(sf)) return
     state.scanned.add(sf)
-    if (exported) add(sf, () => registerModule(c, sf, true))
-    sf.statements.forEach((stmt) => registerStatement(c, stmt))
+    const prev = scope
+    scope = undefined
+    if (exported) add(sf, () => module(c, sf, true))
+    sf.statements.forEach((stmt) => statement(c, stmt))
+    scope = prev
   }
 
   const c: Builder = {
@@ -116,6 +135,7 @@ export const createBuilder = (
     idOf: (node: ts.Node) => state.byNode.get(node)?.id,
     add: (node, decl) => add(node, decl) as any,
     scan: (sf, exported) => scan(sf, exported),
+    within,
   }
 
   return c

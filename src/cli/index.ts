@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { client, watch, promise } from '../cli/util/index.ts'
 import * as project from '../core/project/index.ts'
+import type * as config from '../config/index.ts'
 import * as lib from '../_lib/index.ts'
 
 export const app = () =>
@@ -27,11 +28,16 @@ const cmdJson = cmd.command({
       type: cmd.string,
       description: 'Glob pattern of files to include in the project',
     }),
+    print: cmd.flag({
+      long: 'print',
+      short: 'p',
+      description: 'Print the routes to the console',
+    }),
   },
   handler: async (args) => {
-    const opts: project.json.ScanOptions = { dir: process.cwd(), exclude: args.exclude }
     await lib.fs.ensureDir('docs')
-    await generate('docs/docs.json', opts)
+    const p = await generate('docs/docs.json', process.cwd(), { exclude: args.exclude })
+    if (args.print) project.routing.displayRoutes(p.routes)
   },
 })
 
@@ -98,7 +104,7 @@ const build = async (args: { docsDir?: string }) => {
   const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
   if (!(await stat(dir))) await fs.mkdir(dir, { recursive: true })
   const docsPath = path.join(dir, 'docs.json')
-  const p = await generate(docsPath, { dir: process.cwd() })
+  const p = await generate(docsPath, process.cwd())
   await client.build({ docsDir: dir, outDir: path.join(dir, 'dist'), name: p.name })
 }
 
@@ -111,8 +117,8 @@ const dev = async (args: { docsDir?: string; port?: number }) => {
   const docsPath = path.join(dir, 'docs.json')
   const rebuild = promise.serial(async () => {
     console.log(`Rebuilding project...`)
-    const p = await generate(docsPath, { dir: process.cwd() })
-    dirs = Array.from(new Set(p.exports.map((s) => path.resolve(path.dirname(s.path)))))
+    const p = await generate(docsPath, process.cwd())
+    dirs = Array.from(new Set(p.entrypoints.map((s) => path.resolve(path.dirname(s.path)))))
     name = p.name
     console.log(`Project rebuilt: ${p.name}`)
   })
@@ -133,12 +139,12 @@ const dev = async (args: { docsDir?: string; port?: number }) => {
 const init = async (args: { docsDir?: string }) => {
   const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
   await fs.mkdir(dir, { recursive: true })
-  await generate(path.join(dir, 'docs.json'), { dir: process.cwd() })
+  await generate(path.join(dir, 'docs.json'), process.cwd())
   await writeInitFiles(dir)
 }
 
-const generate = async (out: string, opts: project.json.ScanOptions) => {
-  const p = await project.json.generate(opts)
+const generate = async (out: string, dir: string, opts?: Partial<config.ConfigJson>) => {
+  const p = await project.json.generate(dir, opts)
   await fs.writeFile(out, JSON.stringify(p))
   return p
 }

@@ -9,3 +9,4 @@ lib-cli
 tsconfig.base.json
 lickle.*
 docs
+temp

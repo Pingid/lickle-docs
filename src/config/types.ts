@@ -1,39 +1,44 @@
-export interface UserConfig {
+/** Configuration used for generating the project json */
+export interface ConfigJson {
   /** The name of the project. default is the package name from package.json */
   name: string
   /** The version of the project. default is the package version from package.json */
   version?: string
-  /** The readme of the project. default is the README.md file in the project root */
+  /** README file path, default is README.md in the project root shown as home page */
   readme?: string
-  /** structure of pages and navigation, defaults to package.json exports */
-  pages?: Page[]
-  /** structure of pages and navigation, defaults to package.json exports */
-  entrypoints?: Entry[]
   /** Links for the project. defaults to package.json repository url */
-  links?: { label: string; href: string }[]
+  links?: Link[]
   /** tsconfig.json file path, default is tsconfig.json in the project root */
   tsconfig?: string
-  /** package.json file path, default is package.json in the project root */
-  packageJson?: string
-  /**
-   * Pattern with {PATH} {LINE} {COLUMN} to link to the source code
-   * @example https://github.com/me/project/blob/123.../{PATH}#L{LINE}
-   * */
-  sourceLink?: string
+  /** Repository information */
+  repository?: Repo
+  /** Source directory, default to tsconfig.json `rootDir` or src */
+  srcDir?: string
+  /** Entrypoints — relative source paths reachable from `main` / `exports`. */
+  entrypoints?: Entry[]
+  /** Files to exclude from the project (micromatch glob patterns) */
+  exclude?: string[]
 }
 
-export type Page = {
-  /** Label used in the navigation */
-  label: string
-  /** File path or array of file paths, ['./README.md'] */
-  content: string | string[]
-  /** Slug of the page, used in the URL */
-  slug?: string
-}
-
-export type Entry = {
+export interface Entry {
   /** Label used in the navigation */
   as: string
   /** File path or array of file paths, ['./src/index.ts'] */
   path: string
+}
+
+export interface Link {
+  /** Label used in the navigation */
+  label: string
+  /** URL */
+  href: string
+}
+
+export interface Repo {
+  /** Repository URL */
+  url: string
+  /** Repository commit */
+  rev?: string
+  /** Repository file URL template with {PATH} {LINE} {COLUMN} to link to the source code */
+  fileUrl?: string
 }
