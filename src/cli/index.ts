@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { client, watch, promise } from '../cli/util/index.ts'
 import * as project from '../core/project/index.ts'
-import type * as config from '../config/index.ts'
+import * as config from '../config/load.ts'
 import * as lib from '../_lib/index.ts'
 
 export const app = () =>
@@ -144,7 +144,8 @@ const init = async (args: { docsDir?: string }) => {
 }
 
 const generate = async (out: string, dir: string, opts?: Partial<config.ConfigJson>) => {
-  const p = await project.json.generate(dir, opts)
+  const c = await config.loadGen(dir, opts)
+  const p = await project.json.generate(c)
   await fs.writeFile(out, JSON.stringify(p))
   return p
 }

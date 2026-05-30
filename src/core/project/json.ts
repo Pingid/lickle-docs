@@ -1,11 +1,10 @@
 import ts from 'typescript'
 import mm from 'micromatch'
 
-import { type t, fs } from '../../_lib/index.ts'
+import { type t } from '../../_lib/index.ts'
 
 import * as reflect from '../reflect/index.ts'
 import * as config from '../../config/load.ts'
-import * as v2 from '../reflect/v2/index.ts'
 import * as routing from './routing.ts'
 
 /** Description of the project persisted to json used to generate the site */
@@ -21,12 +20,12 @@ export interface ProjectJson {
   /** Entrypoints — relative source paths reachable from `main` / `exports`. */
   entrypoints: config.Entry[]
   /** Routes of the project. */
-  routes: RouteNode<PageType>[]
+  routes: RouteNode[]
   /** Flat list of every declaration in the project, source order. */
-  declarations: reflect.v2.Declaration[]
+  declarations: reflect.Declaration[]
 }
 
-export type RouteNode<P> = {
+export type BaseRoute<P> = {
   /** Label used in the navigation */
   label: string
   /** Slug of the page, used in the URL */
@@ -34,33 +33,37 @@ export type RouteNode<P> = {
   /** Page type to display */
   page: P
   /** sub pages */
-  children: RouteNode<P>[]
+  children: BaseRoute<P>[]
 }
 
-export type PageType = t.MapKindUnion<{
+type PageTypeMap = t.MapKind<{
   markdown: { content: string }
-  module: { id: number; alias?: string }
-  declaration: { id: number; alias?: string }
+  module: { id: number; alias?: string; qualified: string }
+  declaration: { id: number; alias?: string; qualified: string }
 }>
+export type PageType<K extends keyof PageTypeMap = keyof PageTypeMap> = PageTypeMap[K]
+export type RouteNode<K extends keyof PageTypeMap = keyof PageTypeMap> = BaseRoute<PageType<K>>
 
-export const generate = async (dir: string, opts?: Partial<config.ConfigJson>): Promise<ProjectJson> => {
-  const c = await config.load(dir, opts)
-  const entrypoints = (c.config.entrypoints ?? []).map((e) => e.path)
+export type GenerateOptions = {
+  dir: string
+  exclude: string[]
+  config: Omit<ProjectJson, 'declarations'>
+  compilerOptions: ts.CompilerOptions
+}
 
-  const graph = v2.generate(entrypoints, {
-    compilerOptions: c.compilerOptions,
-    rootDir: dir,
-    include: (sf) => keepFile(sf, c.config.exclude),
+export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
+  const entrypoints = opts.config.entrypoints.map((e) => e.path)
+
+  const graph = reflect.generate(entrypoints, {
+    compilerOptions: opts.compilerOptions,
+    rootDir: opts.dir,
+    include: (sf) => keepFile(sf, opts.exclude),
     internal: false,
   })
 
-  const page: PageType | undefined = c.config.readme
-    ? { kind: 'markdown', content: await fs.readFile(c.config.readme, 'utf-8') }
-    : undefined
-  const provided = page ? [{ label: 'Overview', slug: '/', page, children: [] }] : []
+  const routes = routing.build(graph, { routes: opts.config.routes, entrypoints: opts.config.entrypoints })
 
-  const routes = routing.build(graph, { routes: provided, entrypoints: c.config.entrypoints })
-  return fromConfig(c.config, routes.routes, routes.declarations)
+  return { ...opts.config, routes: routes.routes, declarations: routes.declarations }
 }
 
 const keepFile = (sf: ts.SourceFile, exclude?: string[] | undefined): boolean => {
@@ -69,17 +72,3 @@ const keepFile = (sf: ts.SourceFile, exclude?: string[] | undefined): boolean =>
   if (exclude?.some((i) => mm.isMatch(sf.fileName, i))) return false
   return true
 }
-
-const fromConfig = (
-  c: config.ConfigJson,
-  routes: RouteNode<PageType>[],
-  declarations: reflect.v2.Declaration[],
-): ProjectJson => ({
-  name: c.name,
-  version: c.version,
-  repository: c.repository,
-  entrypoints: c.entrypoints ?? [],
-  links: c.links ?? [],
-  routes,
-  declarations,
-})

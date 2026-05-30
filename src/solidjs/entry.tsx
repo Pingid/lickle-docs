@@ -1,8 +1,7 @@
 import { render } from 'solid-js/web'
 
-import { App, type Components, ProjectProvider } from '../ui/index.ts'
-import type { NavStrategy } from '../ui/strategies/index.ts'
-import { type ProjectJson } from '../core/client.ts'
+import type { ProjectProviderProps } from '../ui/context/project.tsx'
+import { App, ProjectProvider } from '../ui/index.ts'
 
 export * from './index.ts'
 export * from '../ui/index.ts'
@@ -10,18 +9,12 @@ export * from '../ui/index.ts'
 // @ts-ignore
 import '@lickle/docs/theme.css'
 
-export type UIConfig = {
-  json: ProjectJson
-  /** Override the sidebar grouping. Defaults to `strategies.auto`. */
-  navGroups?: NavStrategy
-  /** Component overrides — pages, tags, slots, member sections. */
-  components?: Components
-}
+export type { ProjectProviderProps }
 
-export const create = (config: UIConfig) => {
+export const create = (config: ProjectProviderProps) => {
   return render(
     () => (
-      <ProjectProvider json={config.json} navGroups={config.navGroups} components={config.components}>
+      <ProjectProvider json={config.json} components={config.components}>
         <App />
       </ProjectProvider>
     ),

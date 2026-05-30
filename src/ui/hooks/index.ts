@@ -2,7 +2,7 @@ import { createMemo, type Accessor } from 'solid-js'
 import * as docs from '../../core/client.ts'
 
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
-import { useProject, type ProjectBag } from '../context/project.tsx'
+import { useProject, type Project } from '../context/project.tsx'
 import { commentSummaryText } from '../util/comment.ts'
 import type { NavGroup } from '../strategies/index.ts'
 import { isRoutable } from '../util/kind.ts'
@@ -23,7 +23,7 @@ const evalSelector = <T>(s: Selector<T>): T => (typeof s === 'function' ? (s as 
 export const useReflection = (
   selector: Selector<number | string | undefined>,
 ): Accessor<docs.Declaration | undefined> => {
-  const { project } = useProject()
+  const project = useProject()
   return createMemo(() => {
     const v = evalSelector(selector)
     if (v == null) return undefined
@@ -37,7 +37,7 @@ export const useReflection = (
  * code; `byName` powers `{@link Foo}` / `<code>Foo</code>` resolution.
  */
 export const useSlugFor = () => {
-  const { project } = useProject()
+  const project = useProject()
   return {
     byId: (id: number) => project.slugById.get(id),
     byName: (name: string) => project.slugByName.get(name),
@@ -64,7 +64,7 @@ export interface ReferenceRow {
 }
 
 export const useReferences = (id: () => number): Accessor<ReferenceRow[]> => {
-  const { project } = useProject()
+  const project = useProject()
   return createMemo(() => buildReferenceRows(project, id()))
 }
 
@@ -129,7 +129,7 @@ export const useSearch = (): (() => Promise<SearchEngine>) => {
   return () => buildSearch(bag)
 }
 
-const buildSearch = (bag: ProjectBag): Promise<SearchEngine> => {
+const buildSearch = (bag: Project): Promise<SearchEngine> => {
   const cached = searchCache.get(bag.project)
   if (cached) return cached
   const p = createSearchEngine(bag)

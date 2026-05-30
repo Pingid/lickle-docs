@@ -16,7 +16,19 @@ export const typeOf = (b: context.Builder, node: ts.TypeNode): T.Type => {
   if (ts.isTypeLiteralNode(node)) return reflection(b, node)
   const name = INTRINSICS[node.kind]
   if (name) return intrinsic(b, node, name)
-  return reference(b, node)
+
+  if (ts.isTypeReferenceNode(node)) return typeOfReference(b, node)
+
+  return unknown(b, node)
+}
+
+const typeOfReference = (b: context.Builder, node: ts.TypeReferenceNode): T.Type<'reference'> => {
+  const symbol = symbolAt(b, node.typeName)
+  const first = symbol?.first ? symbol.first : undefined
+  if (first) {
+    if (ts.isDeclarationStatement(first)) return b.reference(node, first, reference(b, node))
+  }
+  return b.reference(node, null, reference(b, node))
 }
 
 // ---------------- Type Nodes ----------------
@@ -46,27 +58,39 @@ const functionType = (
   node: ts.FunctionTypeNode | ts.ConstructorTypeNode,
 ): T.Type<'function-type'> => kind(b, node, 'function-type', { signatures: [signature(b, node)] })
 
-const reference = (
+export const reference = (
   b: context.Builder,
   node: ts.TypeReferenceNode | ts.ExpressionWithTypeArguments | ts.TypeNode,
 ): T.Type<'reference'> => {
-  const args = (node as { typeArguments?: ts.NodeArray<ts.TypeNode> }).typeArguments
-  return kind(b, node, 'reference', { ...(args?.length ? { typeArguments: args.map((a) => typeOf(b, a)) } : {}) })
+  const r = kind(b, node, 'reference', {})
+  if ('typeArguments' in node && node.typeArguments?.length) {
+    r.typeArguments = node.typeArguments.map((a) => typeOf(b, a))
+  }
+  return r
+}
+
+const referenceTarget = (node: ts.Node): ts.Node | undefined => {
+  if (ts.isImportDeclaration(node)) return node.moduleSpecifier
+  if (ts.isImportSpecifier(node)) return node.name
+  return node
 }
 
 const reflection = (b: context.Builder, node: ts.TypeLiteralNode): T.Type<'reflection'> =>
   kind(b, node, 'reflection', objectMembers(b, node.members))
 
+const unknown = (b: context.Builder, node: ts.Node): T.Type<'unknown'> =>
+  kind(b, node, 'unknown', { text: node.getText(), nodeType: nodeTypeName(node) })
+
 // ---------------- Type Components ----------------
 const signature = (b: context.Builder, node: ts.SignatureDeclarationBase): T.Part<'signature'> =>
-  part(b, node, 'signature', {
+  part('signature', {
     ...(node.typeParameters ? { generics: node.typeParameters.map((tp) => generic(b, tp)) } : {}),
     params: node.parameters.map((p) => parameter(b, p)),
     return: node.type ? typeOf(b, node.type) : intrinsic(b, node, 'unknown'),
   })
 
 const parameter = (b: context.Builder, node: ts.ParameterDeclaration): T.Part<'parameter'> =>
-  part(b, node, 'parameter', {
+  part('parameter', {
     type: node.type ? typeOf(b, node.type) : intrinsic(b, node, 'unknown'),
     optional: !!node.questionToken || !!node.initializer,
     ...(node.dotDotDotToken ? { rest: true } : {}),
@@ -74,43 +98,43 @@ const parameter = (b: context.Builder, node: ts.ParameterDeclaration): T.Part<'p
   })
 
 const generic = (b: context.Builder, node: ts.TypeParameterDeclaration): T.Part<'generic'> =>
-  part(b, node, 'generic', {
+  part('generic', {
     ...(node.constraint ? { constraint: typeOf(b, node.constraint) } : {}),
     ...(node.default ? { default: typeOf(b, node.default) } : {}),
   })
 
 const tupleElement = (b: context.Builder, el: ts.TypeNode): T.Part<'tuple-element'> => {
   if (ts.isNamedTupleMember(el))
-    return part(b, el, 'tuple-element', {
+    return part('tuple-element', {
       type: typeOf(b, el.type),
       ...(el.questionToken ? { optional: true } : {}),
       ...(el.dotDotDotToken ? { rest: true } : {}),
     })
-  if (ts.isOptionalTypeNode(el)) return part(b, el, 'tuple-element', { type: typeOf(b, el.type), optional: true })
-  if (ts.isRestTypeNode(el)) return part(b, el, 'tuple-element', { type: typeOf(b, el.type), rest: true })
-  return part(b, el, 'tuple-element', { type: typeOf(b, el) })
+  if (ts.isOptionalTypeNode(el)) return part('tuple-element', { type: typeOf(b, el.type), optional: true })
+  if (ts.isRestTypeNode(el)) return part('tuple-element', { type: typeOf(b, el.type), rest: true })
+  return part('tuple-element', { type: typeOf(b, el) })
 }
 
 // ---------------- Members ----------------
 const property = (b: context.Builder, node: ts.PropertyDeclaration | ts.PropertySignature): T.Part<'property'> =>
-  part(b, node, 'property', {
+  part('property', {
     type: node.type ? typeOf(b, node.type) : intrinsic(b, node, 'unknown'),
     ...(node.questionToken ? { optional: true } : {}),
     ...('initializer' in node && node.initializer ? { defaultValue: node.initializer.getText() } : {}),
   })
 
 const method = (b: context.Builder, node: ts.MethodDeclaration | ts.MethodSignature): T.Part<'method'> =>
-  part(b, node, 'method', { signatures: [signature(b, node)] })
+  part('method', { signatures: [signature(b, node)] })
 
 const indexSignature = (b: context.Builder, node: ts.IndexSignatureDeclaration): T.Part<'index-signature'> =>
-  part(b, node, 'index-signature', {
+  part('index-signature', {
     parameter: parameter(b, node.parameters[0]!),
     type: node.type ? typeOf(b, node.type) : intrinsic(b, node, 'unknown'),
   })
 
 const enumMember = (b: context.Builder, node: ts.EnumMember): T.Part<'enum-member'> => {
   const value = b.checker.getConstantValue(node)
-  return part(b, node, 'enum-member', { ...(value !== undefined ? { value } : {}) })
+  return part('enum-member', { ...(value !== undefined ? { value } : {}) })
 }
 
 /** Optional `generics` field from a node's type parameters. */
@@ -246,9 +270,10 @@ export const decl = <K extends keyof T.DeclarationMap>(
   b: context.Builder,
   node: ts.Node,
   kind: K,
-  fields: Omit<T.DeclarationMap[K], keyof T.DeclarationBase | 'kind'> & Partial<T.DeclarationBase>,
+  fields: Omit<T.DeclarationMap[K], keyof T.Base | 'kind'> & Partial<T.Base>,
 ): T.Declaration<K> => {
-  const nd = base(b, node) as T.Declaration
+  const nd = typebase(b, node) as T.Declaration
+  nd.name = getName(node) ?? 'unknown'
   nd.kind = kind
   nd.exported = isExported(node)
   Object.assign(nd, fields)
@@ -261,26 +286,16 @@ export const kind = <K extends keyof T.TypeMap>(
   kind: K,
   fields: Omit<T.TypeMap[K], keyof T.Base | 'kind'>,
 ): T.TypeMap[K] => {
-  const nd = base(b, node) as T.Type
-  nd.kind = kind as any
-  Object.assign(nd, fields)
+  const nd = typebase(b, node)
+  Object.assign(nd, { kind }, fields)
   return nd as any
 }
 
-export const part = <K extends keyof T.PartMap>(
-  b: context.Builder,
-  node: ts.Node,
-  kind: K,
-  fields: Omit<T.PartMap[K], keyof T.Base | 'kind'>,
-): T.PartMap[K] => {
-  const nd = base(b, node) as T.Part
-  nd.kind = kind as any
-  Object.assign(nd, fields)
-  return nd as any
-}
+export const part = <K extends keyof T.PartMap>(kind: K, fields: Omit<T.PartMap[K], 'kind'>): T.PartMap[K] =>
+  Object.assign(fields, { kind }) as any
 
-const base = (b: context.Builder, node: ts.Node): T.Base => {
-  const result: T.Base = { name: getName(node) } as T.Base
+const typebase = (b: context.Builder, node: ts.Node): T.Typebase => {
+  const result: T.Typebase = {} as T.Typebase
 
   const named = (node as { name?: ts.Node }).name
   const sym = b.checker.getSymbolAtLocation(named ?? node)
@@ -290,7 +305,7 @@ const base = (b: context.Builder, node: ts.Node): T.Base => {
   const comment = ts.isSourceFile(node) ? commentForModule(b, node) : commentForNode(b, node)
   if (comment) result.comment = comment
 
-  result.name = getName(node) ?? 'unknown'
+  // result.name = getName(node) ?? 'unknown'
 
   return result
 }
@@ -300,16 +315,6 @@ const sourceOf = (b: context.Builder, node: ts.Node): T.Source => {
   const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart())
   return { file: b.path(sf), line: line + 1, column: character + 1 }
 }
-
-// ---------------- Naming ----------------
-// export const moduleName = (b: context.Builder, sf: ts.SourceFile): string => {
-//   const pth = b.path(sf)
-//   const n = pth.split('/')
-//   if (!n.length) return ''
-//   if (n[n.length - 1]!.startsWith('index')) n.pop()
-//   else n[n.length - 1] = n[n.length - 1]!.replace(/\.[^/.]+$/, '')
-//   return n.join('.')
-// }
 
 // ---------------- Comments ----------------
 const commentForNode = (b: context.Builder, node: ts.Node): T.Comment | undefined => {
@@ -479,21 +484,72 @@ export const commentForModule = (b: context.Builder, sf: ts.SourceFile): T.Comme
 
 // ---------------- Ast utils ----------------
 export const findSourceSymbol = (b: context.Builder, symbol?: ts.Symbol): ts.Symbol | undefined => {
-  // 2. Step backward through the 'import' alias
   let currentSymbol = symbol
+  const visited = new Set<ts.Symbol>()
 
-  // Loop to traverse through potential chains of aliases
-  while (currentSymbol?.flags && currentSymbol.flags & ts.SymbolFlags.Alias) {
+  while (currentSymbol && currentSymbol.flags & ts.SymbolFlags.Alias) {
+    // Guard against circular alias chains
+    if (visited.has(currentSymbol)) {
+      break
+    }
+    visited.add(currentSymbol)
+
+    // Step backward through the alias chain
     const next = b.checker.getImmediateAliasedSymbol(currentSymbol)
-    if (next) currentSymbol = next
-    else break
+    if (next) {
+      currentSymbol = next
+    } else {
+      break
+    }
   }
 
   return currentSymbol
 }
 
+/**
+ * Wrapper specifically designed to kick off the search from an ExportSpecifier node
+ */
+export const getSourceSymbolFromExport = (b: context.Builder, node: ts.ExportSpecifier): ts.Symbol | undefined => {
+  const targetNode = node.propertyName ?? node.name
+  const initialSymbol = b.checker.getSymbolAtLocation(targetNode)
+  return findSourceSymbol(b, initialSymbol)
+}
+
 export const symbolSourceFile = (symbol?: ts.Symbol): ts.SourceFile | undefined =>
   symbol?.declarations?.find(ts.isSourceFile) || symbol?.declarations?.[0]?.getSourceFile()
+
+export const symbolDeclarations = (b: context.Builder, node: ts.Node): ts.Node[] => {
+  const sym = b.checker.getSymbolAtLocation(node)
+  if (sym) return sym.declarations ?? []
+  return []
+}
+
+export const symbolAt = (
+  b: context.Builder,
+  node: ts.Node,
+):
+  | { symbol: ts.Symbol; sourceFile: ts.SourceFile; declarations: ts.Node[]; first: ts.Node | undefined }
+  | undefined => {
+  const sym = findSourceSymbol(b, b.checker.getSymbolAtLocation(node))
+  if (sym) {
+    const sourceFile = symbolSourceFile(sym)
+    if (sourceFile) {
+      const declarations = (sym.declarations ?? []).map(findSourceDeclaration)
+      return { symbol: sym, sourceFile: sourceFile, declarations: declarations, first: declarations[0] }
+    }
+  }
+  return undefined
+}
+
+const findSourceDeclaration = (decl: ts.Declaration): ts.Declaration => {
+  if (ts.isImportSpecifier(decl)) return decl.name
+  return decl
+}
+
+const findSource = (node: ts.Node): ts.Node => {
+  if (ts.isImportSpecifier(node)) return findSource(node.name)
+  return node
+}
 
 export const isExported = (node: ts.Node): boolean => {
   if (ts.isExportDeclaration(node) || ts.isExportAssignment(node)) return true
@@ -514,4 +570,12 @@ const getName = (node: ts.Node): string | undefined => {
   if (ts.isExpression(node)) return ts.getNameOfDeclaration(node)?.getText()
   if ((node as { name?: ts.Node }).name) return (node as { name?: ts.Node }).name!.getText()
   return undefined
+}
+
+export const nodeTypeName = (node?: ts.Node): string => {
+  if (!node) return 'undefined'
+  const kindName = ts.SyntaxKind[node.kind]
+  if ('name' in node && node.name && ts.isIdentifier(node.name as ts.Node))
+    return `${kindName} (${(node.name as ts.Identifier).text})`
+  return `${kindName} (anonymous)`
 }

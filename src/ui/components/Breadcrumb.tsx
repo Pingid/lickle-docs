@@ -1,16 +1,11 @@
 import { For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { displayNameOf } from '../../core/client.ts'
-
 import { createSlot, useProject } from '../context/index.ts'
-import { ancestors } from '../strategies/index.ts'
-import { useSlugFor } from '../hooks/index.ts'
 
 export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: number }) => {
-  const { project } = useProject()
-  const slugs = useSlugFor()
-  const chain = () => ancestors(project, props.id)
+  const project = useProject()
+  const chain = () => project.ancestors(props.id)
 
   return (
     <nav class="text-xs text-mute mb-3" aria-label="Breadcrumb">
@@ -23,15 +18,13 @@ export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: num
         <For each={chain()}>
           {(r, i) => {
             const isLast = i() === chain().length - 1
-            const slug = slugs.byId(r.id)
-            const name = displayNameOf(r)
             return (
               <>
                 <li class="text-mute opacity-60">/</li>
                 <li>
-                  <Show when={slug && !isLast} fallback={<span class="text-fg">{name}</span>}>
-                    <A href={`/r/${slug}`} class="hover:text-fg">
-                      {name}
+                  <Show when={r.slug && !isLast} fallback={<span class="text-fg">{r.label}</span>}>
+                    <A href={`/${r.slug}`} class="hover:text-fg">
+                      {r.label}
                     </A>
                   </Show>
                 </li>

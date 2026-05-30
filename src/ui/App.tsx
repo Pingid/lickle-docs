@@ -1,9 +1,9 @@
 import { Router, Route, useParams } from '@solidjs/router'
 import { Dynamic } from 'solid-js/web'
-import { createMemo, Show } from 'solid-js'
+import { Show } from 'solid-js'
 
-import { Link, Page, MarkdownPage, Layout, Home } from './components/index.ts'
-import { DeclarationScope, useProject } from './context/project.tsx'
+import { Link, Page, Layout } from './components/index.ts'
+import { DeclarationScope } from './context/project.tsx'
 import { ThemeProvider } from './context/theme.tsx'
 import { useReflection } from './hooks/index.ts'
 
@@ -14,21 +14,10 @@ const PathRoute = () => {
     <Show when={decl()} fallback={<NotFound />}>
       {(d) => (
         <DeclarationScope id={d().id}>
-          <Dynamic component={Page} decl={d()} />
+          {/* <Dynamic component={Page} decl={d()} /> */}
           {/* <References id={d().id} /> */}
         </DeclarationScope>
       )}
-    </Show>
-  )
-}
-
-const MarkdownRoute = () => {
-  const params = useParams()
-  const { project } = useProject()
-  const page = createMemo(() => project.pages.find((p) => p.slug === params['slug']))
-  return (
-    <Show when={page()} fallback={<NotFound />}>
-      {(p) => <Dynamic component={MarkdownPage} page={p()} />}
     </Show>
   )
 }
@@ -48,9 +37,7 @@ const NotFound = () => (
  */
 export const Routes = () => (
   <>
-    <Route path="/" component={Home} />
-    <Route path="/p/:slug" component={MarkdownRoute} />
-    <Route path="/r/:slug" component={PathRoute} />
+    <Route path="/*" component={PathRoute} />
     <Route path="*" component={NotFound} />
   </>
 )

@@ -1,48 +1,37 @@
-import { For, Show, createSignal } from 'solid-js'
+import { For, Show, createMemo, createSignal } from 'solid-js'
 import { A, useLocation } from '@solidjs/router'
 
-import type { NavGroup, NavItem } from '../strategies/index.ts'
-import { useNavGroups } from '../context/project.tsx'
-import { createSlot } from '../context/index.ts'
+import { createSlot, useProj } from '../context/index.ts'
 import { shortOf } from '../util/kind.ts'
 import { Type } from './Type.tsx'
 
-/**
- * Collapsible navigation. Groups and module-bearing items start collapsed;
- * the node containing the active route auto-expands so the current page
- * sits in context. Manual toggles (chevron only) override the auto state
- * for the lifetime of the session.
- *
- * When a node has a `slug` (an entrypoint or a public sub-module), the
- * label acts as a plain link and the chevron stays responsible for
- * expanding — the two affordances are intentionally independent so users
- * can navigate without losing their current expansion state.
- */
 export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
-  const navGroups = useNavGroups()
+  const project = useProj()
   const loc = useLocation()
-  const [overrides, setOverrides] = createSignal<Record<string, boolean>>({})
+  // const [overrides, setOverrides] = createSignal<Record<string, boolean>>({})
 
-  const path = () => loc.pathname
-  const isItemActive = (it: NavItem): boolean => {
-    const href = hrefOf(it)
-    return (!!href && path() === href) || !!it.children?.some(isItemActive)
-  }
-  const isGroupActive = (g: NavGroup): boolean => {
-    const href = groupHref(g)
-    return (!!href && path() === href) || g.items.some(isItemActive)
-  }
+  // const path = () => loc.pathname
+  // const isItemActive = (it: NavItem): boolean => {
+  //   const href = hrefOf(it)
+  //   return (!!href && path() === href) || !!it.children?.some(isItemActive)
+  // }
+  // const isGroupActive = (g: NavGroup): boolean => {
+  //   const href = groupHref(g)
+  //   return (!!href && path() === href) || g.items.some(isItemActive)
+  // }
 
-  const isOpen = (key: string, fallback: boolean): boolean => overrides()[key] ?? fallback
-  const toggle = (key: string, open: boolean) => setOverrides((o) => ({ ...o, [key]: !open }))
+  // const isOpen = (key: string, fallback: boolean): boolean => overrides()[key] ?? fallback
+  // const toggle = (key: string, open: boolean) => setOverrides((o) => ({ ...o, [key]: !open }))
+
+  const routes = createMemo(() => project().routes)
 
   return (
     <aside class={`text-sm ${props.class ?? ''}`}>
       <nav class="pt-6 pb-12 px-4 space-y-1">
-        <For each={navGroups}>
+        <For each={routes()}>
           {(g) => {
-            const key = `g:${g.title}`
-            const open = () => isOpen(key, isGroupActive(g))
+            // const key = `g:${g.title}`
+            // const open = () => isOpen(key, isGroupActive(g))
             return (
               <div>
                 <GroupHeader
@@ -75,12 +64,6 @@ export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; 
     </aside>
   )
 })
-
-// ============================================================================
-// NODES
-// `NavNode` is the recursive renderer used inside each group. Leaves render
-// as a single link row; branches add a chevron + collapsible child list.
-// ============================================================================
 
 type NodeProps = {
   item: NavItem
@@ -200,13 +183,11 @@ const headerClass =
 const headerLinkClass =
   'flex-1 px-1.5 py-1 rounded-md text-[0.7rem] uppercase tracking-wider font-semibold text-mute hover:bg-hover hover:text-fg transition-colors truncate'
 
-/** Link target for a group — explicit `href` (pages) wins over a module `slug`. */
 const groupHref = (g: NavGroup): string | undefined => g.href ?? (g.slug ? `/r/${g.slug}` : undefined)
 
 const GroupHeader = (props: { group: NavGroup; open: boolean; onToggle: () => void; onNavigate: () => void }) => {
   const href = () => groupHref(props.group)
 
-  // Item-less group (e.g. a markdown page): a plain top-level link, no chevron.
   if (href() && !props.group.items.length) {
     return (
       <A href={href()!} class={`${headerLinkClass} block`} activeClass="!text-fg !bg-hover" onClick={props.onNavigate}>

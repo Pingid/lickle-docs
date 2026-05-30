@@ -14,15 +14,16 @@ export interface BuilderOptions {
   internal: boolean
 }
 
-export interface BuilderState extends BuilderOptions {
+export type TypeNode = T.Declaration | T.Type<'reference'>
+
+export interface BuilderState extends BuilderOptions, ReferenceState {
+  id: () => number
   entries: ts.SourceFile[]
   checker: ts.TypeChecker
   root: number
-  id: number
   scanned: Set<ts.SourceFile>
 
-  byId: Map<number, T.Declaration>
-  byParent: Map<number, Set<number>>
+  byId: Map<number, TypeNode>
   byNode: Map<ts.Node, { id?: number }>
 
   graph(): Graph
@@ -32,18 +33,18 @@ export const make = (files: string[], options: BuilderOptions, root = -1): Build
   const program = ts.createProgram(files, options.compilerOptions)
   const checker = program.getTypeChecker()
 
+  let id = 0
   const state: BuilderState = {
+    ...makeReferenceState(),
     ...options,
     entries: files.map((f) => program.getSourceFile(f)).filter((x) => x !== undefined),
     checker,
     root: root,
-    id: root,
-    // parent,
+    id: () => ++id,
     scanned: new Set(),
-    byParent: new Map(),
     byId: new Map(),
     byNode: new Map(),
-    graph: () => createGraph({ root, byId: state.byId, byParent: state.byParent }),
+    graph: () => createGraph({ root, byId: state.byId }),
   }
 
   return state
@@ -56,21 +57,21 @@ export interface Builder {
 
   idOf: (node: ts.Node) => number | undefined
 
-  add: (node: ts.Node, decl: () => T.Declaration | undefined) => void
+  add: (node: ts.Node, decl: () => TypeNode | undefined) => void
 
   scan: (sf: ts.SourceFile, exported?: boolean) => void
 
   /** Run `fn` with `parent` as the owner of any declarations it registers. */
   within: (parent: number, fn: () => void) => void
+
+  reference: (node: ts.Node, target: ts.Node | null, type: T.Type<'reference'>) => T.Type<'reference'>
 }
 
 export const createBuilder = (
   state: BuilderState,
   module: (b: Builder, sf: ts.SourceFile, exported: boolean) => T.Declaration,
-  statement: (b: Builder, stmt: ts.Statement) => void,
+  statement: (b: Builder, stmt: ts.Node) => void,
 ): Builder => {
-  const id = () => ++state.id
-
   // Owner for declarations registered in the current scope. `undefined` means
   // "the enclosing module" — set by `within` while scanning a namespace body.
   let scope: number | undefined
@@ -93,15 +94,12 @@ export const createBuilder = (
     }
   }
 
-  const register = (node: ts.Node, n: T.Declaration) => {
+  const register = (node: ts.Node, n: TypeNode) => {
     const parent = getParent(node)
     n.parent = parent
-    n.id = id()
+    n.id = state.id()
     state.byNode.set(node, { id: n.id })
     state.byId.set(n.id, n)
-    let children = state.byParent.get(parent)
-    if (!children) state.byParent.set(parent, (children = new Set()))
-    children.add(n.id)
     return n.id
   }
 
@@ -110,12 +108,11 @@ export const createBuilder = (
     return undefined
   }
 
-  const add = (node: ts.Node, decl: () => T.Declaration | undefined) => {
+  const add = (node: ts.Node, decl: () => TypeNode | undefined) => {
     if (!state.include(ts.isSourceFile(node) ? node : node.getSourceFile())) return
     if (state.byNode.has(node)) return state.byNode.get(node)?.id!
     const d = decl()
     if (!d) return missing(node)
-    if (!state.internal && !d.exported) return missing(node)
     return register(node, d)
   }
 
@@ -129,6 +126,56 @@ export const createBuilder = (
     scope = prev
   }
 
+  const addReference = (node: ts.Node, target: ts.Node | null, type: T.Type<'reference'>) => {
+    if (state.originToType.has(node)) return state.originToType.get(node)!
+    registerReference(node, target, type)
+    const id = state.byNode.get(target!)?.id
+    if (id) return resolveReference(type, id)
+    state.queue.add(node)
+    return type
+  }
+
+  const registerReference = (node: ts.Node, target: ts.Node | null, type: T.Type<'reference'>) => {
+    type.parent = getParent(node)
+    type.id = state.id()
+    state.originToType.set(node, type)
+    state.originToTarget.set(node, target)
+    return type
+  }
+
+  const resolveReference = (type: T.Type<'reference'>, id: number) => {
+    type.targetId = id
+    state.byId.set(type.id, type)
+    let refs = state.references.get(id)
+    if (!refs) state.references.set(id, (refs = new Set()))
+    refs.add(type.id)
+    return type
+  }
+
+  const drainReferenceResolution = () => {
+    for (const node of [...state.queue]) {
+      const target = state.originToTarget.get(node)!
+      const type = state.originToType.get(node)!
+      const id = state.byNode.get(target)?.id
+      if (!target) continue
+      if (id !== undefined) type.targetId = id
+      else {
+        statement(c, target)
+        const id = state.byNode.get(target)?.id
+        if (id) resolveReference(type, id)
+        else {
+          console.log('missing reference to', target.getText())
+        }
+      }
+    }
+  }
+
+  const original = state.graph
+  state.graph = () => {
+    drainReferenceResolution()
+    return original()
+  }
+
   const c: Builder = {
     checker: state.checker,
     path: (sf: ts.SourceFile) => path.relative(state.rootDir, sf.fileName),
@@ -136,10 +183,26 @@ export const createBuilder = (
     add: (node, decl) => add(node, decl) as any,
     scan: (sf, exported) => scan(sf, exported),
     within,
+    reference: addReference,
   }
 
   return c
 }
+
+// ---------------- Reference Resolution ----------------
+type ReferenceState = {
+  originToTarget: Map<ts.Node, ts.Node | null>
+  originToType: Map<ts.Node, T.Type<'reference'>>
+  references: Map<number, Set<number>>
+  queue: Set<ts.Node>
+}
+
+const makeReferenceState = (): ReferenceState => ({
+  originToTarget: new Map(),
+  originToType: new Map(),
+  references: new Map(),
+  queue: new Set(),
+})
 
 // @ts-ignore
 const debugName = (node: ts.Node): string => {

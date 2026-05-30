@@ -1,12 +1,12 @@
 import type { RouteNode, PageType } from './json.ts'
-import * as reflect from '../reflect/v2/index.ts'
+import * as reflect from '../reflect/index.ts'
 import * as path from '../../_lib/path/index.ts'
 import * as config from '../../config/load.ts'
 
-type Page = Extract<PageType, { kind: 'module' | 'declaration' }>
+type Page = 'declaration' | 'module'
 
 export type Options = {
-  routes?: RouteNode<Extract<PageType, { kind: 'markdown' }>>[]
+  routes?: RouteNode[]
   entrypoints?: config.Entry[]
 }
 
@@ -17,8 +17,9 @@ export const build = (b: reflect.Graph, opts: Options) => {
 
   for (const decl of b.roots()) {
     if (decl.parent !== b.root || !decl.exported || decl.kind !== 'module') continue
+
     const as = mapped.get(decl.path!)
-    const page: PageType = { kind: 'module', id: decl.id, alias: as }
+    const page: PageType = { kind: 'module', id: decl.id, alias: as, qualified: as ?? decl.name }
     builder.addRoute({
       label: getName(decl, as),
       slug: getSlug(decl, as),
@@ -66,10 +67,10 @@ const leafRoute = function* (
   }
   if (d.kind === 'module' || d.kind === 'namespace') {
     if (star) return yield* children(g, b, id)
-    const page: PageType = { kind: 'module', alias: alias ?? label, id }
+    const page: PageType = { kind: 'module', alias: alias ?? label, id, qualified: label }
     yield { label, slug, page, children: [...children(g, b, id, star, alias)] }
   }
-  const page: PageType = { kind: 'declaration', id }
+  const page: PageType = { kind: 'declaration', id, alias: alias ?? label, qualified: label }
   yield { label, slug, page, children: [...children(g, b, id, star, alias)] }
 }
 
@@ -94,16 +95,14 @@ const getSlug = (d: reflect.Declaration, alias?: string) => {
 
 export interface RouteBuilder {
   addRoute(r: RouteNode<Page>): void
-  export(): { routes: RouteNode<PageType>[]; declarations: reflect.Declaration[] }
+  export(): { routes: RouteNode[]; declarations: reflect.Declaration[] }
   debug(): void
+  routes(): ReadonlyArray<RouteNode<Page>>
 }
 
-const createRouteBuilder = (
-  graph: reflect.Graph,
-  other?: RouteNode<Extract<PageType, { kind: 'markdown' }>>[],
-): RouteBuilder => {
-  const routes: RouteNode<Page>[] = []
-  const refs = reflect.graph.createRefStore<Page>(
+const createRouteBuilder = (graph: reflect.Graph, other?: RouteNode[]): RouteBuilder => {
+  const _routes: RouteNode<Page>[] = []
+  const refs = reflect.graph.createRefStore<PageType<Page>>(
     graph,
     (r) => r.id,
     (r, id: number) => {
@@ -114,27 +113,30 @@ const createRouteBuilder = (
   const slugs = path.slugMaker()
   for (const r of other ?? []) slugs.add(r.slug)
 
-  const addRoute = (r: RouteNode<Page>) => (trackRoute(r), routes.push(r))
-  const exportRoutes = () => ({ routes: [...(other ?? []), ...routes], declarations: graph.export() })
-  const debug = () => displayRoutes(routes)
+  const addRoute = (r: RouteNode<Page>) => (trackRoute(r), _routes.push(r))
+  const exportRoutes = () => ({ routes: [...(other ?? []), ..._routes], declarations: graph.export() })
+  const debug = () => displayRoutes(_routes)
 
   const trackRoute = (r: RouteNode<Page>, parents: string[] = []) => {
     const seg = r.slug
     r.slug = slugs.uniq([...parents, seg].join('/'))
+    r.page.qualified = [...parents, r.label].join('.')
     refs.add(r.page)
     if (!r.children?.length) return
     for (const child of r.children) trackRoute(child, [...parents, seg])
   }
 
-  return { addRoute, export: exportRoutes, debug }
+  const routes = () => _routes
+
+  return { addRoute, export: exportRoutes, debug, routes }
 }
 
-export const displayRoutes = (routes: RouteNode<PageType>[], prefix: string = '') => {
+export const displayRoutes = (routes: RouteNode[], prefix: string = '') => {
   const kinds = { module: 'M', markdown: '.MD', declaration: 'D' }
-  const extra = (r: RouteNode<PageType>) => {
+  const extra = (r: RouteNode) => {
     if (r.page.kind === 'markdown') return ''
-    if (r.page.kind === 'module') return ''
-    if (r.page.kind === 'declaration') return ''
+    if (r.page.kind === 'module') return r.page.qualified
+    if (r.page.kind === 'declaration') return r.page.qualified
     return ''
   }
   for (const r of routes) {

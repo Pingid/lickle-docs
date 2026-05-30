@@ -2,7 +2,7 @@ import { create, insert, search } from '@orama/orama'
 
 import { nameOf } from '../../core/client.ts'
 
-import type { ProjectBag } from '../context/project.tsx'
+import type { Project } from '../context/project.tsx'
 import { type Kind } from './kind.ts'
 
 export type SearchHit = { name: string; qualified: string; kind: Kind; slug: string }
@@ -14,18 +14,18 @@ export type SearchEngine = { query: (term: string, limit?: number) => Promise<Se
  * Names are boosted above qualified paths so exact-name hits rank first;
  * `tolerance: 1` allows one-character typos.
  */
-export const createSearchEngine = async (bag: ProjectBag): Promise<SearchEngine> => {
+export const createSearchEngine = async (bag: Project): Promise<SearchEngine> => {
   const db = await create({
     schema: { name: 'string', qualified: 'string', kind: 'string', slug: 'string' },
     components: { tokenizer: { stemming: false } },
   })
   for (const r of bag.routables) {
-    const slug = bag.project.slugById.get(r.id)
+    const slug = bag.slugById.get(r.id)
     if (!slug) continue
     const name = nameOf(r)
     await insert(db, {
       name,
-      qualified: bag.project.qualifiedNameById.get(r.id) ?? name,
+      qualified: bag.qualifiedNameById.get(r.id) ?? name,
       kind: r.kind as Kind,
       slug,
     })

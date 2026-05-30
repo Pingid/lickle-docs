@@ -45,6 +45,7 @@ export type DeclarationProps<K extends keyof docs.DeclarationMap> = WithDefault<
   decl: docs.DeclarationMap[K]
 }>
 
+type PageProps = { decl: docs.Declaration; route: docs.RouteNode<'declaration' | 'module'> }
 /**
  * Slot override signatures. Every slot receives `Default` typed to the
  * stock component's props so the override can decorate (`<Default {...p} />`
@@ -57,9 +58,9 @@ export interface Components {
   sidebar?: Component<WithDefault<{ onNavigate?: () => void; class?: string }>>
 
   // Page slots
-  page?: Component<WithDefault<{ decl: docs.Declaration }>>
-  'page.markdown'?: Component<WithDefault<{ page: docs.Page }>>
-  'page.header'?: Component<WithDefault<{ decl: docs.Declaration }>>
+  page?: Component<WithDefault<PageProps>>
+  'page.markdown'?: Component<WithDefault<{ route: docs.RouteNode<'markdown'> }>>
+  'page.header'?: Component<WithDefault<PageProps>>
   'page.header.breadcrumb'?: Component<WithDefault<{ id: number }>>
   'page.source'?: Component<WithDefault<{ sources?: docs.Source[] }>>
   'page.references'?: Component<WithDefault<{ id: number }>>

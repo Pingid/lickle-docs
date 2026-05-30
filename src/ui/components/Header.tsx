@@ -22,7 +22,7 @@ const iconFor = (label: string): string | null => {
 }
 
 export const Header = createSlot('header', (props: { onMenu?: () => void; onSearch?: () => void }) => {
-  const { project } = useProject()
+  const project = useProject()
   const searchHint = createMemo(() => (isMac() ? '\u2318K' : 'Ctrl K'))
 
   return (

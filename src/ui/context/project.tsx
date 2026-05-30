@@ -3,37 +3,21 @@ import type { JSX } from 'solid-js/jsx-runtime'
 
 import * as docs from '../../core/client.ts'
 
-import { auto, routables, type NavGroup, type NavStrategy } from '../strategies/index.ts'
 import { ComponentsProvider, type Components } from './components.tsx'
 
-export type ProjectBag = {
-  project: docs.Project
-  navGroups: NavGroup[]
-  routables: docs.Declaration[]
-  /** Public surface from the entrypoint(s): direct routables + namespace re-exports. */
-  // surface: NavItem[]
-}
+export type Project = docs.Project
 
-const ProjectCtx = createContext<Accessor<ProjectBag>>()
+const ProjectCtx = createContext<Accessor<docs.Project>>()
 
-export const ProjectProvider = (props: {
+export type ProjectProviderProps = {
   children: JSX.Element
   json: docs.ProjectJson
-  /** Override the sidebar grouping. Defaults to {@link auto}. */
-  navGroups?: NavStrategy
   /** Component overrides — pages, tags, slots, member sections. */
   components?: Components
-}) => {
-  const bag = createMemo<ProjectBag>(() => {
-    const project = docs.createProject(props.json)
-    const strategy = props.navGroups ?? auto
-    return {
-      project,
-      navGroups: strategy(project),
-      routables: routables(project),
-      // surface: surface(project),
-    }
-  })
+}
+
+export const ProjectProvider = (props: ProjectProviderProps) => {
+  const bag = createMemo<docs.Project>(() => docs.createProject(props.json))
   return (
     <ComponentsProvider value={props.components}>
       <ProjectCtx.Provider value={bag}>{props.children}</ProjectCtx.Provider>
@@ -41,13 +25,17 @@ export const ProjectProvider = (props: {
   )
 }
 
-export const useProject = (): ProjectBag => {
+export const useProject = (): docs.Project => {
   const fn = useContext(ProjectCtx)
   if (!fn) throw new Error('useProject must be used within <ProjectProvider>')
   return fn()
 }
 
-export const useNavGroups = (): NavGroup[] => useProject().navGroups
+export const useProj = (): Accessor<docs.Project> => {
+  const fn = useContext(ProjectCtx)
+  if (!fn) throw new Error('useProject must be used within <ProjectProvider>')
+  return fn
+}
 
 const DeclarationIdContext = createContext<Accessor<number | undefined>>(() => undefined)
 

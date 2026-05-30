@@ -8,7 +8,7 @@ export {
   DeclarationScope as ReflectionScope,
   useProject,
   useDeclarationId as useReflectionId,
-  type ProjectBag,
+  type Project as ProjectBag,
 } from './context/project.tsx'
 export { ThemeProvider, useTheme, type ThemeMode } from './context/theme.tsx'
 export { type Components, useComponents } from './context/components.tsx'

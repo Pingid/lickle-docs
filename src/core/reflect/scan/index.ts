@@ -1,7 +1,6 @@
 import ts from 'typescript'
 
 import * as graph from '../graph/index.ts'
-import type * as T from '../types.ts'
 import * as make from './make.ts'
 
 type Context = graph.Builder
@@ -13,7 +12,6 @@ export const execute = (state: graph.BuilderState) => {
 
 const statement = (ctx: Context, node: ts.Node) => {
   if (ts.isVariableStatement(node)) return node.declarationList.declarations.forEach((d) => variable_(ctx, d))
-  if (ts.isExportDeclaration(node)) return exports_(ctx, node)
   if (ts.isVariableDeclaration(node)) return variable_(ctx, node)
   if (ts.isFunctionDeclaration(node)) return function_(ctx, node)
   if (ts.isClassDeclaration(node)) return class_(ctx, node)
@@ -21,19 +19,21 @@ const statement = (ctx: Context, node: ts.Node) => {
   if (ts.isTypeAliasDeclaration(node)) return alias_(ctx, node)
   if (ts.isEnumDeclaration(node)) return enum_(ctx, node)
   if (ts.isModuleDeclaration(node)) return namespace_(ctx, node)
+  if (ts.isExportDeclaration(node)) return exports_(ctx, node)
+  if (ts.isImportDeclaration(node)) return undefined
+  console.trace(`unknown statement: ${make.nodeTypeName(node)}`)
   return undefined
 }
 
 // ---------------- Declaration Construction ----------------
 const wrap =
-  <const A extends any[], N extends ts.Node = ts.Node>(cb: (ctx: Context, node: N, ...args: A) => T.Declaration) =>
+  <const A extends any[], N extends ts.Node = ts.Node>(cb: (ctx: Context, node: N, ...args: A) => graph.TypeNode) =>
   (ctx: Context, node: N, ...args: A) =>
     ctx.add(node, () => cb(ctx, node, ...args))
 
 const module_ = (ctx: Context, sf: ts.SourceFile, exported: boolean = false) => {
   const d = make.decl(ctx, sf, 'module', { path: ctx.path(sf) })
   d.exported = exported
-  // d.name = make.moduleName(ctx, sf)
   return d
 }
 
@@ -44,11 +44,17 @@ const variable_ = wrap((c, n: ts.VariableDeclaration) => {
     return make.decl(c, n, 'function', make.functionBody(c, init))
   return make.decl(c, n, 'variable', make.variableBody(c, n))
 })
+
 const function_ = wrap((c, n: ts.FunctionDeclaration) => make.decl(c, n, 'function', make.functionBody(c, n)))
+
 const class_ = wrap((c, n: ts.ClassDeclaration) => make.decl(c, n, 'class', make.classBody(c, n)))
+
 const interface_ = wrap((c, n: ts.InterfaceDeclaration) => make.decl(c, n, 'interface', make.interfaceBody(c, n)))
+
 const alias_ = wrap((c, n: ts.TypeAliasDeclaration) => make.decl(c, n, 'type-alias', make.aliasBody(c, n)))
+
 const enum_ = wrap((c, n: ts.EnumDeclaration) => make.decl(c, n, 'enum', make.enumBody(c, n)))
+
 const namespace_ = (ctx: Context, n: ts.ModuleDeclaration): number | undefined => {
   ctx.add(n, () => make.decl(ctx, n, 'namespace', {}))
   const id = ctx.idOf(n)
@@ -59,6 +65,7 @@ const namespace_ = (ctx: Context, n: ts.ModuleDeclaration): number | undefined =
   else if (ts.isModuleDeclaration(body)) ctx.within(id, () => namespace_(ctx, body))
   return id
 }
+
 const export_ = wrap((ctx, node, name: string, ref: number, star: boolean = false) =>
   make.decl(ctx, node, 'export', { name, ref, exported: true, star }),
 )
@@ -87,16 +94,28 @@ exports_.namespace = (ctx: Context, node: ts.ExportDeclaration, clause: ts.Names
 /** Named exports `export { foo, bar } from './module'` */
 exports_.named = (ctx: Context, clause: ts.NamedExports) => {
   for (const c of clause.elements) {
-    const symbol = ctx.checker.getSymbolAtLocation(c.name)
+    const targetNode = c.propertyName ?? c.name
+    const symbol = ctx.checker.getSymbolAtLocation(targetNode)
     if (!symbol) continue
+
     const sourceSymbol = make.findSourceSymbol(ctx, symbol)
-    const decl = sourceSymbol?.declarations
-    if (!decl) return undefined
-    for (const d of decl) {
-      if (ts.isSourceFile(d)) ctx.scan(d)
+    const decls = sourceSymbol?.declarations
+    if (!decls) continue
+
+    for (const d of decls) {
+      if (ts.isSourceFile(d)) {
+        ctx.scan(d)
+        continue
+      }
+
+      if (ts.isExportSpecifier(d)) continue
+      else if (ts.isImportSpecifier(d)) continue
       else statement(ctx, d)
+
       const id = ctx.idOf(d)
-      if (id !== undefined) export_(ctx, c.name, c.name.text, id)
+      if (id !== undefined) {
+        export_(ctx, c.name, c.name.text, id)
+      }
     }
   }
 }

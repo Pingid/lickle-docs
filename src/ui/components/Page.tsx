@@ -14,16 +14,16 @@ import { Type } from './Type.tsx'
 
 export const Page = createSlot('page', (props) => (
   <article>
-    <PageHeader decl={props.decl} />
+    <PageHeader {...props} />
     <Declaration decl={props.decl} />
     <Members decl={props.decl} />
   </article>
 ))
 
 /** Renders a markdown page from `project.pages` — its `content` chunks joined and parsed. */
-export const MarkdownPage = createSlot('page.markdown', (props: { page: docs.Page }) => (
+export const MarkdownPage = createSlot('page.markdown', (props) => (
   <article>
-    <Markdown source={props.page.content.join('\n\n')} />
+    <Markdown source={props.route.page.content} />
   </article>
 ))
 

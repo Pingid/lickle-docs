@@ -1,4 +1,4 @@
-import type * as T from '../types.ts'
+import * as T from '../types.ts'
 
 export interface Graph {
   root: number
@@ -19,37 +19,53 @@ export interface Graph {
 
 type State = {
   root: number
-  byId: Map<number, T.Declaration>
-  byParent: Map<number, Set<number>>
+  byId: Map<number, T.Declaration | T.Type>
+  // typeRefById: Map<number, Set<T.Type<'reference'>>>
+  // references: Map<number, Set<number>>
 }
 
 export const createGraph = (state: State): Graph => {
   let _exported: boolean = false
-  let references: Map<number, Set<Reference>> = new Map()
-  let referenced: Set<number> = new Set()
+  let nodeRefs: Map<number, Set<Reference>> = new Map()
+  let currentReffed: Set<number> = new Set()
+  let byId: Map<number, T.Declaration> = new Map()
+  let byParent: Map<number, Set<number>> = new Map()
+
+  for (const id of state.byId.keys()) {
+    const decl = state.byId.get(id)
+    if (decl === undefined) continue
+    if (!T.isDeclaration(decl)) {
+      // console.log(decl)
+      continue
+    }
+    byId.set(id, decl as any)
+    let children = byParent.get(decl.parent)
+    if (!children) byParent.set(decl.parent, (children = new Set()))
+    children.add(id)
+  }
 
   const assertNotExported = () => {
     if (_exported) throw new Error('Graph already exported')
   }
   const updateReferences = (from: number, to: number) => {
-    const refs = references.get(from)
+    const refs = nodeRefs.get(from)
     if (refs === undefined) return
     for (const ref of refs) {
       ref.id = to
     }
-    references.delete(from)
-    references.set(to, refs)
-    referenced.add(to)
-    referenced.delete(from)
+    nodeRefs.delete(from)
+    nodeRefs.set(to, refs)
+    currentReffed.add(to)
+    currentReffed.delete(from)
   }
 
   const updateId = (from: number, to: number) => {
     assertNotExported()
-    const decl = state.byId.get(from)
+    const decl = byId.get(from)
     if (!decl) return false
 
     updateReferences(from, to)
-    const c = state.byParent.get(decl.parent)
+    const c = byParent.get(decl.parent)
     c?.delete(from)
     c?.add(to)
     decl.id = to
@@ -58,19 +74,19 @@ export const createGraph = (state: State): Graph => {
 
   const updateParent = (id: number, parent: number) => {
     assertNotExported()
-    const decl = state.byId.get(id)
+    const decl = byId.get(id)
     if (!decl) return false
-    const c1 = state.byParent.get(decl.parent)
+    const c1 = byParent.get(decl.parent)
     c1?.delete(id)
     decl.parent = parent
-    const c2 = state.byParent.get(parent)
+    const c2 = byParent.get(parent)
     c2?.add(id)
     return true
   }
 
   const update = (id: number, decl: Partial<T.Declaration>) => {
     assertNotExported()
-    const d = state.byId.get(id)
+    const d = byId.get(id)
     if (!d) return false
     if ('id' in decl) updateId(id, decl.id!)
     if ('parent' in decl) updateParent(id, decl.parent!)
@@ -82,21 +98,21 @@ export const createGraph = (state: State): Graph => {
   }
 
   const ref = (item: Reference) => {
-    if (!state.byId.has(item.id)) throw new Error(`Declaration ${item.id} not found`)
-    let refs = references.get(item.id)
-    if (refs === undefined) references.set(item.id, (refs = new Set([])))
-    referenced.add(item.id)
+    if (!byId.has(item.id)) throw new Error(`Declaration ${item.id} not found`)
+    let refs = nodeRefs.get(item.id)
+    if (refs === undefined) nodeRefs.set(item.id, (refs = new Set([])))
+    currentReffed.add(item.id)
     refs.add(item)
     return item
   }
 
   const unref = (item: Reference): Reference => {
-    const refs = references.get(item.id)
+    const refs = nodeRefs.get(item.id)
     if (refs === undefined) return item
     refs.delete(item)
     if (refs.size === 0) {
-      references.delete(item.id)
-      referenced.delete(item.id)
+      nodeRefs.delete(item.id)
+      currentReffed.delete(item.id)
     }
     return item
   }
@@ -105,9 +121,9 @@ export const createGraph = (state: State): Graph => {
     assertNotExported()
 
     let declarations: T.Declaration[] = []
-    for (const id of [...referenced]) {
-      const decl = state.byId.get(id)
-      if (decl === undefined) continue
+    for (const id of [...currentReffed]) {
+      const decl = byId.get(id)
+      if (decl === undefined || !T.isDeclaration(decl)) continue
       updateId(id, declarations.length)
       declarations.push(decl)
     }
@@ -117,27 +133,27 @@ export const createGraph = (state: State): Graph => {
   }
 
   const roots = function* () {
-    for (const id of state.byId.keys()) {
-      const decl = state.byId.get(id)
+    for (const id of byId.keys()) {
+      const decl = byId.get(id)
       if (decl === undefined) continue
       if (decl.parent === state.root) yield decl
     }
   }
 
   const children = function* (id: number) {
-    for (const child of state.byParent.get(id) ?? EMPTY) yield state.byId.get(child)!
+    for (const child of byParent.get(id) ?? EMPTY) yield byId.get(child)!
   }
 
   const all = function* () {
-    for (const id of state.byId.keys()) yield state.byId.get(id)!
+    for (const id of byId.keys()) yield byId.get(id)!
   }
 
   return {
     state,
     root: state.root,
-    get: (id: number) => state.byId.get(id),
-    name: (id: number) => state.byId.get(id)?.name,
-    parent: (id: number) => state.byId.get(id)?.parent,
+    get: (id: number) => byId.get(id),
+    name: (id: number) => byId.get(id)?.name,
+    parent: (id: number) => byId.get(id)?.parent,
     all,
     roots,
     children,
