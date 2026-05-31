@@ -1,15 +1,13 @@
 import { Router, Route, useParams, Navigate } from '@solidjs/router'
-import { Show, createMemo } from 'solid-js'
+import { Show, createMemo, type Accessor } from 'solid-js'
 
 import * as docs from '../core/client.ts'
 
+import { ThemeProvider, ProjectProvider, type Components, DeclarationScope, useProject } from './context/index.ts'
 import { Link, Page, MarkdownPage, Layout } from './components/index.ts'
-import { DeclarationScope, useProject } from './context/project.tsx'
-import { ThemeProvider } from './context/theme.tsx'
 
 /** First navigable route slug — the implicit home target. */
-const firstSlug = (routes: docs.RouteNode[]): string | undefined =>
-  (routes.find((r) => r.nav) ?? routes[0])?.slug
+const firstSlug = (routes: docs.RouteNode[]): string | undefined => (routes.find((r) => r.nav) ?? routes[0])?.slug
 
 /** Resolve the current `/*slug` path to a route and render its page. */
 const PathRoute = () => {
@@ -78,10 +76,18 @@ export const Routes = () => <Route path="/*slug" component={PathRoute} />
  * one of the pieces — `ThemeProvider`, `Layout`, `Routes` — and you keep
  * the others.
  */
-export const App = () => (
-  <ThemeProvider>
-    <Router root={(p) => <Layout>{p.children}</Layout>}>
-      <Routes />
-    </Router>
-  </ThemeProvider>
-)
+export const App = (props: { json: Accessor<docs.ProjectJson | null>; components?: Components }) => {
+  return (
+    <Show when={props.json()} fallback={<div>No docs...</div>}>
+      {(json) => (
+        <ProjectProvider json={json} components={props.components}>
+          <ThemeProvider>
+            <Router root={(p) => <Layout>{p.children}</Layout>}>
+              <Routes />
+            </Router>
+          </ThemeProvider>
+        </ProjectProvider>
+      )}
+    </Show>
+  )
+}

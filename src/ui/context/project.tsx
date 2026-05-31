@@ -11,13 +11,13 @@ const ProjectCtx = createContext<Accessor<docs.Project>>()
 
 export type ProjectProviderProps = {
   children: JSX.Element
-  json: docs.ProjectJson
+  json: Accessor<docs.ProjectJson>
   /** Component overrides — pages, tags, slots, member sections. */
   components?: Components
 }
 
 export const ProjectProvider = (props: ProjectProviderProps) => {
-  const bag = createMemo<docs.Project>(() => docs.createProject(props.json))
+  const bag = createMemo<docs.Project>(() => docs.createProject(props.json()))
   return (
     <ComponentsProvider value={props.components}>
       <ProjectCtx.Provider value={bag}>{props.children}</ProjectCtx.Provider>

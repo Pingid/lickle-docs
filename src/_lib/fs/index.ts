@@ -3,6 +3,8 @@ import path from 'node:path'
 
 export * from 'node:fs/promises'
 
+export * from './watch.ts'
+
 export const existingPath = async (path: string) => exists(path).then((exists) => (exists ? path : undefined))
 
 export const exists = async (path: string): Promise<boolean> => {

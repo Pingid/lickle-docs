@@ -1,3 +1,1 @@
-export * as client from './client/index.ts'
-export * as promise from './promise.ts'
-export * as watch from './watch.ts'
+export * as vite from './vite.ts'

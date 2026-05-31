@@ -40,7 +40,7 @@ export type RouteContext = {
 
 /**
  * Customisation seam for the route tree. The traversal, de-duplication and
- * page wiring stay in {@link build}; a provider only decides per-route
+ * page wiring stay in {@link buildRoutes}; a provider only decides per-route
  * presentation. Build one with {@link createRouteProvider} and override the
  * parts you care about.
  */
@@ -80,7 +80,7 @@ export const createRouteProvider = (overrides: Partial<RouteProvider> = {}): Rou
  * resolved. Each declaration is routed once — the first exposure path wins —
  * which keeps slugs unique and avoids duplicate pages.
  */
-export const build = (index: reflect.Index, opts: Options): RouteNode<Page>[] => {
+export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page>[] => {
   const options: naming.NameOptions = {
     rootName: opts.rootName,
     aliases: new Map((opts.entrypoints ?? []).map((e) => [e.path, e.as.replace(/^\.\//, '')])),
@@ -94,11 +94,11 @@ export const build = (index: reflect.Index, opts: Options): RouteNode<Page>[] =>
   // The empty root slug falls back to `index` so a README can own `/`.
   const usedSlugs = new Set<string>(opts.reserved ?? [])
   const uniqueSlug = (slug: string): string => {
-    if (!usedSlugs.has(slug)) return usedSlugs.add(slug), slug
+    if (!usedSlugs.has(slug)) return (usedSlugs.add(slug), slug)
     const base = slug || 'index'
     let next = base
     for (let n = 2; usedSlugs.has(next); n++) next = `${base}-${n}`
-    return usedSlugs.add(next), next
+    return (usedSlugs.add(next), next)
   }
 
   // Children of a route: the exposure graph in `exposed` mode, the raw
@@ -137,9 +137,7 @@ export const build = (index: reflect.Index, opts: Options): RouteNode<Page>[] =>
 
   // `full` lists every module; `exposed` only the entrypoints. Reserve all
   // roots up front so one re-exported by another stays top-level.
-  const roots = full
-    ? [...index.declarations()].filter((d) => d.kind === 'module')
-    : [...index.roots()]
+  const roots = full ? [...index.declarations()].filter((d) => d.kind === 'module') : [...index.roots()]
   for (const r of roots) seen.add(r.id)
   return roots.map((root) => buildRoute(root.id))
 }

@@ -13,7 +13,7 @@ export type Opts = {
 export type Handle = { stop: () => void }
 
 /** Watch multiple directories, debouncing changes and skipping `ignore` matches. */
-export const dirs = (paths: string[], onChange: () => void, opts: Opts = {}): Handle => {
+export const watchPaths = (paths: string[], onChange: () => void, opts: Opts = {}): Handle => {
   const ignore = opts.ignore ?? (() => false)
   const wait = opts.debounceMs ?? 150
   const ac = opts.signal ? undefined : new AbortController()

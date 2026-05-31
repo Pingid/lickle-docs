@@ -61,7 +61,7 @@ export type GenerateOptions = {
   full?: boolean
 }
 
-export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
+export const buildJson = async (opts: GenerateOptions): Promise<ProjectJson> => {
   const graph = reflect.generate(opts.config.entrypoints, {
     compilerOptions: opts.compilerOptions,
     rootDir: opts.dir,
@@ -69,7 +69,7 @@ export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
   })
 
   const routes = Array.from(
-    routing.build(graph, {
+    routing.buildRoutes(graph, {
       entrypoints: opts.config.entrypoints,
       rootName: opts.config.name,
       provider: opts.routeProvider,
@@ -86,8 +86,7 @@ export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
 }
 
 /** All slugs in a route subtree, so routing can avoid colliding with them. */
-const collectSlugs = (routes: RouteNode[]): string[] =>
-  routes.flatMap((r) => [r.slug, ...collectSlugs(r.children)])
+const collectSlugs = (routes: RouteNode[]): string[] => routes.flatMap((r) => [r.slug, ...collectSlugs(r.children)])
 
 const keepFile = (sf: ts.SourceFile, exclude?: string[] | undefined): boolean => {
   if (sf.isDeclarationFile) return false

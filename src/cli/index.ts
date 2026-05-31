@@ -2,10 +2,10 @@ import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
 import path from 'node:path'
 
-import { client, watch, promise } from '../cli/util/index.ts'
 import * as project from '../core/project/index.ts'
 import * as config from '../config/load.ts'
 import * as lib from '../_lib/index.ts'
+import * as cmds from './cmd/index.ts'
 
 export const app = () =>
   cmd.subcommands({
@@ -41,7 +41,7 @@ const cmdJson = cmd.command({
   handler: async (args) => {
     await lib.fs.ensureDir('docs')
     const p = await generate('docs/docs.json', process.cwd(), { exclude: args.exclude, full: args.full })
-    if (args.print) project.routing.displayRoutes(p.routes)
+    if (args.print) project.displayRoutes(p.routes)
   },
 })
 
@@ -87,7 +87,7 @@ const cmdDev = cmd.command({
       description: 'Port to listen on',
     }),
   },
-  handler: async (args) => dev(args),
+  handler: async (args) => cmds.dev.run(args),
 })
 
 const cmdBuild = cmd.command({
@@ -109,7 +109,7 @@ const build = async (args: { docsDir?: string }) => {
   if (!(await stat(dir))) await fs.mkdir(dir, { recursive: true })
   const docsPath = path.join(dir, 'docs.json')
   const p = await generate(docsPath, process.cwd())
-  await client.build({ docsDir: dir, outDir: path.join(dir, 'dist'), name: p.name })
+  // await client.build({ docsDir: dir, outDir: path.join(dir, 'dist'), name: p.name })
 }
 
 const dev = async (args: { docsDir?: string; port?: number }) => {
@@ -119,7 +119,7 @@ const dev = async (args: { docsDir?: string; port?: number }) => {
   let name: string | undefined
   let dirs: string[] = []
   const docsPath = path.join(dir, 'docs.json')
-  const rebuild = promise.serial(async () => {
+  const rebuild = lib.util.serial(async () => {
     console.log(`Rebuilding project...`)
     const p = await generate(docsPath, process.cwd())
     dirs = Array.from(new Set(p.entrypoints.map((s) => path.resolve(path.dirname(s.path)))))
@@ -128,16 +128,16 @@ const dev = async (args: { docsDir?: string; port?: number }) => {
   })
   await rebuild()
 
-  const watcher = watch.dirs([...dirs], rebuild)
-  const server = await client.dev({ docsDir: dir, port: args.port, name: name! })
+  const watcher = lib.fs.watchPaths([...dirs], rebuild)
+  // const server = await client.dev({ docsDir: dir, port: args.port, name: name! })
 
-  const cleanup = async () => {
-    watcher.stop()
-    await server.close()
-    process.exit(0)
-  }
-  process.on('SIGINT', cleanup)
-  process.on('SIGTERM', cleanup)
+  // const cleanup = async () => {
+  //   watcher.stop()
+  //   await server.close()
+  //   process.exit(0)
+  // }
+  // process.on('SIGINT', cleanup)
+  // process.on('SIGTERM', cleanup)
 }
 
 const init = async (args: { docsDir?: string }) => {
@@ -149,7 +149,7 @@ const init = async (args: { docsDir?: string }) => {
 
 const generate = async (out: string, dir: string, opts?: Partial<config.ConfigJson>) => {
   const c = await config.loadGen(dir, opts)
-  const p = await project.json.generate(c)
+  const p = await project.buildJson(c)
   await fs.writeFile(out, JSON.stringify(p))
   return p
 }
