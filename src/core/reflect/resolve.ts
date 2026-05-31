@@ -41,6 +41,15 @@ const resolveExport = (
   const origin = s.exportsOrigin.get(exp.id)
   if (!form || !origin) return
 
+  // export default <expr> / export = <expr>  →  one name pointing at the target.
+  if (ts.isExportAssignment(origin)) {
+    const sym = s.checker.getSymbolAtLocation(origin.expression)
+    if (!sym) return
+    const id = idsForSymbol(idByDecl, s.checker, sym)[0]
+    if (id !== undefined) exp.names.push({ name: origin.isExportEquals ? 'export=' : 'default', ref: id })
+    return
+  }
+
   // export * as foo from './x'  →  one name, points at the module itself.
   if (form === 'namespace-from') {
     const alias = s.exportsAlias.get(exp.id)

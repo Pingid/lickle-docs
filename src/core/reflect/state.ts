@@ -4,7 +4,7 @@ import path from 'path'
 import type * as T from './types.ts'
 
 /** How a given `exports` clause should populate its targets at resolve time. */
-export type ExportsForm = 'named-local' | 'named-from' | 'star' | 'namespace-from'
+export type ExportsForm = 'named-local' | 'named-from' | 'star' | 'namespace-from' | 'assignment'
 
 export interface ScanOptions {
   rootDir: string
@@ -41,7 +41,7 @@ export interface ScanState extends ScanOptions {
   /** exports id -> alias, for `export * as <alias> from '…'`. */
   exportsAlias: Map<number, string>
   /** exports id -> origin node, so resolve can re-ask the checker. */
-  exportsOrigin: Map<number, ts.ExportDeclaration>
+  exportsOrigin: Map<number, ts.ExportDeclaration | ts.ExportAssignment>
 
   /** Source files already scanned — dedups the transitive re-export worklist. */
   seen: Set<ts.SourceFile>

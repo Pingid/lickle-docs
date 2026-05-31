@@ -32,6 +32,7 @@ scan.SourceFile = (s: State, node: ts.SourceFile, queue: ts.SourceFile[]) => {
   s.parent = f.id
   node.statements.forEach((stmt) => {
     if (ts.isExportDeclaration(stmt)) return scan.ExportDeclaration(s, stmt, queue)
+    if (ts.isExportAssignment(stmt)) return scan.ExportAssignment(s, stmt)
     scan.Statement(s, stmt)
   })
   return
@@ -162,6 +163,15 @@ scan.ExportDeclaration = (s: State, node: ts.ExportDeclaration, queue: ts.Source
   if (spec) s.exportsSpec.set(exp.id, spec)
   s.exportsEntries.set(exp.id, entries)
   s.exportsOrigin.set(exp.id, node)
+}
+
+// `export default <expr>` / `export = <expr>`. The target is resolved later.
+scan.ExportAssignment = (s: State, node: ts.ExportAssignment) => {
+  const exp = statement(s, node, 'export', () => ({ names: [], star: false }))
+  s.exports.push(exp)
+  s.exportsForm.set(exp.id, 'assignment')
+  s.exportsOrigin.set(exp.id, node)
+  return exp
 }
 
 // ---------------- Type Components ----------------

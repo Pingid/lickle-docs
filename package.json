@@ -39,11 +39,12 @@
     },
     "./client": "./client.d.ts",
     "./theme.css": "./theme.css",
-    "./tsconfig.json": "./tsconfig.client.json",
+    "./tsconfig.json": "./tsconfig/tsconfig.client.json",
     "./jsx-runtime": "./dist/ts/solidjs/jsx-runtime.d.ts"
   },
   "scripts": {
-    "build": "pnpm tsc"
+    "build": "pnpm tsc",
+    "test": "node --test --experimental-strip-types --disable-warning=ExperimentalWarning 'test/**/*.test.ts'"
   },
   "devDependencies": {
     "@types/hosted-git-info": "^3.0.5",
