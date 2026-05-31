@@ -1,5 +1,6 @@
 import ts from 'typescript'
 import mm from 'micromatch'
+import path from 'node:path'
 
 import { type t } from '../../_lib/index.ts'
 
@@ -65,7 +66,7 @@ export const buildJson = async (opts: GenerateOptions): Promise<ProjectJson> => 
   const graph = reflect.generate(opts.config.entrypoints, {
     compilerOptions: opts.compilerOptions,
     rootDir: opts.dir,
-    include: (sf) => keepFile(sf, opts.exclude),
+    include: keepFile(opts),
   })
 
   const routes = Array.from(
@@ -88,9 +89,12 @@ export const buildJson = async (opts: GenerateOptions): Promise<ProjectJson> => 
 /** All slugs in a route subtree, so routing can avoid colliding with them. */
 const collectSlugs = (routes: RouteNode[]): string[] => routes.flatMap((r) => [r.slug, ...collectSlugs(r.children)])
 
-const keepFile = (sf: ts.SourceFile, exclude?: string[] | undefined): boolean => {
-  if (sf.isDeclarationFile) return false
-  if (sf.fileName.includes('/node_modules/')) return false
-  if (exclude?.some((i) => mm.isMatch(sf.fileName, i))) return false
-  return true
-}
+const keepFile =
+  (opts: GenerateOptions) =>
+  (sf: ts.SourceFile): boolean => {
+    if (sf.isDeclarationFile) return false
+    if (sf.fileName.includes('/node_modules/')) return false
+    const relative = path.relative(opts.dir, sf.fileName)
+    if (opts.exclude?.some((i) => mm.isMatch(relative, i))) return false
+    return true
+  }

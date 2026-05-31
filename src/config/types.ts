@@ -16,10 +16,23 @@ export interface ConfigJson {
   srcDir?: string
   /** Entrypoints — relative source paths reachable from `main` / `exports`. */
   entrypoints?: Entry[]
+  /** Pages to include in the project. Default is the README file. */
+  pages?: Page[]
+  /** Custom  */
+  custom?: string
   /** Files to exclude from the project (micromatch glob patterns) */
   exclude?: string[]
   /** Document every declaration, not just the exported public API. Default false. */
   full?: boolean
+}
+
+export interface Page {
+  /** Page title */
+  title: string
+  /** Page path */
+  slug?: string
+  /** Page content */
+  content: string
 }
 
 export interface Entry {

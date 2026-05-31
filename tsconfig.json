@@ -2,5 +2,5 @@
   "compilerOptions": {},
   "include": [],
   "files": [],
-  "references": [{ "path": "./tsconfig/tsconfig.esm.json" }, { "path": "./tsconfig.project.json" }]
+  "references": [{ "path": "./tsconfig.esm.json" }, { "path": "./tsconfig.project.json" }]
 }

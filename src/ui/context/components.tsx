@@ -1,11 +1,12 @@
-import { createContext, createMemo, useContext } from 'solid-js'
+import { createContext, createMemo, Show, useContext } from 'solid-js'
+import type { Accessor, Component } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
-import type { Component } from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 
 import type * as docs from '../../core/client.ts'
 import type { t } from '../../_lib/index.ts'
 
-const ComponentsCtx = createContext<Components>({})
+const ComponentsCtx = createContext<Accessor<Components>>(() => ({}))
 
 /**
  * Provide a component registry to descendants. When nested inside another
@@ -15,12 +16,12 @@ const ComponentsCtx = createContext<Components>({})
  */
 export const ComponentsProvider = (props: { value?: Components; children: JSX.Element }) => {
   const outer = useContext(ComponentsCtx)
-  const merged = createMemo<Components>(() => deepMerge(outer ?? {}, props.value ?? {}))
-  return <ComponentsCtx.Provider value={merged()}>{props.children}</ComponentsCtx.Provider>
+  const merged = createMemo<Components>(() => ({ ...outer(), ...window.lickle.components[0](), ...props.value }))
+  return <ComponentsCtx.Provider value={merged}>{props.children}</ComponentsCtx.Provider>
 }
 
 /** Read the active (already-merged) component registry. */
-export const useComponents = (): Components => useContext(ComponentsCtx)
+export const useComponents = (): Accessor<Components> => useContext(ComponentsCtx)
 
 /**
  * Build a slot dispatcher in one line: look up the override under `key`,
@@ -35,9 +36,14 @@ export const createSlot =
   ): Component<t.Compute<Omit<Params<Components[K]>[0], 'Default'>>> =>
   (props) => {
     const slots = useComponents()
-    const Override = slots?.[key] as any
-    return Override ? <Override {...props} Default={Default} /> : <Default {...props} />
+    const override = createMemo(() => slots()[key] as Component<any> | undefined)
+    return (
+      <Show when={override()} fallback={<Default {...(props as any)} />} keyed>
+        {(Override) => <Dynamic component={Override} {...(props as any)} Default={Default} />}
+      </Show>
+    )
   }
+
 type Params<T> = T extends (...args: infer P) => any ? P : never
 
 type WithDefault<P extends Record<string, any>> = P & { Default: Component<P> }

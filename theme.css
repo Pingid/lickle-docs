@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@source './dist';
+@source './src';
 
 @theme inline {
   --color-bg: var(--color-bg);

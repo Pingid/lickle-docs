@@ -1,1 +1,2 @@
-export * as dev from './dev.ts'
+export * from './dev.ts'
+export * from './init.ts'

@@ -1,12 +1,17 @@
-import { createEffect, createSignal } from 'solid-js'
 import { App } from '@lickle/docs/ui'
 import { render } from 'solid-js/web'
+
+import { getJson, setJson, getRendered } from '../../../ui/context/global.ts'
 
 // @ts-ignore
 import initialDocs from 'virtual:lickle/docs.json'
 
 // @ts-ignore
 import '@lickle/docs/theme.css'
+
+// @ts-ignore
+import 'virtual:lickle/custom.ts'
+import { createEffect } from 'solid-js'
 
 declare global {
   interface ImportMeta {
@@ -16,14 +21,10 @@ declare global {
   }
 }
 
-const HmrApp = () => {
-  const [docs, setDocs] = createSignal<any>(initialDocs)
+if (initialDocs) setJson(initialDocs)
+if (import.meta.hot) import.meta.hot.on('docs-update', (payload) => setJson(payload))
 
-  createEffect(() => {
-    if (import.meta.hot) import.meta.hot.on('docs-update', (payload) => setDocs(payload))
-  })
-
-  return <App json={docs} />
-}
-
-render(() => <HmrApp />, document.getElementById('root')!)
+createEffect(() => {
+  if (getRendered() === false) return render(() => <App json={getJson()} />, document.getElementById('root')!)
+  return () => {}
+})

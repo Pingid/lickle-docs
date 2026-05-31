@@ -7,6 +7,7 @@ import path from 'node:path'
 import * as lib from '../../_lib/index.ts'
 
 const JSON_ID = 'virtual:lickle/docs.json'
+const CUSTOM_ID = 'virtual:lickle/custom.ts'
 const viteRoot = fileURLToPath(new URL('./client', import.meta.url))
 const libRoot = fileURLToPath(new URL('../../../', import.meta.url))
 
@@ -14,6 +15,7 @@ type Options = {
   srcDir: string
   port?: number
   watchPaths: string[]
+  load?: string | undefined
   build: () => Promise<any>
 }
 
@@ -36,6 +38,8 @@ const docsPlugin = (opts: Options): vite.Plugin => {
   const HMR_PATH = `/@virtual:${JSON_ID}`
   const LIB_UI_PATH = path.resolve(libRoot, './src/ui/index.ts')
   const LIB_THEME_CSS_PATH = path.resolve(libRoot, 'theme.css')
+  const LIB_SOLIDJS_PATH = path.resolve(libRoot, './src/solidjs/index.ts')
+
   return {
     name: 'docs',
     enforce: 'pre',
@@ -43,26 +47,37 @@ const docsPlugin = (opts: Options): vite.Plugin => {
       logger = config.logger
     },
     config: () => ({
-      resolve: { alias: { '@lickle/docs/ui': LIB_UI_PATH, '@lickle/docs/theme.css': LIB_THEME_CSS_PATH } },
+      resolve: {
+        alias: {
+          '@lickle/docs/ui': LIB_UI_PATH,
+          '@lickle/docs/theme.css': LIB_THEME_CSS_PATH,
+          '@lickle/docs/solidjs': LIB_SOLIDJS_PATH,
+        },
+      },
+      server: { fs: { allow: [viteRoot, ...(opts.load ? [opts.load] : [])] } },
     }),
 
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
-        return html.replace(
-          '<script type="module" src="./index.tsx"></script>',
-          '<script type="module" src="./dev.tsx"></script>',
-        )
+        // const loaded = opts.load;
+        const loaded = null
+        const script = loaded
+          ? `<script type="module" src="${loaded}"></script>`
+          : '<script type="module" src="./dev.tsx"></script>'
+        return html.replace('<script type="module" src="./index.tsx"></script>', script)
       },
     },
 
     resolveId(id) {
       if (id === JSON_ID || id === HMR_PATH) return '\0' + JSON_ID
+      if (id === CUSTOM_ID) return '\0' + CUSTOM_ID
       return undefined
     },
 
     load(id) {
       if (id === '\0' + JSON_ID) return json ?? 'null'
+      if (id === '\0' + CUSTOM_ID) return opts.load ? `import ${JSON.stringify(opts.load)}\n` : '\n'
       return undefined
     },
 

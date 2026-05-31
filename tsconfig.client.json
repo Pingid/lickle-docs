@@ -3,7 +3,7 @@
     "lib": ["DOM"],
     "types": ["@lickle/docs/client"],
     "jsx": "preserve",
-    "jsxImportSource": "@lickle/docs/preset",
+    "jsxImportSource": "@lickle/docs/solidjs",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,

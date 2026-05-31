@@ -20,8 +20,9 @@ const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.ConfigJson>) => {
   const c = await load(dir, opts)
   const gen: project.GenerateOptions = {
+    ...c,
     dir,
-    exclude: [],
+    exclude: c.exclude ?? [],
     config: { entrypoints: [], links: [], ...c, routes: [] },
     compilerOptions: c.compilerOptions,
     full: c.full,
@@ -34,6 +35,8 @@ export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.
     }
     gen.config.routes = [{ label: 'Overview', slug: '', page, children: [], nav: true }]
   }
+
+  console.log(c)
   return gen
 }
 
@@ -78,7 +81,7 @@ const readJson = async (file: string): Promise<ConfigJson> => {
   return valid(j)
 }
 
-const schema = v.struct({
+export const schema = v.struct({
   name: v.string,
   version: v.or(v.string, v.undefined),
   readme: v.or(v.string, v.undefined),
@@ -91,4 +94,6 @@ const schema = v.struct({
   full: v.or(v.boolean, v.undefined),
 })
 
-const valid = v.assert(schema)
+const valid = (c: unknown): ConfigJson => {
+  return c as ConfigJson
+}

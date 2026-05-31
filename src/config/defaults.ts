@@ -23,6 +23,7 @@ export const apply = async (dir: string, c?: Partial<ConfigJson>): Promise<Confi
   if (!name) throw new Error('No project name found')
 
   return {
+    ...c,
     name,
     version: c?.version ?? pkg?.version ?? info?.tag,
     readme,

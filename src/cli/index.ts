@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import * as cmd from 'cmd-ts'
-import path from 'node:path'
+// import path from 'node:path'
 
 import * as project from '../core/project/index.ts'
 import * as config from '../config/load.ts'
@@ -11,7 +11,7 @@ export const app = () =>
   cmd.subcommands({
     name: 'docs',
     description: 'Documentation generation',
-    cmds: { json: cmdJson, dev: cmdDev, init: cmdInit, build: cmdBuild },
+    cmds: { json: cmdJson, dev: cmds.dev, init: cmds.init, build: cmdBuild },
   })
 
 const cmdJson = cmd.command({
@@ -45,51 +45,6 @@ const cmdJson = cmd.command({
   },
 })
 
-const cmdInit = cmd.command({
-  name: 'init',
-  description: 'Init',
-  args: {
-    docsDir: cmd.option({
-      long: 'docs-dir',
-      short: 'd',
-      type: cmd.optional(cmd.string),
-      description: 'Path to the docs directory',
-    }),
-    force: cmd.flag({
-      long: 'force',
-      short: 'f',
-      description: 'Force init even if the docs directory already exists',
-    }),
-  },
-  handler: async (args) => {
-    if (args.force) {
-      const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
-      await fs.rm(dir, { recursive: true })
-    }
-    init(args)
-  },
-})
-
-const cmdDev = cmd.command({
-  name: 'dev',
-  description: 'Dev server for a project',
-  args: {
-    docsDir: cmd.option({
-      long: 'docs-dir',
-      short: 'd',
-      type: cmd.optional(cmd.string),
-      description: 'Path to the docs directory',
-    }),
-    port: cmd.option({
-      long: 'port',
-      short: 'p',
-      type: cmd.optional(cmd.number),
-      description: 'Port to listen on',
-    }),
-  },
-  handler: async (args) => cmds.dev.run(args),
-})
-
 const cmdBuild = cmd.command({
   name: 'build',
   description: 'Build the project',
@@ -112,12 +67,12 @@ const cmdBuild = cmd.command({
 //   // await client.build({ docsDir: dir, outDir: path.join(dir, 'dist'), name: p.name })
 // }
 
-const init = async (args: { docsDir?: string }) => {
-  const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
-  await fs.mkdir(dir, { recursive: true })
-  await generate(path.join(dir, 'docs.json'), process.cwd())
-  await writeInitFiles(dir)
-}
+// const init = async (args: { docsDir?: string }) => {
+//   const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
+//   await fs.mkdir(dir, { recursive: true })
+//   await generate(path.join(dir, 'docs.json'), process.cwd())
+//   await writeInitFiles(dir)
+// }
 
 const generate = async (out: string, dir: string, opts?: Partial<config.ConfigJson>) => {
   const c = await config.loadGen(dir, opts)
@@ -126,24 +81,24 @@ const generate = async (out: string, dir: string, opts?: Partial<config.ConfigJs
   return p
 }
 
-const initFiles = {
-  '.gitignore': [`docs.json`, `dist`],
-  'index.tsx': [
-    `import { create, type ProjectJson } from '@lickle/docs/preset'`,
-    `import json from './docs.json'\n`,
-    `create({ json: json as ProjectJson })`,
-  ],
-  'tsconfig.json': [`{`, `  "extends": "@lickle/docs/tsconfig.json",`, `  "include": ["*"],`, `}`],
-}
-const writeInitFiles = async (dir: string) => {
-  for (const [file, content] of Object.entries(initFiles)) {
-    if (await stat(path.join(dir, file))) {
-      console.log(`skipping ${file} as it already exists`)
-      continue
-    }
-    await fs.writeFile(path.join(dir, file), content.join('\n'))
-  }
-}
+// const initFiles = {
+//   '.gitignore': [`docs.json`, `dist`],
+//   'index.tsx': [
+//     `import { create, type ProjectJson } from '@lickle/docs/preset'`,
+//     `import json from './docs.json'\n`,
+//     `create({ json: json as ProjectJson })`,
+//   ],
+//   'tsconfig.json': [`{`, `  "extends": "@lickle/docs/tsconfig.json",`, `  "include": ["*"],`, `}`],
+// }
+// const writeInitFiles = async (dir: string) => {
+//   for (const [file, content] of Object.entries(initFiles)) {
+//     if (await stat(path.join(dir, file))) {
+//       console.log(`skipping ${file} as it already exists`)
+//       continue
+//     }
+//     await fs.writeFile(path.join(dir, file), content.join('\n'))
+//   }
+// }
 
-const stat = async (path: string): Promise<Awaited<ReturnType<typeof fs.stat>> | undefined> =>
-  fs.stat(path).catch(() => undefined)
+// const stat = async (path: string): Promise<Awaited<ReturnType<typeof fs.stat>> | undefined> =>
+//   fs.stat(path).catch(() => undefined)

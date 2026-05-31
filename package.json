@@ -1,7 +1,7 @@
 {
   "name": "@lickle/docs",
   "description": "Documentation generation for lickle",
-  "version": "0.2.3",
+  "version": "0.0.0-dev.1",
   "author": "Dan Beaven <dm.beaven@gmail.com>",
   "repository": {
     "type": "git",
@@ -27,39 +27,19 @@
       "import": "./dist/esm/ui/index.js",
       "require": "./dist/esm/ui/index.js"
     },
-    "./preset": {
-      "types": "./dist/ts/solidjs/entry.d.ts",
-      "import": "./dist/esm/solidjs/entry.jsx",
-      "require": "./dist/esm/solidjs/entry.jsx"
-    },
     "./solidjs": {
       "types": "./dist/ts/solidjs/index.d.ts",
-      "import": "./dist/esm/solidjs/index.jsx",
-      "require": "./dist/esm/solidjs/index.jsx"
+      "import": "./dist/esm/solidjs/index.js",
+      "require": "./dist/esm/solidjs/index.js"
     },
     "./client": "./client.d.ts",
     "./theme.css": "./theme.css",
-    "./tsconfig.json": "./tsconfig/tsconfig.client.json",
-    "./jsx-runtime": "./dist/ts/solidjs/jsx-runtime.d.ts"
+    "./tsconfig.client.json": "./tsconfig.client.json",
+    "./solidjs/jsx-runtime": "./dist/ts/solidjs/jsx-runtime.d.ts"
   },
   "scripts": {
     "build": "pnpm tsc",
     "test": "node --test --experimental-strip-types --disable-warning=ExperimentalWarning 'test/**/*.test.ts'"
-  },
-  "devDependencies": {
-    "@types/hosted-git-info": "^3.0.5",
-    "@types/micromatch": "^4.0.10",
-    "@types/node": "^25.9.1",
-    "hosted-git-info": "^10.1.1",
-    "prettier": "^3.8.3",
-    "sucrase": "^3.35.1",
-    "typescript": "^6.0.3"
-  },
-  "prettier": {
-    "semi": false,
-    "singleQuote": true,
-    "printWidth": 120,
-    "trailingComma": "all"
   },
   "dependencies": {
     "@lickle/docs": "link:",
@@ -76,11 +56,25 @@
     "micromatch": "^4.0.8",
     "pkg-exports": "^0.2.0",
     "resolve.exports": "^2.0.3",
+    "hosted-git-info": "^10.1.1",
     "shiki": "^4.1.0",
     "solid-js": "^1.9.13",
+    "sucrase": "^3.35.1",
     "tailwindcss": "^4.3.0",
-    "typedoc": "^0.28.19",
+    "typescript": "^6.0.3",
     "vite": "^8.0.14",
     "vite-plugin-solid": "^2.11.12"
+  },
+  "devDependencies": {
+    "@types/hosted-git-info": "^3.0.5",
+    "@types/micromatch": "^4.0.10",
+    "@types/node": "^25.9.1",
+    "prettier": "^3.8.3"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 120,
+    "trailingComma": "all"
   }
 }
