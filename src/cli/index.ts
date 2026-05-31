@@ -101,44 +101,16 @@ const cmdBuild = cmd.command({
       description: 'Path to the docs directory',
     }),
   },
-  handler: async (args) => build(args),
+  handler: async (args) => console.log('build', args),
 })
 
-const build = async (args: { docsDir?: string }) => {
-  const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
-  if (!(await stat(dir))) await fs.mkdir(dir, { recursive: true })
-  const docsPath = path.join(dir, 'docs.json')
-  const p = await generate(docsPath, process.cwd())
-  // await client.build({ docsDir: dir, outDir: path.join(dir, 'dist'), name: p.name })
-}
-
-const dev = async (args: { docsDir?: string; port?: number }) => {
-  const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
-  if (!(await stat(dir))) await fs.mkdir(dir, { recursive: true })
-
-  let name: string | undefined
-  let dirs: string[] = []
-  const docsPath = path.join(dir, 'docs.json')
-  const rebuild = lib.util.serial(async () => {
-    console.log(`Rebuilding project...`)
-    const p = await generate(docsPath, process.cwd())
-    dirs = Array.from(new Set(p.entrypoints.map((s) => path.resolve(path.dirname(s.path)))))
-    name = p.name
-    console.log(`Project rebuilt: ${p.name}`)
-  })
-  await rebuild()
-
-  const watcher = lib.fs.watchPaths([...dirs], rebuild)
-  // const server = await client.dev({ docsDir: dir, port: args.port, name: name! })
-
-  // const cleanup = async () => {
-  //   watcher.stop()
-  //   await server.close()
-  //   process.exit(0)
-  // }
-  // process.on('SIGINT', cleanup)
-  // process.on('SIGTERM', cleanup)
-}
+// const build = async (args: { docsDir?: string }) => {
+//   const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')
+//   if (!(await stat(dir))) await fs.mkdir(dir, { recursive: true })
+//   const docsPath = path.join(dir, 'docs.json')
+//   const p = await generate(docsPath, process.cwd())
+//   // await client.build({ docsDir: dir, outDir: path.join(dir, 'dist'), name: p.name })
+// }
 
 const init = async (args: { docsDir?: string }) => {
   const dir = args.docsDir ? path.resolve(args.docsDir) : path.join(process.cwd(), 'docs')

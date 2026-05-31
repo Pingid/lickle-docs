@@ -3,13 +3,13 @@ import { A, useLocation } from '@solidjs/router'
 
 import * as docs from '../../core/client.ts'
 
-import { createSlot, useProj } from '../context/index.ts'
+import { createSlot, useProject } from '../context/index.ts'
 import { Type } from './Type.tsx'
 
 type Node = docs.RouteNode
 
 export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
-  const project = useProj()
+  const project = useProject()
   const routes = createMemo(() => project().routes.filter((r) => r.nav))
 
   return (
@@ -87,7 +87,7 @@ const NavNode = (props: NodeProps) => {
 const indent = (depth: number): string => `${depth * 0.75}rem`
 
 const KindCue = (props: { node: Node }) => {
-  const project = useProj()
+  const project = useProject()
   const kind = () => {
     const page = props.node.page
     if (page.kind === 'markdown') return undefined

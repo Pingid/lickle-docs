@@ -25,13 +25,7 @@ export const ProjectProvider = (props: ProjectProviderProps) => {
   )
 }
 
-export const useProject = (): docs.Project => {
-  const fn = useContext(ProjectCtx)
-  if (!fn) throw new Error('useProject must be used within <ProjectProvider>')
-  return fn()
-}
-
-export const useProj = (): Accessor<docs.Project> => {
+export const useProject = (): Accessor<docs.Project> => {
   const fn = useContext(ProjectCtx)
   if (!fn) throw new Error('useProject must be used within <ProjectProvider>')
   return fn

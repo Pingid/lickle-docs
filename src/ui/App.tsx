@@ -13,7 +13,7 @@ const firstSlug = (routes: docs.RouteNode[]): string | undefined => (routes.find
 const PathRoute = () => {
   const params = useParams()
   const project = useProject()
-  const route = createMemo(() => project.routeForSlug(params['slug'] ?? ''))
+  const route = createMemo(() => project().routeForSlug(params['slug'] ?? ''))
   return (
     <Show when={route()} fallback={<Fallback slug={params['slug']} />}>
       {(r) => <RouteView route={r()} />}
@@ -33,7 +33,7 @@ const RouteView = (props: { route: docs.RouteNode }) => (
 
 const DeclarationView = (props: { route: docs.RouteNode<'declaration' | 'module'> }) => {
   const project = useProject()
-  const decl = createMemo(() => project.byId(props.route.page.id))
+  const decl = createMemo(() => project().byId(props.route.page.id))
   return (
     <Show when={decl()} fallback={<NotFound />}>
       {(d) => (
@@ -48,7 +48,7 @@ const DeclarationView = (props: { route: docs.RouteNode<'declaration' | 'module'
 /** Empty path redirects to the first route; anything else is a miss. */
 const Fallback = (props: { slug?: string }) => {
   const project = useProject()
-  const first = firstSlug(project.routes)
+  const first = createMemo(() => firstSlug(project()?.routes ?? []))
   return (
     <Show when={!props.slug && first} fallback={<NotFound />}>
       {(slug) => <Navigate href={`/${slug()}`} />}

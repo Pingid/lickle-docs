@@ -64,7 +64,7 @@ type ChildRow = { route: ChildRoute; decl?: docs.Declaration; kind: string; summ
 /** Child pages of a module / namespace, grouped by kind and linked from the route tree. */
 const Children = (props: { route: ChildRoute }) => {
   const project = useProject()
-  const groups = createMemo(() => groupChildren(project, props.route.children))
+  const groups = createMemo(() => groupChildren(project(), props.route.children))
   return (
     <For each={groups()}>
       {(group) => (

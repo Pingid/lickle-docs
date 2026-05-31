@@ -9,7 +9,7 @@ type Crumb = { label: string; href?: string }
 
 export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: number }) => {
   const project = useProject()
-  const crumbs = createMemo(() => buildCrumbs(project, props.id))
+  const crumbs = createMemo(() => buildCrumbs(project(), props.id))
 
   return (
     <nav class="text-xs text-mute mb-3" aria-label="Breadcrumb">

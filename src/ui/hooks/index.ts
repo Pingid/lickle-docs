@@ -2,8 +2,8 @@ import { createMemo, type Accessor } from 'solid-js'
 import * as docs from '../../core/client.ts'
 
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
-import { useProject } from '../context/project.tsx'
 import { commentSummaryText } from '../util/comment.ts'
+import { useProject } from '../context/project.tsx'
 
 // ============================================================================
 // SELECTOR HOOKS
@@ -25,7 +25,7 @@ export const useReflection = (
   return createMemo(() => {
     const v = evalSelector(selector)
     if (v == null) return undefined
-    return typeof v === 'number' ? project.byId(v) : project.bySlug(v)
+    return typeof v === 'number' ? project().byId(v) : project().bySlug(v)
   })
 }
 
@@ -35,10 +35,9 @@ export const useReflection = (
  */
 export const useSlugFor = () => {
   const project = useProject()
-  const idx = indexOf(project)
   return {
-    byId: (id: number): string | undefined => project.routeForId(id)?.slug,
-    byName: (name: string): string | undefined => idx.slugByName.get(name),
+    byId: (id: number): string | undefined => project().routeForId(id)?.slug,
+    byName: (name: string): string | undefined => indexOf(project() ?? []).slugByName.get(name),
   }
 }
 
@@ -87,7 +86,7 @@ export interface ReferenceRow {
 
 export const useReferences = (id: () => number): Accessor<ReferenceRow[]> => {
   const project = useProject()
-  return createMemo(() => buildReferenceRows(project, id()))
+  return createMemo(() => buildReferenceRows(project(), id()))
 }
 
 const buildReferenceRows = (project: docs.Project, id: number): ReferenceRow[] => {
@@ -130,7 +129,7 @@ const searchCache = new WeakMap<object, Promise<SearchEngine>>()
  */
 export const useSearch = (): (() => Promise<SearchEngine>) => {
   const project = useProject()
-  return () => buildSearch(project)
+  return () => buildSearch(project())
 }
 
 const buildSearch = (project: docs.Project): Promise<SearchEngine> => {

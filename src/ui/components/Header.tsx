@@ -47,9 +47,9 @@ export const Header = createSlot('header', (props: { onMenu?: () => void; onSear
           </svg>
         </button>
         <A href="/" class="flex items-baseline gap-2 hover:opacity-70 transition-opacity">
-          <span class="font-semibold text-[0.95rem] tracking-tight">{project.name}</span>
-          <Show when={project.version}>
-            <span class="text-xs text-mute font-mono">v{project.version}</span>
+          <span class="font-semibold text-[0.95rem] tracking-tight">{project().name}</span>
+          <Show when={project().version}>
+            <span class="text-xs text-mute font-mono">v{project().version}</span>
           </Show>
         </A>
 
@@ -68,7 +68,7 @@ export const Header = createSlot('header', (props: { onMenu?: () => void; onSear
         </button>
 
         <nav class="ml-auto flex items-center gap-1">
-          <For each={project.links}>
+          <For each={project().links}>
             {({ label, href }) => {
               const icon = iconFor(label)
               return (
