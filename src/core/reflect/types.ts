@@ -37,7 +37,7 @@ export interface DeclerationDefinitions {
 export type ReferenceTypeMap = t.MapKind<
   {
     internal: { targetId: number }
-    external: { external: 'stdlib' | 'package' | 'anonymous' }
+    external: { external: 'stdlib' | 'package' | 'anonymous' | 'type-parameter' }
   },
   'type'
 >
@@ -45,7 +45,7 @@ export type ReferenceTypeMap = t.MapKind<
 export interface TypeDefinitions {
   intrinsic: { name: IntrinsicName }
   literal: { value: string | number | boolean | bigint | null }
-  reference: { id: number; name: string; args?: Type[] } & ReferenceTypeMap[keyof ReferenceTypeMap]
+  reference: { id: number; name: string; owner: number; args?: Type[] } & ReferenceTypeMap[keyof ReferenceTypeMap]
   union: { types: Type[] }
   intersection: { types: Type[] }
   array: { elementType: Type }
@@ -60,18 +60,26 @@ export interface TypeDefinitions {
     constructSignatures?: Part<'signature'>[]
     indexSignature?: Part<'index-signature'>
   }
+  conditional: { check: Type; extends: Type; true: Type; false: Type }
+  infer: { name: string; constraint?: Type }
+  'indexed-access': { object: Type; index: Type }
+  mapped: { typeParameter: Part<'generic'>; nameType?: Type; type?: Type; optional?: boolean; readonly?: boolean }
+  query: { name: string; args?: Type[] }
+  'template-literal': { head: string; spans: { type: Type; literal: string }[] }
+  predicate: { parameter: string; asserts?: boolean; type?: Type }
+  'import-type': { argument: string; qualifier?: string; isTypeOf?: boolean; args?: Type[] }
   unknown: { text: string; nodeType: string }
 }
 
 export interface TypeComponentDefinitions {
   signature: { generics?: Part<'generic'>[]; params: Part<'parameter'>[]; return: Type }
-  parameter: { type: Type; rest?: boolean; default?: string; optional: boolean }
-  generic: { constraint?: Type; default?: Type }
-  property: { type: Type; defaultValue?: string; optional?: boolean }
-  method: { signatures: Part<'signature'>[] }
+  parameter: { name: string; type: Type; rest?: boolean; default?: string; optional: boolean }
+  generic: { name: string; constraint?: Type; default?: Type }
+  property: { name: string; type: Type; defaultValue?: string; optional?: boolean }
+  method: { name: string; signatures: Part<'signature'>[] }
   'index-signature': { parameter: Part<'parameter'>; type: Type }
-  'enum-member': { value?: string | number }
-  'tuple-element': { type: Type; optional?: boolean; rest?: boolean }
+  'enum-member': { name: string; value?: string | number }
+  'tuple-element': { name?: string; type: Type; optional?: boolean; rest?: boolean }
 }
 
 export type IntrinsicName =
@@ -87,6 +95,7 @@ export type IntrinsicName =
   | 'any'
   | 'unknown'
   | 'object'
+  | 'this'
 
 // export type Reference = TypeMap['reference']
 
@@ -101,7 +110,7 @@ const ISD = is.struct({ kind: is.oneOf('variable', 'function', 'class', 'interfa
 export const isDeclaration = (x: any): x is Declaration => ISD(x)
 
 // prettier-ignore
-const IST = is.struct({ kind: is.oneOf('intrinsic', 'literal', 'reference', 'union', 'intersection', 'array', 'tuple', 'function-type', 'type-operator', 'record') }, false)
+const IST = is.struct({ kind: is.oneOf('intrinsic', 'literal', 'reference', 'union', 'intersection', 'array', 'tuple', 'function-type', 'type-operator', 'record', 'conditional', 'infer', 'indexed-access', 'mapped', 'query', 'template-literal', 'predicate', 'import-type') }, false)
 export const isType = (x: any): x is Type => IST(x)
 
 // prettier-ignore
@@ -115,7 +124,7 @@ export const isKind = (x: any): x is Any => ISK(x)
 // ---------------- Remapped with kind and base ----------------
 export type DeclarationMap = t.MapKind<DeclerationDefinitions, 'kind', Base>
 export type TypeMap = t.MapKind<TypeDefinitions, 'kind', Typebase>
-export type PartMap = t.MapKind<TypeComponentDefinitions, 'kind'>
+export type PartMap = t.MapKind<TypeComponentDefinitions, 'kind', Typebase>
 export type KindsMap = DeclarationMap & TypeMap & PartMap
 
 // ---------------- COMMENTS ----------------
@@ -127,9 +136,9 @@ export type CommentPart = t.MapKindUnion<
   'kind'
 >
 
-interface CommentTagDefinitions {
+export interface CommentTagDefinitions {
   '@param': { name: string; type?: Type; optional?: boolean; default?: string; text: string }
-  '@property': { name: string; type?: Type; optional?: boolean; default?: string; text: string }
+  '@property': { name: string; type?: NoInfer<Type>; optional?: boolean; default?: string; text: string }
   '@returns': { type?: Type; text: string }
   '@throws': { type?: Type; text: string }
   '@type': { type: Type; text: string }

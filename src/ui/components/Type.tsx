@@ -1,4 +1,4 @@
-import { For, Show } from 'solid-js'
+import { For, Show, createMemo } from 'solid-js'
 import { A } from '@solidjs/router'
 
 import type * as docs from '../../core/client.ts'
@@ -67,8 +67,8 @@ const renderType = (t: T | undefined): any => {
           {(sig) => <Type.SignatureExpr sig={sig()} arrow />}
         </Show>
       )
-    case 'reflection':
-      return <Type.ReflectionType type={t} />
+    case 'record':
+      return <Type.RecordType type={t} />
     case 'type-operator':
       return (
         <>
@@ -77,14 +77,121 @@ const renderType = (t: T | undefined): any => {
           <Type type={t.target} />
         </>
       )
+    case 'conditional':
+      return <Type.ConditionalType type={t} />
+    case 'infer':
+      return (
+        <>
+          <Syntax.Kw>infer </Syntax.Kw>
+          <Syntax.Name>{t.name}</Syntax.Name>
+          <Show when={t.constraint}>
+            <>
+              <Syntax.Kw> extends </Syntax.Kw>
+              <Type type={t.constraint!} />
+            </>
+          </Show>
+        </>
+      )
+    case 'indexed-access':
+      return (
+        <>
+          <Type type={t.object} />
+          <Syntax.Punct>[</Syntax.Punct>
+          <Type type={t.index} />
+          <Syntax.Punct>]</Syntax.Punct>
+        </>
+      )
+    case 'mapped':
+      return (
+        <>
+          <Syntax.Punct>{'{ '}</Syntax.Punct>
+          <Show when={t.readonly}>
+            <Syntax.Kw>readonly </Syntax.Kw>
+          </Show>
+          <Syntax.Punct>[</Syntax.Punct>
+          <Syntax.Name>{t.typeParameter.name}</Syntax.Name>
+          <Show when={t.typeParameter.constraint}>
+            <>
+              <Syntax.Kw> in </Syntax.Kw>
+              <Type type={t.typeParameter.constraint!} />
+            </>
+          </Show>
+          <Show when={t.nameType}>
+            <>
+              <Syntax.Kw> as </Syntax.Kw>
+              <Type type={t.nameType!} />
+            </>
+          </Show>
+          <Syntax.Punct>]</Syntax.Punct>
+          <Show when={t.optional}>
+            <Syntax.Punct>?</Syntax.Punct>
+          </Show>
+          <Syntax.Punct>: </Syntax.Punct>
+          <Type type={t.type} />
+          <Syntax.Punct>{' }'}</Syntax.Punct>
+        </>
+      )
     case 'query':
       return (
         <>
-          <Syntax.Kw>typeof</Syntax.Kw>
-          <span> </span>
-          <Type type={t.queryType as docs.Reference} />
+          <Syntax.Kw>typeof </Syntax.Kw>
+          <Syntax.Name>{t.name}</Syntax.Name>
+          <Type.TypeArgs args={t.args} />
         </>
       )
+    case 'template-literal':
+      return (
+        <>
+          <span class="text-fg">{'`'}{t.head}</span>
+          <For each={t.spans}>
+            {(sp) => (
+              <>
+                <Syntax.Punct>{'${'}</Syntax.Punct>
+                <Type type={sp.type} />
+                <Syntax.Punct>{'}'}</Syntax.Punct>
+                <span class="text-fg">{sp.literal}</span>
+              </>
+            )}
+          </For>
+          <span class="text-fg">{'`'}</span>
+        </>
+      )
+    case 'predicate':
+      return (
+        <>
+          <Show when={t.asserts}>
+            <Syntax.Kw>asserts </Syntax.Kw>
+          </Show>
+          <Syntax.Name>{t.parameter}</Syntax.Name>
+          <Show when={t.type}>
+            <>
+              <Syntax.Kw> is </Syntax.Kw>
+              <Type type={t.type!} />
+            </>
+          </Show>
+        </>
+      )
+    case 'import-type':
+      return (
+        <>
+          <Show when={t.isTypeOf}>
+            <Syntax.Kw>typeof </Syntax.Kw>
+          </Show>
+          <Syntax.Kw>import</Syntax.Kw>
+          <Syntax.Punct>(</Syntax.Punct>
+          <span class="text-fg">"{t.argument}"</span>
+          <Syntax.Punct>)</Syntax.Punct>
+          <Show when={t.qualifier}>
+            <>
+              <Syntax.Punct>.</Syntax.Punct>
+              <Syntax.Name>{t.qualifier!}</Syntax.Name>
+            </>
+          </Show>
+          <Type.TypeArgs args={t.args} />
+        </>
+      )
+    case 'unknown':
+      return <Syntax.Name>{t.text}</Syntax.Name>
     default:
       return <Syntax.Name>{(t as { kind: string }).kind}</Syntax.Name>
   }
@@ -111,46 +218,148 @@ Type.TypeArgs = (props: { args?: T[] }) => (
   </Show>
 )
 
-Type.ReferenceType = (props: { type: docs.Reference }) => (
-  <>
-    <Link.Type id={props.type.target?.id} name={props.type.name} external={props.type.external} />
-    <Type.TypeArgs args={props.type.typeArguments} />
-  </>
-)
+Type.ReferenceType = (props: { type: docs.Type<'reference'> }) => {
+  const t = props.type
+  return (
+    <>
+      <Link.Type
+        id={t.type === 'internal' ? t.targetId : undefined}
+        name={t.name}
+        external={t.type === 'external' ? t.external : undefined}
+      />
+      <Type.TypeArgs args={t.args} />
+    </>
+  )
+}
 
-Type.ReflectionType = (props: { type: docs.ReflectionType }) => {
-  const decl = props.type.declaration
+/**
+ * Conditional type. Right-nested chains (`A extends B ? X : C extends D ? …`)
+ * are flattened and rendered as an aligned `: ` ladder, the way Prettier
+ * formats long conditional-type maps, instead of one runaway inline line.
+ */
+Type.ConditionalType = (props: { type: docs.Type<'conditional'> }) => {
+  const chain = createMemo(() => {
+    const branches: docs.Type<'conditional'>[] = []
+    let cur: docs.Type | undefined = props.type
+    while (cur?.kind === 'conditional') {
+      branches.push(cur)
+      cur = cur.false
+    }
+    return { branches, tail: cur }
+  })
+  const head = (b: docs.Type<'conditional'>) => (
+    <>
+      <Type type={b.check} />
+      <Syntax.Kw> extends </Syntax.Kw>
+      <Type type={b.extends} />
+      <Syntax.Punct> ? </Syntax.Punct>
+      <Type type={b.true} />
+    </>
+  )
+  return (
+    <Show
+      when={chain().branches.length > 1}
+      fallback={
+        <>
+          {head(props.type)}
+          <Syntax.Punct> : </Syntax.Punct>
+          <Type type={props.type.false} />
+        </>
+      }
+    >
+      <span class="inline-flex flex-col align-top">
+        <For each={chain().branches}>
+          {(b, i) => (
+            <span classList={{ 'pl-4': i() > 0 }}>
+              <Show when={i() > 0}>
+                <Syntax.Punct>: </Syntax.Punct>
+              </Show>
+              {head(b)}
+            </span>
+          )}
+        </For>
+        <span class="pl-4">
+          <Syntax.Punct>: </Syntax.Punct>
+          <Type type={chain().tail} />
+        </span>
+      </span>
+    </Show>
+  )
+}
+
+Type.RecordType = (props: { type: docs.Type<'record'> }) => {
+  const decl = props.type
   const onlySignatures =
-    decl.callSignatures?.length &&
+    decl.callSignatures?.length === 1 &&
     !decl.properties.length &&
     !decl.methods?.length &&
     !decl.indexSignature &&
     !decl.constructSignatures?.length
   if (onlySignatures) return <Type.SignatureExpr sig={decl.callSignatures![0]!} arrow />
+
+  // Every member kind, flattened to renderers so a single `<For>` lays them
+  // out with consistent `; ` separators.
+  const members = (): (() => any)[] => [
+    ...decl.properties.map((p) => () => <RecordProperty prop={p} />),
+    ...(decl.methods ?? []).flatMap((m) => m.signatures.map((sig) => () => <RecordMethod name={m.name} sig={sig} />)),
+    ...(decl.indexSignature ? [() => <RecordIndex sig={decl.indexSignature!} />] : []),
+    ...(decl.callSignatures ?? []).map((sig) => () => <Type.SignatureExpr sig={sig} />),
+    ...(decl.constructSignatures ?? []).map((sig) => () => (
+      <>
+        <Syntax.Kw>new </Syntax.Kw>
+        <Type.SignatureExpr sig={sig} />
+      </>
+    )),
+  ]
+
   return (
-    <>
+    <Show when={members().length} fallback={<Syntax.Punct>{'{}'}</Syntax.Punct>}>
       <Syntax.Punct>{'{ '}</Syntax.Punct>
-      <For each={decl.properties}>
-        {(p, i) => (
+      <For each={members()}>
+        {(render, i) => (
           <>
             <Show when={i() > 0}>
-              <Syntax.Punct>{', '}</Syntax.Punct>
+              <Syntax.Punct>{'; '}</Syntax.Punct>
             </Show>
-            <Syntax.Name>{p.name}</Syntax.Name>
-            <Show when={p.optional}>
-              <Syntax.Punct>?</Syntax.Punct>
-            </Show>
-            <Syntax.Punct>: </Syntax.Punct>
-            <Type type={p.type} />
+            {render()}
           </>
         )}
       </For>
       <Syntax.Punct>{' }'}</Syntax.Punct>
-    </>
+    </Show>
   )
 }
 
-const TupleElement = (props: { el: docs.TupleElement }) => (
+const RecordProperty = (props: { prop: docs.Part<'property'> }) => (
+  <>
+    <Syntax.Name>{props.prop.name}</Syntax.Name>
+    <Show when={props.prop.optional}>
+      <Syntax.Punct>?</Syntax.Punct>
+    </Show>
+    <Syntax.Punct>: </Syntax.Punct>
+    <Type type={props.prop.type} />
+  </>
+)
+
+const RecordMethod = (props: { name: string; sig: docs.Part<'signature'> }) => (
+  <>
+    <Syntax.Name>{props.name}</Syntax.Name>
+    <Type.SignatureExpr sig={props.sig} />
+  </>
+)
+
+const RecordIndex = (props: { sig: docs.Part<'index-signature'> }) => (
+  <>
+    <Syntax.Punct>[</Syntax.Punct>
+    <Syntax.Name>{props.sig.parameter.name}</Syntax.Name>
+    <Syntax.Punct>: </Syntax.Punct>
+    <Type type={props.sig.parameter.type} />
+    <Syntax.Punct>]: </Syntax.Punct>
+    <Type type={props.sig.type} />
+  </>
+)
+
+const TupleElement = (props: { el: docs.Part<'tuple-element'> }) => (
   <>
     <Show when={props.el.rest}>
       <Syntax.Punct>...</Syntax.Punct>
@@ -171,30 +380,11 @@ const TupleElement = (props: { el: docs.TupleElement }) => (
   </>
 )
 
-Type.SignatureExpr = (props: { sig: docs.Signature; arrow?: boolean }) => (
+Type.SignatureExpr = (props: { sig: docs.Part<'signature'>; arrow?: boolean }) => (
   <>
-    <Show when={props.sig.typeParameters?.length}>
-      <Syntax.Punct>{'<'}</Syntax.Punct>
-      <For each={props.sig.typeParameters!}>
-        {(tp, i) => (
-          <>
-            <Show when={i() > 0}>
-              <Syntax.Punct>{', '}</Syntax.Punct>
-            </Show>
-            <Syntax.Name>{tp.name}</Syntax.Name>
-            <Show when={tp.constraint}>
-              <>
-                <Syntax.Kw> extends </Syntax.Kw>
-                <Type type={tp.constraint!} />
-              </>
-            </Show>
-          </>
-        )}
-      </For>
-      <Syntax.Punct>{'>'}</Syntax.Punct>
-    </Show>
+    <Type.Generics generics={props.sig.generics} />
     <Syntax.Punct>(</Syntax.Punct>
-    <For each={props.sig.parameters}>
+    <For each={props.sig.params}>
       {(p, i) => (
         <>
           <Show when={i() > 0}>
@@ -213,13 +403,39 @@ Type.SignatureExpr = (props: { sig: docs.Signature; arrow?: boolean }) => (
       )}
     </For>
     <Syntax.Punct>)</Syntax.Punct>
-    <Show when={props.sig.type}>
-      <>
-        <Syntax.Punct>{props.arrow ? ' => ' : ': '}</Syntax.Punct>
-        <Type type={props.sig.type} />
-      </>
-    </Show>
+    <Syntax.Punct>{props.arrow ? ' => ' : ': '}</Syntax.Punct>
+    <Type type={props.sig.return} />
   </>
+)
+
+/** Type parameter list — `<T extends C = D>`. */
+Type.Generics = (props: { generics?: docs.Part<'generic'>[] }) => (
+  <Show when={props.generics?.length}>
+    <Syntax.Punct>{'<'}</Syntax.Punct>
+    <For each={props.generics!}>
+      {(tp, i) => (
+        <>
+          <Show when={i() > 0}>
+            <Syntax.Punct>{', '}</Syntax.Punct>
+          </Show>
+          <Syntax.Name>{tp.name}</Syntax.Name>
+          <Show when={tp.constraint}>
+            <>
+              <Syntax.Kw> extends </Syntax.Kw>
+              <Type type={tp.constraint!} />
+            </>
+          </Show>
+          <Show when={tp.default}>
+            <>
+              <Syntax.Punct> = </Syntax.Punct>
+              <Type type={tp.default!} />
+            </>
+          </Show>
+        </>
+      )}
+    </For>
+    <Syntax.Punct>{'>'}</Syntax.Punct>
+  </Show>
 )
 
 Type.TypeBlock = (props: { type: T | undefined }) => (
@@ -274,7 +490,7 @@ Type.NameLink = (props: { id?: number; name: string; class?: string }) => {
     <Show when={slug()} fallback={<span class={props.class}>{props.name}</span>}>
       {(s) => (
         <A
-          href={`/r/${s()}`}
+          href={`/${s()}`}
           class={`${props.class ?? ''} hover:opacity-70 underline decoration-line decoration-dotted underline-offset-[3px]`}
         >
           {props.name}
@@ -287,10 +503,10 @@ Type.NameLink = (props: { id?: number; name: string; class?: string }) => {
 const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
 const Kw = (p: { children: string }) => <span class="text-accent">{p.children}</span>
 
-const isOptional = (p: docs.Parameter): boolean => p.optional || p.default != null
+const isOptional = (p: docs.Part<'parameter'>): boolean => p.optional || p.default != null
 
 Type.SignatureLine = (props: {
-  sig: docs.Signature
+  sig: docs.Part<'signature'>
   name?: string
   /** Owning declaration id — when set, the name renders as a link to its page. */
   id?: number
@@ -303,28 +519,9 @@ Type.SignatureLine = (props: {
     <Show when={props.name}>
       <Type.NameLink id={props.id} name={props.name!} class="font-semibold" />
     </Show>
-    <Show when={props.sig.typeParameters?.length}>
-      <Punct>{'<'}</Punct>
-      <For each={props.sig.typeParameters!}>
-        {(tp, i) => (
-          <>
-            <Show when={i() > 0}>
-              <Punct>{', '}</Punct>
-            </Show>
-            <span>{tp.name}</span>
-            <Show when={tp.constraint}>
-              <>
-                <Kw> extends </Kw>
-                <Type type={tp.constraint!} />
-              </>
-            </Show>
-          </>
-        )}
-      </For>
-      <Punct>{'>'}</Punct>
-    </Show>
+    <Type.Generics generics={props.sig.generics} />
     <Punct>(</Punct>
-    <For each={props.sig.parameters}>
+    <For each={props.sig.params}>
       {(p, i) => (
         <>
           <Show when={i() > 0}>
@@ -343,12 +540,8 @@ Type.SignatureLine = (props: {
       )}
     </For>
     <Punct>)</Punct>
-    <Show when={props.sig.type}>
-      <>
-        <Punct>: </Punct>
-        <Type type={props.sig.type} />
-      </>
-    </Show>
+    <Punct>: </Punct>
+    <Type type={props.sig.return} />
   </div>
 )
 
@@ -358,7 +551,7 @@ Type.SignatureLine = (props: {
  * so there's no separate parameter table here.
  */
 Type.Signature = (props: {
-  sig: docs.Signature
+  sig: docs.Part<'signature'>
   name?: string
   id?: number
   kind?: 'function' | 'method' | 'constructor'
@@ -382,7 +575,7 @@ Type.Signature = (props: {
 }
 
 Type.SignatureCompact = (props: {
-  sig: docs.Signature
+  sig: docs.Part<'signature'>
   name?: string
   id?: number
   kind?: 'function' | 'method' | 'constructor'

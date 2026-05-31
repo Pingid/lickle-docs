@@ -1,144 +1,122 @@
 import type { RouteNode, PageType } from './json.ts'
 import * as reflect from '../reflect/index.ts'
-import * as path from '../../_lib/path/index.ts'
 import * as config from '../../config/load.ts'
+import * as naming from './naming.ts'
 
 type Page = 'declaration' | 'module'
 
 export type Options = {
-  routes?: RouteNode[]
+  rootName: string
   entrypoints?: config.Entry[]
+  /** Override how routes are named / grouped / shown. Defaults to {@link createRouteProvider}. */
+  provider?: RouteProvider
 }
 
-type RouteContext = {
-  graph: reflect.scan2.Graph
+// ----------------------------------------------------------------------------
+// Provider abstraction
+// ----------------------------------------------------------------------------
 
-  create: (p: { id: number; alias?: string; children?: Iterable<RouteNode<Page>> }) => RouteNode<Page>
+/** Everything a provider needs to decide a single route, computed top-down. */
+export type RouteContext = {
+  /** The declaration this route points at. */
+  decl: reflect.Declaration
+  /** Exposure alias on this path (set by renames / `export * as`). */
+  alias?: string
+  /** Resolved parts of the parent route; `undefined` at an entry module. */
+  parent?: naming.Parts
+  /** The reflect index, for providers that need to inspect the graph. */
+  index: reflect.Index
+  /** Naming options (project name, entry aliases, common dir). */
+  options: naming.NameOptions
 }
 
-export const build = (graph: reflect.scan2.Graph, opts: Options) => {
-  const cx = createContext(graph, opts)
-  const routes = new Array<RouteNode<Page>>()
-
-  for (const decl of graph.roots()) {
-    routes.push(cx.create({ id: decl.id, children: children(cx, decl.id) }))
-  }
-
-  return routes
+/**
+ * Customisation seam for the route tree. The traversal, de-duplication and
+ * page wiring stay in {@link build}; a provider only decides per-route
+ * presentation. Build one with {@link createRouteProvider} and override the
+ * parts you care about.
+ */
+export interface RouteProvider {
+  /** Label, slug and qualified name for the route. */
+  name(cx: RouteContext): naming.Parts
+  /** Whether the route appears in navigation (the sidebar). */
+  nav(cx: RouteContext): boolean
+  /** Optional group heading rendered above the route in navigation. */
+  group(cx: RouteContext): string | undefined
 }
 
-const children = function* (n: RouteContext, id: number) {
-  let seen = new Set<number>()
-  for (const child of n.graph.children(id)) {
-    for (const r of route(n, child.id)) {
-      if (seen.has(child.id)) continue
-      else {
-        seen.add(child.id)
-        yield r
-      }
-    }
+/** Default naming: entry modules from their path/alias, everything else nested under its parent. */
+const defaultName = (cx: RouteContext): naming.Parts =>
+  cx.parent === undefined
+    ? naming.rootParts(cx.decl as reflect.Declaration<'module'>, cx.options)
+    : naming.childParts(cx.alias ?? cx.decl.name, cx.parent)
+
+/**
+ * Compose a provider from optional overrides; unset hooks fall back to the
+ * stock behaviour (path-derived names, everything navigable, no groups).
+ */
+export const createRouteProvider = (overrides: Partial<RouteProvider> = {}): RouteProvider => ({
+  name: overrides.name ?? defaultName,
+  nav: overrides.nav ?? (() => true),
+  group: overrides.group ?? (() => undefined),
+})
+
+// ----------------------------------------------------------------------------
+// Build
+// ----------------------------------------------------------------------------
+
+/**
+ * Build the navigation tree from the reflect index. The shape mirrors the
+ * exposure graph (`index.exposed`) rather than the raw declaration tree, so
+ * `export * from`, `export * as ns`, renames and namespaces are already
+ * resolved. Each declaration is routed once — the first exposure path wins —
+ * which keeps slugs unique and avoids duplicate pages.
+ */
+export const build = (index: reflect.Index, opts: Options): RouteNode<Page>[] => {
+  const options: naming.NameOptions = {
+    rootName: opts.rootName,
+    aliases: new Map((opts.entrypoints ?? []).map((e) => [e.path, e.as.replace(/^\.\//, '')])),
+    commonDir: index.commonDir(),
   }
-}
+  const provider = opts.provider ?? createRouteProvider()
 
-const route = function* (
-  cx: RouteContext,
-  id: number,
-  star: boolean = false,
-  alias?: string,
-): Iterable<RouteNode<Page>> {
-  const d = cx.graph.get(id)
-  if (!d) return
+  // Reserve every entry module up front so a root that's also re-exported by
+  // another stays top-level instead of nesting under it.
+  const roots = [...index.roots()]
+  const seen = new Set<number>(roots.map((r) => r.id))
 
-  if (d.kind === 'export') {
-    for (const name of d.names) yield* route(cx, name.ref, false, name.name)
-    return
-  }
+  const buildRoute = (id: number, parent?: naming.Parts, alias?: string): RouteNode<Page> => {
+    const decl = index.get(id)!
+    const cx: RouteContext = { decl, alias, parent, index, options }
+    const parts = provider.name(cx)
 
-  if (d.kind === 'module' || d.kind === 'namespace') {
-    if (star) return yield* children(cx, id)
-    yield cx.create({ id, alias, children: children(cx, id) })
-    return
-  }
-
-  yield cx.create({ id, alias, children: children(cx, id) })
-}
-
-const createContext = (graph: reflect.scan2.Graph, opts: Options): RouteContext => {
-  const mapped = new Map<string, string>()
-
-  for (const ep of opts.entrypoints ?? []) mapped.set(ep.path, ep.as.replace(/\.\//, ''))
-
-  const mods = new Map<number, { name: string; slug: string; qualified: string }>()
-  const srcDir = path.common(Array.from(graph.files())).split('/')
-  const reg = new RegExp(`^\/?${srcDir}\/`)
-
-  const pathSegments = (pth: string) => {
-    const m = pth.split('/')
-    if (m[m.length - 1]?.startsWith('index')) m.pop()
-    if (!m[m.length - 1]) return []
-    if (m[0] === srcDir[0]) m.shift()
-    return m.map((s) => path.stripExt(s))
-  }
-
-  const moduleName = (d: reflect.Declaration<'module'>, alias?: string) => {
-    if (alias) return alias
-    const m = mapped.get(d.path)
-    if (m) return m
-    return nameFromPath(d.path)
-  }
-
-  let parent = 0
-  const getFor = (id: number, alias?: string) => {
-    const d = graph.get(id)!
-    if (d.kind === 'module') {
-      if (mods.has(d.id)) return mods.get(d.id)!
-      parent = d.id
-      const name = moduleName(d, alias)
-      const seg = pathSegments(d.path)
-      const qualified = seg.join('.').replace(reg, '')
-      const slug = seg.join('/').replace(reg, '')
-      const md = { name, slug, qualified }
-      mods.set(d.id, md)
-      return md
+    seen.add(id)
+    const children: RouteNode<Page>[] = []
+    for (const e of index.exposed(id)) {
+      if (seen.has(e.id)) continue
+      children.push(buildRoute(e.id, parts, e.alias))
     }
 
-    const m = mods.get(parent)!
-    return { name: d.name, slug: `${m.slug}/${d.name}`, qualified: `${m.qualified}.${d.name}` }
+    const kind: Page = decl.kind === 'module' ? 'module' : 'declaration'
+    const page: PageType<Page> = {
+      kind,
+      id,
+      alias: parts.label,
+      qualified: parts.qualified,
+      referencedIn: [...index.referencedIn(id)],
+    }
+    const group = provider.group(cx)
+    return { label: parts.label, slug: parts.slug, page, children, nav: provider.nav(cx), ...(group ? { group } : {}) }
   }
 
-  return {
-    graph,
-    create: (p) => {
-      const { name, slug } = getFor(p.id, p.alias)
-      const children = p.children ? [...p.children] : []
-      const kind = graph.get(p.id)?.kind === 'module' ? 'module' : 'declaration'
-      const page: PageType<Page> = { kind, id: p.id, alias: p.alias ?? name, qualified: name }
-      return { label: name, slug, page, children }
-    },
-  }
-}
-
-const nameFromPath = (pth: string) => {
-  const m = pth.split('/')
-  if (m[m.length - 1]?.startsWith('index')) m.pop()
-  if (!m[m.length - 1]) return '/'
-  return path.stripExt(m[m.length - 1]!)
+  return roots.map((root) => buildRoute(root.id))
 }
 
 export const displayRoutes = (routes: RouteNode[], prefix: string = '') => {
   const kinds = { module: 'M', markdown: '.MD', declaration: 'D' }
-  const extra = (r: RouteNode) => {
-    if (r.page.kind === 'markdown') return ''
-    if (r.page.kind === 'module') return ''
-    if (r.page.kind === 'declaration') return ''
-    return ''
-  }
   for (const r of routes) {
-    const id = () => (r.page as any)?.id ?? r.label
-
-    console.log(`${prefix}${kinds[r.page.kind]} ${id()} (${r.slug}) ${extra(r)}      `)
-    if (r.children) {
-      displayRoutes(r.children, prefix + '  ')
-    }
+    const id = (r.page as { id?: number }).id ?? r.label
+    console.log(`${prefix}${kinds[r.page.kind]} ${id} (${r.slug})`)
+    if (r.children) displayRoutes(r.children, prefix + '  ')
   }
 }

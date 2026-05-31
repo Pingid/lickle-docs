@@ -38,7 +38,7 @@ export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.
       kind: 'markdown',
       content: await lib.fs.readFile(c.config.readme, 'utf-8'),
     }
-    gen.config.routes = [{ label: 'Overview', slug: '/', page, children: [] }]
+    gen.config.routes = [{ label: 'Overview', slug: '', page, children: [], nav: true }]
   }
   return gen
 }

@@ -24,11 +24,15 @@ export const create = (json: project.ProjectJson): Project => {
   }
 
   const indexRoute = (r: RouteNode, ancs: number[]) => {
-    if (r.page.kind === 'markdown') return
+    _routesBySlug.set(r.slug, r)
+    // Markdown pages carry no declaration id, so they only resolve by slug.
+    if (r.page.kind === 'markdown') {
+      for (const child of r.children) indexRoute(child, ancs)
+      return
+    }
     const d = _byId.get(r.page.id)
     _bySlug.set(r.slug, d)
     _routesById.set(r.page.id, r)
-    _routesBySlug.set(r.slug, r)
     _ancestors.set(r.page.id, ancs)
     for (const child of r.children) {
       indexRoute(child, [...ancs, r.page.id])

@@ -1,6 +1,7 @@
 import ts from 'typescript'
-import type * as T from '../types.ts'
 import path from 'path'
+
+import type * as T from './types.ts'
 
 /** How a given `exports` clause should populate its targets at resolve time. */
 export type ExportsForm = 'named-local' | 'named-from' | 'star' | 'namespace-from'
@@ -19,6 +20,7 @@ export interface ScanState extends ScanOptions {
   getPath: (sf: ts.SourceFile) => string
   root: number
   parent: number
+  currentStmt: number
 
   checker: ts.TypeChecker
   references: T.Type<'reference'>[]
@@ -26,6 +28,8 @@ export interface ScanState extends ScanOptions {
   declarations: T.Declaration[]
   symbolsById: Map<number, ts.Symbol>
   referenceOrigins: Map<number, ts.Node>
+  /** Symbol for inferred references, which have no syntactic origin to re-resolve. */
+  referenceSymbols: Map<number, ts.Symbol>
 
   // ---- deferred export population ----
   /** exports id -> which population strategy resolve should use. */
@@ -51,6 +55,7 @@ export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): Sc
     ...options,
     root: 0,
     parent: 0,
+    currentStmt: 0,
     checker,
     nextId: () => ++id,
     getPath,
@@ -59,6 +64,7 @@ export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): Sc
     declarations: [],
     symbolsById: new Map(),
     referenceOrigins: new Map(),
+    referenceSymbols: new Map(),
     exportsForm: new Map(),
     exportsSpec: new Map(),
     exportsEntries: new Map(),

@@ -68,7 +68,7 @@ export const TagSee = createSlot('tag.see', (props: { tag: docs.CommentTagMap['@
 export const TagTemplate = createSlot('tag.template', (props: { tag: docs.CommentTagMap['@template'] }) => (
   <TagSection title="Type Parameters">
     <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
-      <For each={props.tag.typeParameters}>
+      <For each={props.tag.generics}>
         {(tp) => (
           <>
             <dt class="font-mono text-sm font-semibold">{tp.name}</dt>

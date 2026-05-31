@@ -55,7 +55,7 @@ const buildMarked = (h: Highlighter | null, lookup?: CodespanLookup) => {
       codespan({ text }) {
         if (lookup && ID.test(text)) {
           const slug = lookup(text)
-          if (slug) return `<a href="/r/${slug}" class="codelink"><code>${text}</code></a>`
+          if (slug) return `<a href="/${slug}" class="codelink"><code>${text}</code></a>`
         }
         return `<code>${text}</code>`
       },

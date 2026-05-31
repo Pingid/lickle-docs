@@ -1,8 +1,6 @@
 import { Show } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import type * as docs from '../../core/client.ts'
-
 import { useSlugFor } from '../hooks/index.ts'
 import { Syntax } from './Syntax.tsx'
 
@@ -19,7 +17,7 @@ export const Link = (props: { href: string; children: string }) => {
  * the target isn't resolvable. The `?` prefix marks anonymous external
  * references the resolver couldn't anchor to anything.
  */
-Link.Type = (props: { id?: number; name: string; external?: docs.Reference['external'] }) => {
+Link.Type = (props: { id?: number; name: string; external?: 'stdlib' | 'package' | 'anonymous' | 'type-parameter' }) => {
   const slugs = useSlugFor()
   const slug = () => (props.id != null ? slugs.byId(props.id) : undefined)
   return (
@@ -28,7 +26,7 @@ Link.Type = (props: { id?: number; name: string; external?: docs.Reference['exte
         <Syntax.Punct>?</Syntax.Punct>
       </Show>
       <Show when={slug()} fallback={<Syntax.Name>{props.name}</Syntax.Name>}>
-        <Link href={`/r/${slug()}`}>{props.name}</Link>
+        <Link href={`/${slug()}`}>{props.name}</Link>
       </Show>
     </>
   )
@@ -39,7 +37,7 @@ Link.ByName = (props: { name: string }) => {
   const slug = () => slugs.byName(props.name)
   return (
     <Show when={slug()} fallback={<Syntax.Name>{props.name}</Syntax.Name>}>
-      <Link href={`/r/${slug()}`}>{props.name}</Link>
+      <Link href={`/${slug()}`}>{props.name}</Link>
     </Show>
   )
 }

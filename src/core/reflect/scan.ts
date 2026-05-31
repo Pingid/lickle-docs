@@ -1,10 +1,11 @@
 import { makeScanState, type ScanOptions, type ScanState as State } from './state.ts'
 import ts from 'typescript'
 
-import type * as T from '../types.ts'
+import type * as T from './types.ts'
 
 export const scan = (rootFiles: string[], options: ScanOptions) => {
-  const program = ts.createProgram(rootFiles, options.compilerOptions)
+  const compilerOptions: ts.CompilerOptions = { jsx: ts.JsxEmit.ReactJSX, ...options.compilerOptions }
+  const program = ts.createProgram(rootFiles, compilerOptions)
   const checker = program.getTypeChecker()
   const s = makeScanState(checker, options)
 
@@ -27,7 +28,7 @@ scan.SourceFile = (s: State, node: ts.SourceFile, queue: ts.SourceFile[]) => {
   if (s.seen.has(node) || !s.include(node)) return
   s.seen.add(node)
   s.parent = s.root
-  const f = statement(s, node, 'module', { path: s.getPath(node) })
+  const f = statement(s, node, 'module', () => ({ path: s.getPath(node) }))
   s.parent = f.id
   node.statements.forEach((stmt) => {
     if (ts.isExportDeclaration(stmt)) return scan.ExportDeclaration(s, stmt, queue)
@@ -52,16 +53,16 @@ scan.Statement = (s: State, node: ts.Statement) => {
 scan.VariableDeclaration = (s: State, node: ts.VariableDeclaration) => {
   const init = node.initializer
   if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
-    return statement(s, node, 'function', functionBody(s, init))
+    return statement(s, node, 'function', () => functionBody(s, init))
   }
-  return statement(s, node, 'variable', {
-    type: node.type ? scan.Type(s, node.type) : scan.Intrinsic(s, node, 'unknown'),
+  return statement(s, node, 'variable', () => ({
+    type: node.type ? scan.Type(s, node.type) : inferAt(s, node),
     defaultValue: node.initializer?.getText(),
-  })
+  }))
 }
 
 scan.FunctionDeclaration = (s: State, decl: ts.FunctionDeclaration) => {
-  return statement(s, decl, 'function', functionBody(s, decl))
+  return statement(s, decl, 'function', () => functionBody(s, decl))
 }
 
 scan.ClassDeclaration = (s: State, node: ts.ClassDeclaration) => {
@@ -75,37 +76,37 @@ scan.ClassDeclaration = (s: State, node: ts.ClassDeclaration) => {
     else if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name)) methods.push(method(s, m))
     else if (ts.isIndexSignatureDeclaration(m)) indexSignature = indexSignatureDecl(s, m)
   }
-  return statement(s, node, 'class', {
+  return statement(s, node, 'class', () => ({
     ...generics(s, node),
     ...heritage(s, node),
     constructors,
     properties,
     methods,
     ...(indexSignature ? { indexSignature } : {}),
-  })
+  }))
 }
 
 scan.InterfaceDeclaration = (s: State, node: ts.InterfaceDeclaration) =>
-  statement(s, node, 'interface', {
+  statement(s, node, 'interface', () => ({
     ...generics(s, node),
     ...interfaceExtends(s, node),
     ...objectMembers(s, node.members),
-  })
+  }))
 
 scan.TypeAliasDeclaration = (s: State, node: ts.TypeAliasDeclaration) =>
-  statement(s, node, 'type-alias', {
+  statement(s, node, 'type-alias', () => ({
     ...generics(s, node),
     type: scan.Type(s, node.type),
-  })
+  }))
 
 scan.EnumDeclaration = (s: State, node: ts.EnumDeclaration) =>
-  statement(s, node, 'enum', {
+  statement(s, node, 'enum', () => ({
     const: !!node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ConstKeyword),
     members: node.members.map((m) => enumMember(s, m)),
-  })
+  }))
 
 scan.ModuleDeclaration = (s: State, node: ts.ModuleDeclaration) => {
-  const ns = statement(s, node, 'namespace', {})
+  const ns = statement(s, node, 'namespace', () => ({}))
   const body = node.body
   if (!body) return ns
 
@@ -134,7 +135,7 @@ scan.ExportDeclaration = (s: State, node: ts.ExportDeclaration, queue: ts.Source
   }
 
   // Emit an `export` declaration node (ref filled by resolver).
-  const exp = statement(s, node, 'export', { names: [], star: false })
+  const exp = statement(s, node, 'export', () => ({ names: [], star: false }))
   s.exports.push(exp)
 
   if (!node.exportClause) {
@@ -173,6 +174,15 @@ scan.Type = (s: State, node: ts.TypeNode): T.Type => {
   if (ts.isTypeOperatorNode(node)) return scan.TypeOperator(s, node)
   if (ts.isFunctionTypeNode(node) || ts.isConstructorTypeNode(node)) return scan.FunctionType(s, node)
   if (ts.isTypeLiteralNode(node)) return scan.Record(s, node)
+  if (ts.isParenthesizedTypeNode(node)) return scan.Type(s, node.type)
+  if (ts.isConditionalTypeNode(node)) return scan.Conditional(s, node)
+  if (ts.isInferTypeNode(node)) return scan.Infer(s, node)
+  if (ts.isIndexedAccessTypeNode(node)) return scan.IndexedAccess(s, node)
+  if (ts.isMappedTypeNode(node)) return scan.Mapped(s, node)
+  if (ts.isTypeQueryNode(node)) return scan.Query(s, node)
+  if (ts.isTemplateLiteralTypeNode(node)) return scan.TemplateLiteral(s, node)
+  if (ts.isTypePredicateNode(node)) return scan.Predicate(s, node)
+  if (ts.isImportTypeNode(node)) return scan.ImportType(s, node)
   const name = INTRINSICS[node.kind]
   if (name) return scan.Intrinsic(s, node, name)
 
@@ -205,9 +215,67 @@ scan.FunctionType = (s: State, node: ts.FunctionTypeNode | ts.ConstructorTypeNod
 scan.Record = (s: State, node: ts.TypeLiteralNode): T.Type<'record'> =>
   type(s, node, 'record', objectMembers(s, node.members))
 
+scan.Conditional = (s: State, node: ts.ConditionalTypeNode): T.Type<'conditional'> =>
+  type(s, node, 'conditional', {
+    check: scan.Type(s, node.checkType),
+    extends: scan.Type(s, node.extendsType),
+    true: scan.Type(s, node.trueType),
+    false: scan.Type(s, node.falseType),
+  })
+
+scan.Infer = (s: State, node: ts.InferTypeNode): T.Type<'infer'> =>
+  type(s, node, 'infer', {
+    name: node.typeParameter.name.text,
+    ...(node.typeParameter.constraint ? { constraint: scan.Type(s, node.typeParameter.constraint) } : {}),
+  })
+
+scan.IndexedAccess = (s: State, node: ts.IndexedAccessTypeNode): T.Type<'indexed-access'> =>
+  type(s, node, 'indexed-access', { object: scan.Type(s, node.objectType), index: scan.Type(s, node.indexType) })
+
+scan.Mapped = (s: State, node: ts.MappedTypeNode): T.Type<'mapped'> =>
+  type(s, node, 'mapped', {
+    typeParameter: scan.TypeParam(s, node.typeParameter),
+    ...(node.nameType ? { nameType: scan.Type(s, node.nameType) } : {}),
+    ...(node.type ? { type: scan.Type(s, node.type) } : {}),
+    ...(node.questionToken ? { optional: true } : {}),
+    ...(node.readonlyToken ? { readonly: true } : {}),
+  })
+
+scan.Query = (s: State, node: ts.TypeQueryNode): T.Type<'query'> =>
+  type(s, node, 'query', {
+    name: node.exprName.getText(),
+    ...(node.typeArguments?.length ? { args: node.typeArguments.map((a) => scan.Type(s, a)) } : {}),
+  })
+
+scan.TemplateLiteral = (s: State, node: ts.TemplateLiteralTypeNode): T.Type<'template-literal'> =>
+  type(s, node, 'template-literal', {
+    head: node.head.text,
+    spans: node.templateSpans.map((sp) => ({ type: scan.Type(s, sp.type), literal: sp.literal.text })),
+  })
+
+scan.Predicate = (s: State, node: ts.TypePredicateNode): T.Type<'predicate'> =>
+  type(s, node, 'predicate', {
+    parameter: node.parameterName.getText(),
+    ...(node.assertsModifier ? { asserts: true } : {}),
+    ...(node.type ? { type: scan.Type(s, node.type) } : {}),
+  })
+
+scan.ImportType = (s: State, node: ts.ImportTypeNode): T.Type<'import-type'> => {
+  const arg = ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)
+    ? node.argument.literal.text
+    : node.argument.getText()
+  return type(s, node, 'import-type', {
+    argument: arg,
+    ...(node.qualifier ? { qualifier: node.qualifier.getText() } : {}),
+    ...(node.isTypeOf ? { isTypeOf: true } : {}),
+    ...(node.typeArguments?.length ? { args: node.typeArguments.map((a) => scan.Type(s, a)) } : {}),
+  })
+}
+
 scan.TypeReference = (s: State, node: ts.TypeReferenceNode): T.Type<'reference'> => {
   const r = type(s, node, 'reference', { type: 'internal', targetId: 0 } as any)
   r.id = s.nextId()
+  r.owner = s.currentStmt
   r.name = getName(node) ?? 'unknown'
   if (node.typeArguments?.length) r.args = node.typeArguments.map((a) => scan.Type(s, a))
   s.references.push(r)
@@ -223,23 +291,149 @@ scan.Intrinsic = (s: State, node: ts.Node, name: T.IntrinsicName): T.Type => {
 }
 
 scan.TypeParam = (s: State, node: ts.TypeParameterDeclaration): T.Part<'generic'> => {
-  return part('generic', {
+  return part(s, node, 'generic', {
     constraint: node.constraint ? scan.Type(s, node.constraint) : undefined,
     default: node.default ? scan.Type(s, node.default) : undefined,
   })
 }
 
+// ---------------- Inference ----------------
+/**
+ * Infer a declaration's type from the checker when no annotation is present.
+ * Builds a structured `Type` for the common shapes (primitives, literals,
+ * unions, arrays, named references, object literals) and falls back to the
+ * checker's string form for anything more exotic — the hybrid contract.
+ */
+const inferAt = (s: State, node: ts.Node): T.Type => fromType(s, node, s.checker.getTypeAtLocation(node), new Set())
+
+const inferReturn = (s: State, node: ts.SignatureDeclarationBase): T.Type => {
+  const sig = s.checker.getSignatureFromDeclaration(node as ts.SignatureDeclaration)
+  return sig ? fromType(s, node, sig.getReturnType(), new Set()) : scan.Intrinsic(s, node, 'unknown')
+}
+
+const fromType = (s: State, ctx: ts.Node, type: ts.Type, seen: Set<ts.Type>): T.Type =>
+  structured(s, ctx, type, seen) ?? inferredText(s, ctx, type)
+
+const inferredText = (s: State, ctx: ts.Node, type: ts.Type): T.Type =>
+  inode(s, 'unknown', { text: s.checker.typeToString(type, ctx, ts.TypeFormatFlags.NoTruncation), nodeType: 'inferred' })
+
+const structured = (s: State, ctx: ts.Node, type: ts.Type, seen: Set<ts.Type>): T.Type | undefined => {
+  const f = type.flags
+  // Literals first — their flags never overlap the primitive intrinsics.
+  if (f & ts.TypeFlags.StringLiteral) return inode(s, 'literal', { value: (type as ts.StringLiteralType).value })
+  if (f & ts.TypeFlags.NumberLiteral) return inode(s, 'literal', { value: (type as ts.NumberLiteralType).value })
+  if (f & ts.TypeFlags.BigIntLiteral) {
+    const v = (type as ts.BigIntLiteralType).value
+    return inode(s, 'literal', { value: BigInt((v.negative ? '-' : '') + v.base10Value) })
+  }
+  if (f & ts.TypeFlags.BooleanLiteral) return inode(s, 'literal', { value: (type as any).intrinsicName === 'true' })
+  const intr = intrinsicName(f)
+  if (intr) return inode(s, 'intrinsic', { name: intr })
+  // Keep a named alias rather than expanding it inline.
+  const alias = type.aliasSymbol
+  if (alias && isNamed(alias)) return inferRef(s, alias.getName(), alias, mapArgs(s, ctx, type.aliasTypeArguments, seen))
+  if (type.isUnion()) return inode(s, 'union', { types: type.types.map((t) => fromType(s, ctx, t, seen)) })
+  if (type.isIntersection()) return inode(s, 'intersection', { types: type.types.map((t) => fromType(s, ctx, t, seen)) })
+  return objectType(s, ctx, type, seen)
+}
+
+/** Arrays, named references, and anonymous object literals. */
+const objectType = (s: State, ctx: ts.Node, type: ts.Type, seen: Set<ts.Type>): T.Type | undefined => {
+  if (!(type.flags & ts.TypeFlags.Object)) return undefined
+  const obj = type as ts.ObjectType
+  if (obj.objectFlags & ts.ObjectFlags.Reference) {
+    const ref = type as ts.TypeReference
+    if (ref.target.objectFlags & ts.ObjectFlags.Tuple) return undefined // → string form
+    const args = s.checker.getTypeArguments(ref)
+    const tname = ref.target.symbol?.getName()
+    if ((tname === 'Array' || tname === 'ReadonlyArray') && args.length === 1)
+      return inode(s, 'array', { elementType: fromType(s, ctx, args[0]!, seen) })
+    const sym = type.getSymbol()
+    if (sym && isNamed(sym)) return inferRef(s, sym.getName(), sym, mapArgs(s, ctx, args, seen))
+  }
+  const sym = type.getSymbol()
+  if (sym && isNamed(sym)) return inferRef(s, sym.getName(), sym, undefined)
+  // Callable / constructable objects are too rich for a record — defer to text.
+  if (type.getCallSignatures().length || type.getConstructSignatures().length) return undefined
+  const props = type.getProperties()
+  if (!props.length || seen.has(type)) return undefined
+  seen.add(type)
+  return inode(s, 'record', { properties: props.map((p) => inferProp(s, ctx, p, seen)), methods: [] })
+}
+
+const inferProp = (s: State, ctx: ts.Node, sym: ts.Symbol, seen: Set<ts.Type>): T.Part<'property'> => {
+  const decl = sym.valueDeclaration ?? sym.declarations?.[0] ?? ctx
+  const pt = s.checker.getTypeOfSymbolAtLocation(sym, decl)
+  return {
+    kind: 'property',
+    parent: s.parent,
+    sources: [],
+    name: sym.getName(),
+    type: fromType(s, ctx, pt, seen),
+    ...(sym.flags & ts.SymbolFlags.Optional ? { optional: true } : {}),
+  } as T.Part<'property'>
+}
+
+const inferRef = (s: State, name: string, symbol: ts.Symbol, args?: T.Type[]): T.Type<'reference'> => {
+  const r = {
+    kind: 'reference',
+    parent: s.parent,
+    sources: [],
+    type: 'internal',
+    targetId: 0,
+    id: s.nextId(),
+    name,
+    owner: s.currentStmt,
+    ...(args?.length ? { args } : {}),
+  } as T.Type<'reference'>
+  s.references.push(r)
+  s.referenceSymbols.set(r.id, symbol)
+  return r
+}
+
+const mapArgs = (s: State, ctx: ts.Node, args: readonly ts.Type[] | undefined, seen: Set<ts.Type>): T.Type[] | undefined =>
+  args?.length ? args.map((a) => fromType(s, ctx, a, seen)) : undefined
+
+/** A symbol that should render as a clickable name rather than an expanded shape. */
+const isNamed = (sym: ts.Symbol): boolean => {
+  if (sym.flags & ts.SymbolFlags.TypeParameter) return false
+  const n = sym.getName()
+  return !!n && !n.startsWith('__')
+}
+
+const inode = <K extends keyof T.TypeMap>(
+  s: State,
+  kind: K,
+  fields: Omit<T.TypeMap[K], keyof T.Typebase | 'kind'>,
+): T.Type<K> => ({ kind, parent: s.parent, sources: [], ...fields }) as unknown as T.Type<K>
+
+const intrinsicName = (f: ts.TypeFlags): T.IntrinsicName | undefined => {
+  if (f & ts.TypeFlags.String) return 'string'
+  if (f & ts.TypeFlags.Number) return 'number'
+  if (f & ts.TypeFlags.Boolean) return 'boolean'
+  if (f & ts.TypeFlags.BigInt) return 'bigint'
+  if (f & (ts.TypeFlags.ESSymbol | ts.TypeFlags.UniqueESSymbol)) return 'symbol'
+  if (f & ts.TypeFlags.Void) return 'void'
+  if (f & ts.TypeFlags.Undefined) return 'undefined'
+  if (f & ts.TypeFlags.Null) return 'null'
+  if (f & ts.TypeFlags.Never) return 'never'
+  if (f & ts.TypeFlags.Any) return 'any'
+  if (f & ts.TypeFlags.Unknown) return 'unknown'
+  if (f & ts.TypeFlags.NonPrimitive) return 'object'
+  return undefined
+}
+
 // ---------------- Type Components ----------------
 const signature = (s: State, node: ts.SignatureDeclarationBase): T.Part<'signature'> =>
-  part('signature', {
+  part(s, node, 'signature', {
     ...(node.typeParameters ? { generics: node.typeParameters.map((tp) => scan.TypeParam(s, tp)) } : {}),
     params: node.parameters.map((p) => parameter(s, p)),
-    return: node.type ? scan.Type(s, node.type) : scan.Intrinsic(s, node, 'unknown'),
+    return: node.type ? scan.Type(s, node.type) : inferReturn(s, node),
   })
 
 const parameter = (b: State, node: ts.ParameterDeclaration): T.Part<'parameter'> =>
-  part('parameter', {
-    type: node.type ? scan.Type(b, node.type) : scan.Intrinsic(b, node, 'unknown'),
+  part(b, node, 'parameter', {
+    type: node.type ? scan.Type(b, node.type) : inferAt(b, node),
     optional: !!node.questionToken || !!node.initializer,
     ...(node.dotDotDotToken ? { rest: true } : {}),
     ...(node.initializer ? { default: node.initializer.getText() } : {}),
@@ -418,11 +612,13 @@ const statement = <K extends keyof T.DeclarationMap>(
   s: State,
   node: ts.Node,
   kind: K,
-  fields: Omit<T.DeclarationMap[K], keyof T.Base | 'kind'> & Partial<T.Base>,
+  fields: () => Omit<T.DeclarationMap[K], keyof T.Base | 'kind'> & Partial<T.Base>,
 ): T.Declaration<K> => {
-  const d = Object.assign(base(s, node), fields, { kind }) as any
-  s.declarations.push(d)
-  return d
+  const b = base(s, node)
+  s.currentStmt = b.id
+  Object.assign(b, fields(), { kind })
+  s.declarations.push(b as any)
+  return b as any
 }
 
 const type = <K extends keyof T.TypeMap>(
@@ -436,9 +632,20 @@ const type = <K extends keyof T.TypeMap>(
   return nd as any
 }
 
-const part = <K extends keyof T.PartMap>(kind: K, fields: Omit<T.PartMap[K], 'kind'>): T.Part<K> =>
-  Object.assign(fields, { kind }) as any
-
+const part = <K extends keyof T.PartMap>(
+  s: State,
+  node: ts.Node,
+  kind: K,
+  fields: Omit<T.PartMap[K], 'kind' | 'name' | keyof T.Typebase> & { name?: string },
+): T.Part<K> => {
+  const nd = typeBase(s, node) as T.Typebase & { kind?: string; name?: string }
+  Object.assign(nd, { kind }, fields)
+  if (nd.name === undefined) {
+    const n = getName(node)
+    if (n !== undefined) nd.name = n
+  }
+  return nd as any
+}
 const base = (s: State, node: ts.Node): T.Base => {
   const result: T.Base = typeBase(s, node) as any
   result.id = s.nextId()
@@ -495,24 +702,24 @@ export const getName = (node: ts.Node): string | undefined => {
 }
 
 const property = (s: State, node: ts.PropertyDeclaration | ts.PropertySignature): T.Part<'property'> =>
-  part('property', {
-    type: node.type ? scan.Type(s, node.type) : scan.Intrinsic(s, node, 'unknown'),
+  part(s, node, 'property', {
+    type: node.type ? scan.Type(s, node.type) : inferAt(s, node),
     ...(node.questionToken ? { optional: true } : {}),
     ...('initializer' in node && node.initializer ? { defaultValue: node.initializer.getText() } : {}),
   })
 
 const method = (s: State, node: ts.MethodDeclaration | ts.MethodSignature): T.Part<'method'> =>
-  part('method', { signatures: [signature(s, node)] })
+  part(s, node, 'method', { signatures: [signature(s, node)] })
 
 const indexSignatureDecl = (s: State, node: ts.IndexSignatureDeclaration): T.Part<'index-signature'> =>
-  part('index-signature', {
+  part(s, node, 'index-signature', {
     parameter: parameter(s, node.parameters[0]!),
     type: node.type ? scan.Type(s, node.type) : scan.Intrinsic(s, node, 'unknown'),
   })
 
 const enumMember = (s: State, node: ts.EnumMember): T.Part<'enum-member'> => {
   const value = s.checker.getConstantValue(node)
-  return part('enum-member', { ...(value !== undefined ? { value } : {}) })
+  return part(s, node, 'enum-member', { ...(value !== undefined ? { value } : {}) })
 }
 
 const generics = (s: State, node: { typeParameters?: ts.NodeArray<ts.TypeParameterDeclaration> }) =>
@@ -567,14 +774,14 @@ const literalValue = (lit: ts.Node): T.Type<'literal'>['value'] => {
 
 const tupleElement = (s: State, el: ts.TypeNode): T.Part<'tuple-element'> => {
   if (ts.isNamedTupleMember(el))
-    return part('tuple-element', {
+    return part(s, el, 'tuple-element', {
       type: scan.Type(s, el.type),
       ...(el.questionToken ? { optional: true } : {}),
       ...(el.dotDotDotToken ? { rest: true } : {}),
     })
-  if (ts.isOptionalTypeNode(el)) return part('tuple-element', { type: scan.Type(s, el.type), optional: true })
-  if (ts.isRestTypeNode(el)) return part('tuple-element', { type: scan.Type(s, el.type), rest: true })
-  return part('tuple-element', { type: scan.Type(s, el) })
+  if (ts.isOptionalTypeNode(el)) return part(s, el, 'tuple-element', { type: scan.Type(s, el.type), optional: true })
+  if (ts.isRestTypeNode(el)) return part(s, el, 'tuple-element', { type: scan.Type(s, el.type), rest: true })
+  return part(s, el, 'tuple-element', { type: scan.Type(s, el) })
 }
 
 const INTRINSICS: Partial<Record<ts.SyntaxKind, T.IntrinsicName>> = {
@@ -589,6 +796,7 @@ const INTRINSICS: Partial<Record<ts.SyntaxKind, T.IntrinsicName>> = {
   [ts.SyntaxKind.AnyKeyword]: 'any',
   [ts.SyntaxKind.UnknownKeyword]: 'unknown',
   [ts.SyntaxKind.ObjectKeyword]: 'object',
+  [ts.SyntaxKind.ThisType]: 'this',
 }
 
 const TYPE_OPERATORS: Partial<Record<ts.SyntaxKind, 'keyof' | 'readonly' | 'unique'>> = {

@@ -1,6 +1,6 @@
 import * as lib from '../_lib/index.ts'
-import type { ConfigJson } from './types.ts'
 
+import type { ConfigJson } from './types.ts'
 export type * from './types.ts'
 
 export const defineConfig = (config: ConfigJson | (() => ConfigJson) | (() => Promise<ConfigJson>)) => {

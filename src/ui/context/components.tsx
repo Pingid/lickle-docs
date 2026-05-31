@@ -3,6 +3,7 @@ import type { JSX } from 'solid-js/jsx-runtime'
 import type { Component } from 'solid-js'
 
 import type * as docs from '../../core/client.ts'
+import type { t } from '../../_lib/index.ts'
 
 const ComponentsCtx = createContext<Components>({})
 
@@ -28,14 +29,14 @@ export const useComponents = (): Components => useContext(ComponentsCtx)
  * `WithDefault<P>` wrapper in {@link Slots} pins down.
  */
 export const createSlot =
-  <K extends keyof Components, P extends Omit<Params<Components[K]>[0], 'Default'>>(
+  <K extends keyof Components>(
     key: K,
-    Default: Component<P>,
-  ): Component<P> =>
+    Default: Component<t.Compute<Omit<Params<Components[K]>[0], 'Default'>>>,
+  ): Component<t.Compute<Omit<Params<Components[K]>[0], 'Default'>>> =>
   (props) => {
     const slots = useComponents()
-    const Override = slots?.[key] as Component<P & { Default: Component<P> }> | undefined
-    return Override ? <Override {...(props as P)} Default={Default} /> : <Default {...props} />
+    const Override = slots?.[key] as any
+    return Override ? <Override {...props} Default={Default} /> : <Default {...props} />
   }
 type Params<T> = T extends (...args: infer P) => any ? P : never
 
@@ -46,6 +47,8 @@ export type DeclarationProps<K extends keyof docs.DeclarationMap> = WithDefault<
 }>
 
 type PageProps = { decl: docs.Declaration; route: docs.RouteNode<'declaration' | 'module'> }
+
+export type SlotComponent<K extends keyof Components> = Components[K]
 /**
  * Slot override signatures. Every slot receives `Default` typed to the
  * stock component's props so the override can decorate (`<Default {...p} />`
@@ -75,14 +78,13 @@ export interface Components {
   'declaration.enum'?: Component<DeclarationProps<'enum'>>
   'declaration.module'?: Component<DeclarationProps<'module'>>
   'declaration.namespace'?: Component<DeclarationProps<'namespace'>>
-  'declaration.exports'?: Component<DeclarationProps<'exports'>>
 
   comment?: Component<WithDefault<{ comment?: docs.Comment; class?: string }>>
   'comment.parameters'?: Component<WithDefault<{ tags: docs.CommentTagMap['@param'][] }>>
   'comment.properties'?: Component<WithDefault<{ tags: docs.CommentTagMap['@property'][] }>>
 
   tag?: Component<WithDefault<{ tag: docs.CommentTag }>>
-  'tag.returns'?: Component<WithDefault<{ tag: docs.CommentTagMap['@returns'] }>>
+  'tag.returns'?: Component<WithDefault<{ tag: t.Compute<docs.CommentTagMap['@returns']> }>>
   'tag.throws'?: Component<WithDefault<{ tag: docs.CommentTagMap['@throws'] }>>
   'tag.type'?: Component<WithDefault<{ tag: docs.CommentTagMap['@type'] }>>
   'tag.satisfies'?: Component<WithDefault<{ tag: docs.CommentTagMap['@satisfies'] }>>

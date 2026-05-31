@@ -48,7 +48,7 @@ export const Layout = createSlot('layout', (props: { children: JSX.Element }) =>
           </div>
         </Show>
 
-        <main class="min-w-0 px-6 lg:px-12 pt-8 pb-20 max-w-[860px]">{props.children}</main>
+        <main class="min-w-0 px-6 lg:px-12 pt-8 pb-20 max-w-[860px] break-words">{props.children}</main>
       </div>
 
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />

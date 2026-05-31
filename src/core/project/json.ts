@@ -35,12 +35,16 @@ export type BaseRoute<P> = {
   page: P
   /** sub pages */
   children: BaseRoute<P>[]
+  /** Whether the page should be displayed in the navigation */
+  nav: boolean
+  /** Adds a label above in navigation*/
+  group?: string
 }
 
 type PageTypeMap = t.MapKind<{
   markdown: { content: string }
-  module: { id: number; alias?: string; qualified: string }
-  declaration: { id: number; alias?: string; qualified: string }
+  module: { id: number; alias?: string; qualified: string; referencedIn: number[] }
+  declaration: { id: number; alias?: string; qualified: string; referencedIn: number[] }
 }>
 
 export type PageType<K extends keyof PageTypeMap = keyof PageTypeMap> = PageTypeMap[K]
@@ -51,21 +55,30 @@ export type GenerateOptions = {
   exclude: string[]
   config: Omit<ProjectJson, 'declarations'>
   compilerOptions: ts.CompilerOptions
+  /** Override route naming / grouping / nav visibility. */
+  routeProvider?: routing.RouteProvider
 }
 
 export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
-  const entrypoints = opts.config.entrypoints.map((e) => e.path)
-
-  const graph = reflect.generate(entrypoints, {
+  const graph = reflect.generate(opts.config.entrypoints, {
     compilerOptions: opts.compilerOptions,
     rootDir: opts.dir,
     include: (sf) => keepFile(sf, opts.exclude),
-    internal: false,
   })
 
-  const routes = Array.from(routing.build(graph, { entrypoints: opts.config.entrypoints }))
+  const routes = Array.from(
+    routing.build(graph, {
+      entrypoints: opts.config.entrypoints,
+      rootName: opts.config.name,
+      provider: opts.routeProvider,
+    }),
+  )
 
-  return { ...opts.config, declarations: graph.declarations(), routes: routes }
+  return {
+    ...opts.config,
+    declarations: [...graph.declarations()],
+    routes: [...opts.config.routes, ...routes],
+  }
 }
 
 const keepFile = (sf: ts.SourceFile, exclude?: string[] | undefined): boolean => {

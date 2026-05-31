@@ -1,14 +1,14 @@
 import ts from 'typescript'
 
 import type { ScanState } from './state.ts'
-import * as T from '../types.ts'
+import * as T from './types.ts'
 
 export const resolve = (s: ScanState) => {
   const idByDecl = new Map<ts.Node, number>()
   for (const [id, sym] of s.symbolsById) sym.declarations?.forEach((d) => idByDecl.set(d, id))
 
   for (const ref of s.references) {
-    const sym = symbolAt(s.checker, s.referenceOrigins.get(ref.id))
+    const sym = s.referenceSymbols.get(ref.id) ?? symbolAt(s.checker, s.referenceOrigins.get(ref.id))
     if (!sym) {
       asExternal(ref, 'anonymous')
       continue
@@ -120,7 +120,7 @@ const symbolAt = (checker: ts.TypeChecker, origin?: ts.Node): ts.Symbol | undefi
   return undefined
 }
 
-const asExternal = (ref: T.Type<'reference'>, external: 'stdlib' | 'package' | 'anonymous'): void => {
+const asExternal = (ref: T.Type<'reference'>, external: 'stdlib' | 'package' | 'anonymous' | 'type-parameter'): void => {
   const r = ref as Extract<T.Type<'reference'>, { type: 'external' }>
   r.type = 'external'
   r.external = external
@@ -134,7 +134,8 @@ const asInternal = (ref: T.Type<'reference'>, targetId: number): void => {
 const symbolSourceFile = (sym?: ts.Symbol): ts.SourceFile | undefined =>
   sym?.declarations?.find(ts.isSourceFile) ?? sym?.declarations?.[0]?.getSourceFile()
 
-const classifySymbol = (sym: ts.Symbol): 'stdlib' | 'package' | 'anonymous' => {
+const classifySymbol = (sym: ts.Symbol): 'stdlib' | 'package' | 'anonymous' | 'type-parameter' => {
+  if (sym.flags & ts.SymbolFlags.TypeParameter) return 'type-parameter'
   const decl = sym.declarations?.[0]
   if (!decl) return 'anonymous'
   const file = decl.getSourceFile().fileName

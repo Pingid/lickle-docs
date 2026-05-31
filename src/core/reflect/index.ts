@@ -1,9 +1,18 @@
-import * as graph from './graph/index.ts'
-import * as scan2 from './scan2/index.ts'
+import type { ScanOptions } from './state.ts'
 
-export * as graph from './graph/index.ts'
-export * as scan2 from './scan2/index.ts'
-export type * from './graph/index.ts'
+import * as indexed from './indexed.ts'
+import { resolve } from './resolve.ts'
+import { scan } from './scan.ts'
+
+export type { ScanOptions } from './state.ts'
+export { type Index } from './indexed.ts'
 export type * from './types.ts'
 
-export const generate = (files: string[], options: graph.BuilderOptions): scan2.Graph => scan2.generate(files, options)
+export const generate = (rootFiles: { as: string; path: string }[], options: ScanOptions) => {
+  const s = scan(
+    rootFiles.map((r) => r.path),
+    options,
+  )
+  const r = resolve(s)
+  return indexed.create(r, rootFiles)
+}

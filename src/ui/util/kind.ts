@@ -9,7 +9,7 @@
 export type Kind =
   | 'module'
   | 'namespace'
-  | 'exports'
+  | 'export'
   | 'variable'
   | 'function'
   | 'class'
@@ -22,12 +22,13 @@ export type Kind =
   | 'parameter'
   | 'signature'
   | 'index-signature'
-  | 'object-literal'
+  | 'record'
+  | 'unknown'
 
 const LABELS: Record<Kind, string> = {
   module: 'module',
   namespace: 'namespace',
-  exports: 'exports',
+  export: 'export',
   variable: 'variable',
   function: 'function',
   class: 'class',
@@ -40,7 +41,8 @@ const LABELS: Record<Kind, string> = {
   parameter: 'parameter',
   signature: 'signature',
   'index-signature': 'index signature',
-  'object-literal': 'object',
+  record: 'object',
+  unknown: 'unknown',
 }
 
 export const labelOf = (kind: Kind | string): string => LABELS[kind as Kind] ?? 'symbol'
@@ -76,7 +78,7 @@ export const isRoutable = (kind: Kind | string): boolean => ROUTABLE.has(kind as
 const PLURAL: Record<Kind, string> = {
   module: 'modules',
   namespace: 'namespaces',
-  exports: 'exports',
+  export: 'exports',
   variable: 'variables',
   function: 'functions',
   class: 'classes',
@@ -89,7 +91,8 @@ const PLURAL: Record<Kind, string> = {
   parameter: 'parameters',
   signature: 'signatures',
   'index-signature': 'index signatures',
-  'object-literal': 'objects',
+  record: 'objects',
+  unknown: 'unknown',
 }
 
 export const pluralLabel = (kind: Kind | string): string => PLURAL[kind as Kind] ?? `${labelOf(kind)}s`

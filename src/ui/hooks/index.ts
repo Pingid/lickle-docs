@@ -2,10 +2,8 @@ import { createMemo, type Accessor } from 'solid-js'
 import * as docs from '../../core/client.ts'
 
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
-import { useProject, type Project } from '../context/project.tsx'
+import { useProject } from '../context/project.tsx'
 import { commentSummaryText } from '../util/comment.ts'
-import type { NavGroup } from '../strategies/index.ts'
-import { isRoutable } from '../util/kind.ts'
 
 // ============================================================================
 // SELECTOR HOOKS
@@ -27,8 +25,7 @@ export const useReflection = (
   return createMemo(() => {
     const v = evalSelector(selector)
     if (v == null) return undefined
-    const id = typeof v === 'number' ? v : project.idBySlug.get(v)
-    return id != null ? project.declarationsById.get(id) : undefined
+    return typeof v === 'number' ? project.byId(v) : project.bySlug(v)
   })
 }
 
@@ -38,19 +35,44 @@ export const useReflection = (
  */
 export const useSlugFor = () => {
   const project = useProject()
+  const idx = indexOf(project)
   return {
-    byId: (id: number) => project.slugById.get(id),
-    byName: (name: string) => project.slugByName.get(name),
+    byId: (id: number): string | undefined => project.routeForId(id)?.slug,
+    byName: (name: string): string | undefined => idx.slugByName.get(name),
   }
 }
 
-/** Sidebar groups produced by the active `NavStrategy`. */
-export const useNavGroups = (): NavGroup[] => useProject().navGroups
+// ============================================================================
+// DERIVED INDEX
+// Name -> slug map, built once per project by walking the route tree.
+// ============================================================================
+
+type DerivedIndex = { slugByName: Map<string, string> }
+const indexCache = new WeakMap<object, DerivedIndex>()
+
+const indexOf = (project: docs.Project): DerivedIndex => {
+  const cached = indexCache.get(project)
+  if (cached) return cached
+  const slugByName = new Map<string, string>()
+  const walk = (routes: docs.RouteNode[]): void => {
+    for (const r of routes) {
+      if (r.page.kind !== 'markdown') {
+        const name = project.byId(r.page.id)?.name
+        if (name && !slugByName.has(name)) slugByName.set(name, r.slug)
+        slugByName.set(r.page.qualified, r.slug)
+      }
+      walk(r.children)
+    }
+  }
+  walk(project.routes)
+  const idx = { slugByName }
+  indexCache.set(project, idx)
+  return idx
+}
 
 // ============================================================================
 // REFERENCES
-// Materializes "used by" rows for a declaration. The shape is committed
-// public contract; renderers are free to project / re-sort it.
+// "Used in" rows, materialized from each page's `referencedIn` id list.
 // ============================================================================
 
 export interface ReferenceRow {
@@ -69,47 +91,29 @@ export const useReferences = (id: () => number): Accessor<ReferenceRow[]> => {
 }
 
 const buildReferenceRows = (project: docs.Project, id: number): ReferenceRow[] => {
-  const target = project.declarationsById.get(id)
-  if (!target) return []
-  const referencedBy = docs.queriesOf(target)?.referencedBy
-  if (!referencedBy) return []
+  const route = project.routeForId(id)
+  if (!route || route.page.kind === 'markdown') return []
 
   const seen = new Set<number>()
   const out: ReferenceRow[] = []
-  for (const ref of referencedBy()) {
-    const ancestor = routableAncestor(ref.$.enclosingDeclaration)
-    if (!ancestor || ancestor.id === id) continue
-    if (seen.has(ancestor.id)) continue
-    seen.add(ancestor.id)
-    const slug = project.slugById.get(ancestor.id)
-    if (!slug) continue
-    const name = docs.nameOf(ancestor)
-    const qualified = project.qualifiedNameById.get(ancestor.id) ?? name
+  for (const refId of route.page.referencedIn) {
+    if (refId === id || seen.has(refId)) continue
+    seen.add(refId)
+    const refRoute = project.routeForId(refId)
+    const decl = project.byId(refId)
+    if (!refRoute || refRoute.page.kind === 'markdown' || !decl) continue
+    const qualified = refRoute.page.qualified
     const dot = qualified.lastIndexOf('.')
     out.push({
-      decl: ancestor,
-      slug,
+      decl,
+      slug: refRoute.slug,
       module: dot < 0 ? '' : qualified.slice(0, dot),
       name: dot < 0 ? qualified : qualified.slice(dot + 1),
       qualified,
-      summary: commentSummaryText(ancestor.comment),
+      summary: commentSummaryText(decl.comment),
     })
   }
   return out.sort((a, b) => a.qualified.localeCompare(b.qualified))
-}
-
-/**
- * Climb `$.module` until a routable declaration appears. The reference's
- * enclosing decl is usually that already, but references that bubble up
- * through type-aliases or method bodies need an extra step.
- */
-const routableAncestor = (decl: docs.Declaration): docs.Declaration | undefined => {
-  let cur: docs.Declaration | undefined = decl
-  while (cur) {
-    if (isRoutable(cur.kind)) return cur
-    cur = docs.queriesOf(cur)?.module
-  }
-  return undefined
 }
 
 // ============================================================================
@@ -125,15 +129,15 @@ const searchCache = new WeakMap<object, Promise<SearchEngine>>()
  * current project. Callers wrap the thunk in their own resource/effect.
  */
 export const useSearch = (): (() => Promise<SearchEngine>) => {
-  const bag = useProject()
-  return () => buildSearch(bag)
+  const project = useProject()
+  return () => buildSearch(project)
 }
 
-const buildSearch = (bag: Project): Promise<SearchEngine> => {
-  const cached = searchCache.get(bag.project)
+const buildSearch = (project: docs.Project): Promise<SearchEngine> => {
+  const cached = searchCache.get(project)
   if (cached) return cached
-  const p = createSearchEngine(bag)
-  searchCache.set(bag.project, p)
+  const p = createSearchEngine(project)
+  searchCache.set(project, p)
   return p
 }
 
@@ -153,7 +157,7 @@ const commentToMarkdown = (comment: docs.Comment, slugOf: (name: string) => stri
     const label = p.text ?? p.target
     const slug = slugOf(p.target)
     const display = p.style === 'code' ? `\`${label}\`` : label
-    out += slug ? `[${display}](/r/${slug})` : display
+    out += slug ? `[${display}](/${slug})` : display
   }
   return out
 }

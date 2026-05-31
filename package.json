@@ -32,6 +32,11 @@
       "import": "./dist/esm/solidjs/entry.jsx",
       "require": "./dist/esm/solidjs/entry.jsx"
     },
+    "./solidjs": {
+      "types": "./dist/ts/solidjs/index.d.ts",
+      "import": "./dist/esm/solidjs/index.jsx",
+      "require": "./dist/esm/solidjs/index.jsx"
+    },
     "./client": "./client.d.ts",
     "./theme.css": "./theme.css",
     "./tsconfig.json": "./tsconfig.client.json",
