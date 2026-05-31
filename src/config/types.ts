@@ -18,6 +18,8 @@ export interface ConfigJson {
   entrypoints?: Entry[]
   /** Files to exclude from the project (micromatch glob patterns) */
   exclude?: string[]
+  /** Document every declaration, not just the exported public API. Default false. */
+  full?: boolean
 }
 
 export interface Entry {

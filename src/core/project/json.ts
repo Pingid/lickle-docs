@@ -57,6 +57,8 @@ export type GenerateOptions = {
   compilerOptions: ts.CompilerOptions
   /** Override route naming / grouping / nav visibility. */
   routeProvider?: routing.RouteProvider
+  /** Route every scanned declaration (incl. non-exported), not just the public API. */
+  full?: boolean
 }
 
 export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
@@ -71,6 +73,8 @@ export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
       entrypoints: opts.config.entrypoints,
       rootName: opts.config.name,
       provider: opts.routeProvider,
+      mode: opts.full ? 'full' : 'exposed',
+      reserved: collectSlugs(opts.config.routes),
     }),
   )
 
@@ -80,6 +84,10 @@ export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
     routes: [...opts.config.routes, ...routes],
   }
 }
+
+/** All slugs in a route subtree, so routing can avoid colliding with them. */
+const collectSlugs = (routes: RouteNode[]): string[] =>
+  routes.flatMap((r) => [r.slug, ...collectSlugs(r.children)])
 
 const keepFile = (sf: ts.SourceFile, exclude?: string[] | undefined): boolean => {
   if (sf.isDeclarationFile) return false

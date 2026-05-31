@@ -47,6 +47,7 @@ const schema = v.struct({
   srcDir: v.or(v.string, v.undefined),
   entrypoints: v.or(v.array(v.struct({ as: v.string, path: v.string })), v.undefined),
   exclude: v.or(v.array(v.string), v.undefined),
+  full: v.or(v.boolean, v.undefined),
 })
 
 const valid = v.assert(schema)

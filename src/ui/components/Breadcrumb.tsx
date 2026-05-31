@@ -1,11 +1,15 @@
-import { For, Show } from 'solid-js'
+import { For, Show, createMemo } from 'solid-js'
 import { A } from '@solidjs/router'
+
+import * as docs from '../../core/client.ts'
 
 import { createSlot, useProject } from '../context/index.ts'
 
+type Crumb = { label: string; href?: string }
+
 export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: number }) => {
   const project = useProject()
-  const chain = () => project.ancestors(props.id)
+  const crumbs = createMemo(() => buildCrumbs(project, props.id))
 
   return (
     <nav class="text-xs text-mute mb-3" aria-label="Breadcrumb">
@@ -15,24 +19,37 @@ export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: num
             {project.name}
           </A>
         </li>
-        <For each={chain()}>
-          {(r, i) => {
-            const isLast = i() === chain().length - 1
-            return (
-              <>
-                <li class="text-mute opacity-60">/</li>
-                <li>
-                  <Show when={r.slug && !isLast} fallback={<span class="text-fg">{r.label}</span>}>
-                    <A href={`/${r.slug}`} class="hover:text-fg">
-                      {r.label}
-                    </A>
-                  </Show>
-                </li>
-              </>
-            )
-          }}
+        <For each={crumbs()}>
+          {(c, i) => (
+            <>
+              <li class="text-mute opacity-60">/</li>
+              <li>
+                <Show when={c.href && i() < crumbs().length - 1} fallback={<span class="text-fg">{c.label}</span>}>
+                  <A href={c.href!} class="hover:text-fg">
+                    {c.label}
+                  </A>
+                </Show>
+              </li>
+            </>
+          )}
         </For>
       </ol>
     </nav>
   )
 })
+
+/**
+ * One crumb per slug segment, so every module level is reachable — each prefix
+ * resolves through `routeForSlug`, which returns pages even when they aren't in
+ * the sidebar. Levels with no page render as plain text.
+ */
+const buildCrumbs = (project: docs.Project, id: number): Crumb[] => {
+  const route = project.routeForId(id)
+  if (!route?.slug) return []
+  const segs = route.slug.split('/')
+  return segs.map((seg, i) => {
+    const prefix = segs.slice(0, i + 1).join('/')
+    const r = project.routeForSlug(prefix)
+    return { label: r?.label ?? seg, href: r ? `/${prefix}` : undefined }
+  })
+}

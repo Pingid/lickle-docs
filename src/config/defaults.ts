@@ -30,5 +30,6 @@ export const apply = async (dir: string, c?: Partial<ConfigJson>): Promise<Confi
     links: c?.links ?? defualtLinks,
     repository: info ? { url: info.url, rev: info.commit, fileUrl: info.fileUrl } : undefined,
     srcDir: c?.srcDir ?? tsconfig.rootDir,
+    full: c?.full,
   }
 }

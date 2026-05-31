@@ -10,6 +10,14 @@ export type Options = {
   entrypoints?: config.Entry[]
   /** Override how routes are named / grouped / shown. Defaults to {@link createRouteProvider}. */
   provider?: RouteProvider
+  /**
+   * `'exposed'` (default) routes only the public API reachable through exports.
+   * `'full'` routes every scanned declaration, grouped under its own module —
+   * including internal, non-exported ones.
+   */
+  mode?: 'exposed' | 'full'
+  /** Slugs already taken by routes built elsewhere (e.g. a README home page). */
+  reserved?: Iterable<string>
 }
 
 // ----------------------------------------------------------------------------
@@ -79,20 +87,38 @@ export const build = (index: reflect.Index, opts: Options): RouteNode<Page>[] =>
     commonDir: index.commonDir(),
   }
   const provider = opts.provider ?? createRouteProvider()
+  const full = opts.mode === 'full'
+  const seen = new Set<number>()
 
-  // Reserve every entry module up front so a root that's also re-exported by
-  // another stays top-level instead of nesting under it.
-  const roots = [...index.roots()]
-  const seen = new Set<number>(roots.map((r) => r.id))
+  // Keep slugs unique across the whole tree (and any reserved/README slugs).
+  // The empty root slug falls back to `index` so a README can own `/`.
+  const usedSlugs = new Set<string>(opts.reserved ?? [])
+  const uniqueSlug = (slug: string): string => {
+    if (!usedSlugs.has(slug)) return usedSlugs.add(slug), slug
+    const base = slug || 'index'
+    let next = base
+    for (let n = 2; usedSlugs.has(next); n++) next = `${base}-${n}`
+    return usedSlugs.add(next), next
+  }
+
+  // Children of a route: the exposure graph in `exposed` mode, the raw
+  // declaration tree (minus re-export clauses) in `full` mode.
+  const childrenOf = (id: number): Iterable<{ id: number; alias?: string }> => {
+    if (!full) return index.exposed(id)
+    const out: { id: number }[] = []
+    for (const c of index.children(id)) if (c.kind !== 'export') out.push({ id: c.id })
+    return out
+  }
 
   const buildRoute = (id: number, parent?: naming.Parts, alias?: string): RouteNode<Page> => {
     const decl = index.get(id)!
     const cx: RouteContext = { decl, alias, parent, index, options }
-    const parts = provider.name(cx)
+    const named = provider.name(cx)
+    const parts: naming.Parts = { ...named, slug: uniqueSlug(named.slug) }
 
     seen.add(id)
     const children: RouteNode<Page>[] = []
-    for (const e of index.exposed(id)) {
+    for (const e of childrenOf(id)) {
       if (seen.has(e.id)) continue
       children.push(buildRoute(e.id, parts, e.alias))
     }
@@ -109,6 +135,12 @@ export const build = (index: reflect.Index, opts: Options): RouteNode<Page>[] =>
     return { label: parts.label, slug: parts.slug, page, children, nav: provider.nav(cx), ...(group ? { group } : {}) }
   }
 
+  // `full` lists every module; `exposed` only the entrypoints. Reserve all
+  // roots up front so one re-exported by another stays top-level.
+  const roots = full
+    ? [...index.declarations()].filter((d) => d.kind === 'module')
+    : [...index.roots()]
+  for (const r of roots) seen.add(r.id)
   return roots.map((root) => buildRoute(root.id))
 }
 

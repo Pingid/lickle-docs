@@ -13,8 +13,8 @@ export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; 
   const routes = createMemo(() => project().routes.filter((r) => r.nav))
 
   return (
-    <aside class={`text-sm ${props.class ?? ''}`}>
-      <nav class="pt-6 pb-12 px-3 space-y-0.5">
+    <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
+      <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
         <NavList nodes={routes()} depth={0} onNavigate={props.onNavigate} />
       </nav>
     </aside>

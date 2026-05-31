@@ -9,7 +9,6 @@ export interface Project extends project.ProjectJson {
   bySlug(slug: string): T.Declaration | undefined
   routeForId(id: number): RouteNode | undefined
   routeForSlug(slug: string): RouteNode | undefined
-  ancestors(id: number): project.RouteNode<'declaration' | 'module'>[]
 }
 
 export const create = (json: project.ProjectJson): Project => {
@@ -17,45 +16,33 @@ export const create = (json: project.ProjectJson): Project => {
   const _bySlug = new Map()
   const _routesById = new Map()
   const _routesBySlug = new Map()
-  const _ancestors = new Map<number, number[]>()
 
   for (const declaration of json.declarations) {
     _byId.set(declaration.id, declaration)
   }
 
-  const indexRoute = (r: RouteNode, ancs: number[]) => {
+  const indexRoute = (r: RouteNode) => {
     _routesBySlug.set(r.slug, r)
     // Markdown pages carry no declaration id, so they only resolve by slug.
-    if (r.page.kind === 'markdown') {
-      for (const child of r.children) indexRoute(child, ancs)
-      return
+    if (r.page.kind !== 'markdown') {
+      _bySlug.set(r.slug, _byId.get(r.page.id))
+      _routesById.set(r.page.id, r)
     }
-    const d = _byId.get(r.page.id)
-    _bySlug.set(r.slug, d)
-    _routesById.set(r.page.id, r)
-    _ancestors.set(r.page.id, ancs)
-    for (const child of r.children) {
-      indexRoute(child, [...ancs, r.page.id])
-    }
+    for (const child of r.children) indexRoute(child)
   }
 
-  for (const route of json.routes) indexRoute(route, [])
+  for (const route of json.routes) indexRoute(route)
 
   const byId = (id: number): T.Declaration | undefined => _byId.get(id)
   const bySlug = (slug: string): T.Declaration | undefined => _bySlug.get(slug)
   const routeForId = (id: number): RouteNode | undefined => _routesById.get(id)
   const routeForSlug = (slug: string): RouteNode | undefined => _routesBySlug.get(slug)
-  const ancestors = (id: number): project.RouteNode<'declaration' | 'module'>[] =>
-    (_ancestors.get(id) ?? [])
-      .map((x) => routeForId(x))
-      .filter((x): x is project.RouteNode<'declaration' | 'module'> => x !== undefined)
   const p: Project = json as Project
 
   hide(p, 'byId', byId)
   hide(p, 'bySlug', bySlug)
   hide(p, 'routeForId', routeForId)
   hide(p, 'routeForSlug', routeForSlug)
-  hide(p, 'ancestors', ancestors)
   return p
 }
 

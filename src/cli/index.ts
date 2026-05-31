@@ -33,10 +33,14 @@ const cmdJson = cmd.command({
       short: 'p',
       description: 'Print the routes to the console',
     }),
+    full: cmd.flag({
+      long: 'full',
+      description: 'Document every declaration, not just the exported public API',
+    }),
   },
   handler: async (args) => {
     await lib.fs.ensureDir('docs')
-    const p = await generate('docs/docs.json', process.cwd(), { exclude: args.exclude })
+    const p = await generate('docs/docs.json', process.cwd(), { exclude: args.exclude, full: args.full })
     if (args.print) project.routing.displayRoutes(p.routes)
   },
 })

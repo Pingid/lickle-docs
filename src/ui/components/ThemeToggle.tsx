@@ -15,11 +15,8 @@ export const ThemeToggle = () => {
   const order: ThemeMode[] = ['system', 'light', 'dark']
 
   return (
-    <div
-      role="radiogroup"
-      aria-label="Theme"
-      class="inline-flex items-center gap-px rounded-md border border-line p-px"
-    >
+    <div role="radiogroup" aria-label="Theme" class="inline-flex items-center gap-0.5">
+
       <For each={order}>
         {(m) => (
           <button

@@ -31,6 +31,7 @@ export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.
     exclude: [],
     config: { entrypoints: [], links: [], ...c.config, routes: [] },
     compilerOptions: c.compilerOptions,
+    full: c.config.full,
   }
 
   if (c.config.readme) {
