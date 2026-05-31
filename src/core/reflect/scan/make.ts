@@ -62,9 +62,9 @@ export const reference = (
   b: context.Builder,
   node: ts.TypeReferenceNode | ts.ExpressionWithTypeArguments | ts.TypeNode,
 ): T.Type<'reference'> => {
-  const r = kind(b, node, 'reference', {})
+  const r = kind(b, node, 'reference', { type: 'internal' })
   if ('typeArguments' in node && node.typeArguments?.length) {
-    r.typeArguments = node.typeArguments.map((a) => typeOf(b, a))
+    r.args = node.typeArguments.map((a) => typeOf(b, a))
   }
   return r
 }
@@ -75,8 +75,8 @@ const referenceTarget = (node: ts.Node): ts.Node | undefined => {
   return node
 }
 
-const reflection = (b: context.Builder, node: ts.TypeLiteralNode): T.Type<'reflection'> =>
-  kind(b, node, 'reflection', objectMembers(b, node.members))
+const reflection = (b: context.Builder, node: ts.TypeLiteralNode): T.Type<'record'> =>
+  kind(b, node, 'record', objectMembers(b, node.members))
 
 const unknown = (b: context.Builder, node: ts.Node): T.Type<'unknown'> =>
   kind(b, node, 'unknown', { text: node.getText(), nodeType: nodeTypeName(node) })

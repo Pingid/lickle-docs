@@ -144,7 +144,7 @@ export const createBuilder = (
   }
 
   const resolveReference = (type: T.Type<'reference'>, id: number) => {
-    type.targetId = id
+    // type.targetId = id
     state.byId.set(type.id, type)
     let refs = state.references.get(id)
     if (!refs) state.references.set(id, (refs = new Set()))
@@ -158,7 +158,7 @@ export const createBuilder = (
       const type = state.originToType.get(node)!
       const id = state.byNode.get(target)?.id
       if (!target) continue
-      if (id !== undefined) type.targetId = id
+      // if (id !== undefined) type.targetId = id
       else {
         statement(c, target)
         const id = state.byNode.get(target)?.id

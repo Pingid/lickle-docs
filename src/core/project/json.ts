@@ -25,6 +25,7 @@ export interface ProjectJson {
   declarations: reflect.Declaration[]
 }
 
+/** Used to generate navigation, for now all declarations are pages */
 export type BaseRoute<P> = {
   /** Label used in the navigation */
   label: string
@@ -41,6 +42,7 @@ type PageTypeMap = t.MapKind<{
   module: { id: number; alias?: string; qualified: string }
   declaration: { id: number; alias?: string; qualified: string }
 }>
+
 export type PageType<K extends keyof PageTypeMap = keyof PageTypeMap> = PageTypeMap[K]
 export type RouteNode<K extends keyof PageTypeMap = keyof PageTypeMap> = BaseRoute<PageType<K>>
 
@@ -61,9 +63,9 @@ export const generate = async (opts: GenerateOptions): Promise<ProjectJson> => {
     internal: false,
   })
 
-  const routes = routing.build(graph, { routes: opts.config.routes, entrypoints: opts.config.entrypoints })
+  const routes = Array.from(routing.build(graph, { entrypoints: opts.config.entrypoints }))
 
-  return { ...opts.config, routes: routes.routes, declarations: routes.declarations }
+  return { ...opts.config, declarations: graph.declarations(), routes: routes }
 }
 
 const keepFile = (sf: ts.SourceFile, exclude?: string[] | undefined): boolean => {

@@ -28,18 +28,24 @@ export interface DeclerationDefinitions {
     indexSignature?: Part<'index-signature'>
   }
   'type-alias': { generics?: Part<'generic'>[]; type: Type }
-  export: { name: string; ref: number; star: boolean }
+  export: { names: { name: string; ref: number }[]; star: boolean }
   enum: { const?: boolean; members: Part<'enum-member'>[] }
   namespace: {}
   module: { path: string }
 }
 
+export type ReferenceTypeMap = t.MapKind<
+  {
+    internal: { targetId: number }
+    external: { external: 'stdlib' | 'package' | 'anonymous' }
+  },
+  'type'
+>
+
 export interface TypeDefinitions {
   intrinsic: { name: IntrinsicName }
   literal: { value: string | number | boolean | bigint | null }
-  reference: { typeArguments?: Type[]; targetId?: number; external?: 'stdlib' | 'package' | 'anonymous' } & {
-    id: number
-  }
+  reference: { id: number; name: string; args?: Type[] } & ReferenceTypeMap[keyof ReferenceTypeMap]
   union: { types: Type[] }
   intersection: { types: Type[] }
   array: { elementType: Type }
@@ -47,7 +53,7 @@ export interface TypeDefinitions {
   'function-type': { signatures: Part<'signature'>[] }
   'type-operator': { operator: 'keyof' | 'readonly' | 'unique'; target: Type }
   /** Inline object type, e.g. `{ x: number; f(): void }`. */
-  reflection: {
+  record: {
     properties: Part<'property'>[]
     methods: Part<'method'>[]
     callSignatures?: Part<'signature'>[]
@@ -95,7 +101,7 @@ const ISD = is.struct({ kind: is.oneOf('variable', 'function', 'class', 'interfa
 export const isDeclaration = (x: any): x is Declaration => ISD(x)
 
 // prettier-ignore
-const IST = is.struct({ kind: is.oneOf('intrinsic', 'literal', 'reference', 'union', 'intersection', 'array', 'tuple', 'function-type', 'type-operator', 'reflection') }, false)
+const IST = is.struct({ kind: is.oneOf('intrinsic', 'literal', 'reference', 'union', 'intersection', 'array', 'tuple', 'function-type', 'type-operator', 'record') }, false)
 export const isType = (x: any): x is Type => IST(x)
 
 // prettier-ignore

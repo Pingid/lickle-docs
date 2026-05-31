@@ -10,147 +10,135 @@ export type Options = {
   entrypoints?: config.Entry[]
 }
 
-export const build = (b: reflect.Graph, opts: Options) => {
-  const builder = createRouteBuilder(b, opts.routes)
-  const mapped = new Map<string, string>()
-  for (const ep of opts.entrypoints ?? []) mapped.set(ep.path, ep.as.replace(/\.\//, ''))
+type RouteContext = {
+  graph: reflect.scan2.Graph
 
-  for (const decl of b.roots()) {
-    if (decl.parent !== b.root || !decl.exported || decl.kind !== 'module') continue
-
-    const as = mapped.get(decl.path!)
-    const page: PageType = { kind: 'module', id: decl.id, alias: as, qualified: as ?? decl.name }
-    builder.addRoute({
-      label: getName(decl, as),
-      slug: getSlug(decl, as),
-      page,
-      children: [...children(b, builder, decl.id)],
-    })
-  }
-
-  return builder.export()
+  create: (p: { id: number; alias?: string; children?: Iterable<RouteNode<Page>> }) => RouteNode<Page>
 }
 
-const children = function* (
-  g: reflect.Graph,
-  b: RouteBuilder,
-  id: number,
-  star: boolean = false,
-  alias?: string,
-): Iterable<RouteNode<Page>> {
+export const build = (graph: reflect.scan2.Graph, opts: Options) => {
+  const cx = createContext(graph, opts)
+  const routes = new Array<RouteNode<Page>>()
+
+  for (const decl of graph.roots()) {
+    routes.push(cx.create({ id: decl.id, children: children(cx, decl.id) }))
+  }
+
+  return routes
+}
+
+const children = function* (n: RouteContext, id: number) {
   let seen = new Set<number>()
-  for (const child of g.children(id)) {
-    for (const l of leafRoute(g, b, child.id, star, alias)) {
+  for (const child of n.graph.children(id)) {
+    for (const r of route(n, child.id)) {
       if (seen.has(child.id)) continue
       else {
         seen.add(child.id)
-        yield l
+        yield r
       }
     }
   }
 }
 
-const leafRoute = function* (
-  g: reflect.Graph,
-  b: RouteBuilder,
+const route = function* (
+  cx: RouteContext,
   id: number,
   star: boolean = false,
   alias?: string,
 ): Iterable<RouteNode<Page>> {
-  const d = g.get(id)
+  const d = cx.graph.get(id)
   if (!d) return
-  const label = getName(d, alias)
-  const slug = getSlug(d, alias)
+
   if (d.kind === 'export') {
-    if (d.star) return yield* leafRoute(g, b, d.ref, true)
-    return yield* leafRoute(g, b, d.ref, false, d.name)
+    for (const name of d.names) yield* route(cx, name.ref, false, name.name)
+    return
   }
+
   if (d.kind === 'module' || d.kind === 'namespace') {
-    if (star) return yield* children(g, b, id)
-    const page: PageType = { kind: 'module', alias: alias ?? label, id, qualified: label }
-    yield { label, slug, page, children: [...children(g, b, id, star, alias)] }
+    if (star) return yield* children(cx, id)
+    yield cx.create({ id, alias, children: children(cx, id) })
+    return
   }
-  const page: PageType = { kind: 'declaration', id, alias: alias ?? label, qualified: label }
-  yield { label, slug, page, children: [...children(g, b, id, star, alias)] }
+
+  yield cx.create({ id, alias, children: children(cx, id) })
 }
 
-const getName = (d: reflect.Declaration, alias?: string) => {
-  if (d.kind === 'module') return alias ?? d.name ?? getSlug(d, alias)
-  return d.name
-}
+const createContext = (graph: reflect.scan2.Graph, opts: Options): RouteContext => {
+  const mapped = new Map<string, string>()
 
-const getSlug = (d: reflect.Declaration, alias?: string) => {
-  if (d.kind === 'module') {
-    if (alias) return alias
-    const m = d.path!.split('/')
+  for (const ep of opts.entrypoints ?? []) mapped.set(ep.path, ep.as.replace(/\.\//, ''))
+
+  const mods = new Map<number, { name: string; slug: string; qualified: string }>()
+  const srcDir = path.common(Array.from(graph.files())).split('/')
+  const reg = new RegExp(`^\/?${srcDir}\/`)
+
+  const pathSegments = (pth: string) => {
+    const m = pth.split('/')
     if (m[m.length - 1]?.startsWith('index')) m.pop()
-    if (!m[m.length - 1]) return '/'
-    return path.stripExt(m[m.length - 1]!)
+    if (!m[m.length - 1]) return []
+    if (m[0] === srcDir[0]) m.shift()
+    return m.map((s) => path.stripExt(s))
   }
 
-  return d.name!
-}
+  const moduleName = (d: reflect.Declaration<'module'>, alias?: string) => {
+    if (alias) return alias
+    const m = mapped.get(d.path)
+    if (m) return m
+    return nameFromPath(d.path)
+  }
 
-// ---------------- Generate Routing utils ----------------
+  let parent = 0
+  const getFor = (id: number, alias?: string) => {
+    const d = graph.get(id)!
+    if (d.kind === 'module') {
+      if (mods.has(d.id)) return mods.get(d.id)!
+      parent = d.id
+      const name = moduleName(d, alias)
+      const seg = pathSegments(d.path)
+      const qualified = seg.join('.').replace(reg, '')
+      const slug = seg.join('/').replace(reg, '')
+      const md = { name, slug, qualified }
+      mods.set(d.id, md)
+      return md
+    }
 
-export interface RouteBuilder {
-  addRoute(r: RouteNode<Page>): void
-  export(): { routes: RouteNode[]; declarations: reflect.Declaration[] }
-  debug(): void
-  routes(): ReadonlyArray<RouteNode<Page>>
-}
+    const m = mods.get(parent)!
+    return { name: d.name, slug: `${m.slug}/${d.name}`, qualified: `${m.qualified}.${d.name}` }
+  }
 
-const createRouteBuilder = (graph: reflect.Graph, other?: RouteNode[]): RouteBuilder => {
-  const _routes: RouteNode<Page>[] = []
-  const refs = reflect.graph.createRefStore<PageType<Page>>(
+  return {
     graph,
-    (r) => r.id,
-    (r, id: number) => {
-      r.id = id
+    create: (p) => {
+      const { name, slug } = getFor(p.id, p.alias)
+      const children = p.children ? [...p.children] : []
+      const kind = graph.get(p.id)?.kind === 'module' ? 'module' : 'declaration'
+      const page: PageType<Page> = { kind, id: p.id, alias: p.alias ?? name, qualified: name }
+      return { label: name, slug, page, children }
     },
-  )
-
-  const slugs = path.slugMaker()
-  for (const r of other ?? []) slugs.add(r.slug)
-
-  const addRoute = (r: RouteNode<Page>) => (trackRoute(r), _routes.push(r))
-  const exportRoutes = () => ({ routes: [...(other ?? []), ..._routes], declarations: graph.export() })
-  const debug = () => displayRoutes(_routes)
-
-  const trackRoute = (r: RouteNode<Page>, parents: string[] = []) => {
-    const seg = r.slug
-    r.slug = slugs.uniq([...parents, seg].join('/'))
-    r.page.qualified = [...parents, r.label].join('.')
-    refs.add(r.page)
-    if (!r.children?.length) return
-    for (const child of r.children) trackRoute(child, [...parents, seg])
   }
+}
 
-  const routes = () => _routes
-
-  return { addRoute, export: exportRoutes, debug, routes }
+const nameFromPath = (pth: string) => {
+  const m = pth.split('/')
+  if (m[m.length - 1]?.startsWith('index')) m.pop()
+  if (!m[m.length - 1]) return '/'
+  return path.stripExt(m[m.length - 1]!)
 }
 
 export const displayRoutes = (routes: RouteNode[], prefix: string = '') => {
   const kinds = { module: 'M', markdown: '.MD', declaration: 'D' }
   const extra = (r: RouteNode) => {
     if (r.page.kind === 'markdown') return ''
-    if (r.page.kind === 'module') return r.page.qualified
-    if (r.page.kind === 'declaration') return r.page.qualified
+    if (r.page.kind === 'module') return ''
+    if (r.page.kind === 'declaration') return ''
     return ''
   }
   for (const r of routes) {
     const id = () => (r.page as any)?.id ?? r.label
-    console.log(prefix + kinds[r.page.kind] + ' ' + id() + ' ' + r.slug + ' ' + extra(r))
+
+    console.log(`${prefix}${kinds[r.page.kind]} ${id()} (${r.slug}) ${extra(r)}      `)
     if (r.children) {
       displayRoutes(r.children, prefix + '  ')
     }
-  }
-}
-
-export const forEach = (routes: RouteNode<Page>[], callback: (r: RouteNode<Page>) => void) => {
-  for (const r of routes) {
-    callback(r)
-    if (r.children) forEach(r.children, callback)
   }
 }

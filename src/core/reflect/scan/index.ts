@@ -67,7 +67,7 @@ const namespace_ = (ctx: Context, n: ts.ModuleDeclaration): number | undefined =
 }
 
 const export_ = wrap((ctx, node, name: string, ref: number, star: boolean = false) =>
-  make.decl(ctx, node, 'export', { name, ref, exported: true, star }),
+  make.decl(ctx, node, 'export', { name, ref, exported: true, star } as any),
 )
 
 const exports_ = (ctx: Context, node: ts.ExportDeclaration) => {
