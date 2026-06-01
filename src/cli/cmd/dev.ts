@@ -4,7 +4,7 @@ import path from 'node:path'
 import * as config from '../../config/load.ts'
 import * as core from '../../core/index.ts'
 import * as lib from '../../_lib/index.ts'
-import { vite } from '../util/index.ts'
+import * as vite from '../vite/index.ts'
 
 export const dev = cmd.command({
   name: 'dev',
@@ -54,11 +54,13 @@ const runDev = async (opts: Options) => {
   if (c.srcDir) watchList.push(c.srcDir)
 
   const server = await vite.dev({
+    ...c,
     build: async () => core.project.buildJson(await config.loadGen(process.cwd())),
-    srcDir: c.srcDir ?? 'src',
-    port: opts.port,
     watchPaths: [...watchList],
-    load: c.custom ? path.join(process.cwd(), c.custom) : undefined,
+    entrypoint: c.custom ? path.join(process.cwd(), c.custom) : undefined,
+    viteConfig: {
+      server: { port: opts.port },
+    },
   })
 
   lib.util.registerNodeCleanup(async () => await server.close())
@@ -69,8 +71,11 @@ export const runBuild = async (opts: Options = {}) => {
   const json = await core.project.buildJson(await config.toGenerateOptions(c))
 
   await vite.build({
-    srcDir: c.srcDir ?? 'src',
-    load: c.custom ? path.join(process.cwd(), c.custom) : undefined,
-    json,
+    ...c,
+    build: async () => json,
+    entrypoint: c.custom ? path.join(process.cwd(), c.custom) : undefined,
+    viteConfig: {
+      build: { outDir: c.custom ? path.join(path.dirname(c.custom), 'dist') : 'docs/dist' },
+    },
   })
 }

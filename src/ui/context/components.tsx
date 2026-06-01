@@ -3,9 +3,7 @@ import type { Accessor, Component } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
 import { Dynamic } from 'solid-js/web'
 
-import type * as docs from '../../core/client.ts'
-
-import type { RouteNode } from '../context/index.ts'
+import type { Types } from '../context/index.ts'
 import type { t } from '../../_lib/index.ts'
 
 const ComponentsCtx = createContext<Accessor<Components>>(() => ({}))
@@ -50,11 +48,11 @@ type Params<T> = T extends (...args: infer P) => any ? P : never
 
 type WithDefault<P extends Record<string, any>> = P & { Default: Component<P> }
 
-export type DeclarationProps<K extends keyof docs.DeclarationMap> = WithDefault<{
-  decl: docs.DeclarationMap[K]
+export type DeclarationProps<K extends keyof Types.DeclarationMap> = WithDefault<{
+  decl: Types.DeclarationMap[K]
 }>
 
-type PageProps = { decl: docs.Declaration; route: RouteNode<'declaration' | 'module'> }
+type PageProps = { decl: Types.Declaration; route: Types.RouteNode<'declaration' | 'module'> }
 
 export type SlotComponent<K extends keyof Components> = Components[K]
 /**
@@ -70,14 +68,14 @@ export interface Components {
 
   // Page slots
   page?: Component<WithDefault<PageProps>>
-  'page.markdown'?: Component<WithDefault<{ route: RouteNode<'markdown'> }>>
+  'page.markdown'?: Component<WithDefault<{ route: Types.RouteNode<'markdown'> }>>
   'page.header'?: Component<WithDefault<PageProps>>
   'page.header.breadcrumb'?: Component<WithDefault<{ id: number }>>
-  'page.source'?: Component<WithDefault<{ sources?: docs.Source[] }>>
+  'page.source'?: Component<WithDefault<{ sources?: Types.Source[] }>>
   'page.references'?: Component<WithDefault<{ id: number }>>
 
   // Declaration page slots
-  declaration?: Component<WithDefault<{ decl: docs.Declaration }>>
+  declaration?: Component<WithDefault<{ decl: Types.Declaration }>>
   'declaration.function'?: Component<DeclarationProps<'function'>>
   'declaration.variable'?: Component<DeclarationProps<'variable'>>
   'declaration.type-alias'?: Component<DeclarationProps<'type-alias'>>
@@ -87,21 +85,21 @@ export interface Components {
   'declaration.module'?: Component<DeclarationProps<'module'>>
   'declaration.namespace'?: Component<DeclarationProps<'namespace'>>
 
-  comment?: Component<WithDefault<{ comment?: docs.Comment; class?: string }>>
-  'comment.parameters'?: Component<WithDefault<{ tags: docs.CommentTagMap['@param'][] }>>
-  'comment.properties'?: Component<WithDefault<{ tags: docs.CommentTagMap['@property'][] }>>
+  comment?: Component<WithDefault<{ comment?: Types.Comment; class?: string }>>
+  'comment.parameters'?: Component<WithDefault<{ tags: Types.CommentTagMap['@param'][] }>>
+  'comment.properties'?: Component<WithDefault<{ tags: Types.CommentTagMap['@property'][] }>>
 
-  tag?: Component<WithDefault<{ tag: docs.CommentTag }>>
-  'tag.returns'?: Component<WithDefault<{ tag: t.Compute<docs.CommentTagMap['@returns']> }>>
-  'tag.throws'?: Component<WithDefault<{ tag: docs.CommentTagMap['@throws'] }>>
-  'tag.type'?: Component<WithDefault<{ tag: docs.CommentTagMap['@type'] }>>
-  'tag.satisfies'?: Component<WithDefault<{ tag: docs.CommentTagMap['@satisfies'] }>>
-  'tag.example'?: Component<WithDefault<{ tag: docs.CommentTagMap['@example'] }>>
-  'tag.see'?: Component<WithDefault<{ tag: docs.CommentTagMap['@see'] }>>
-  'tag.template'?: Component<WithDefault<{ tag: docs.CommentTagMap['@template'] }>>
-  'tag.augments'?: Component<WithDefault<{ tag: docs.CommentTagMap['@augments'] }>>
-  'tag.implements'?: Component<WithDefault<{ tag: docs.CommentTagMap['@implements'] }>>
-  'tag.*'?: Component<WithDefault<{ tag: docs.CommentTag }>>
+  tag?: Component<WithDefault<{ tag: Types.CommentTag }>>
+  'tag.returns'?: Component<WithDefault<{ tag: t.Compute<Types.CommentTagMap['@returns']> }>>
+  'tag.throws'?: Component<WithDefault<{ tag: Types.CommentTagMap['@throws'] }>>
+  'tag.type'?: Component<WithDefault<{ tag: Types.CommentTagMap['@type'] }>>
+  'tag.satisfies'?: Component<WithDefault<{ tag: Types.CommentTagMap['@satisfies'] }>>
+  'tag.example'?: Component<WithDefault<{ tag: Types.CommentTagMap['@example'] }>>
+  'tag.see'?: Component<WithDefault<{ tag: Types.CommentTagMap['@see'] }>>
+  'tag.template'?: Component<WithDefault<{ tag: Types.CommentTagMap['@template'] }>>
+  'tag.augments'?: Component<WithDefault<{ tag: Types.CommentTagMap['@augments'] }>>
+  'tag.implements'?: Component<WithDefault<{ tag: Types.CommentTagMap['@implements'] }>>
+  'tag.*'?: Component<WithDefault<{ tag: Types.CommentTag }>>
 }
 
 /**

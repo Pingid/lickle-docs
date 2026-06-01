@@ -1,9 +1,7 @@
 import { For, Show, createMemo } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import * as docs from '../../core/client.ts'
-
-import { createSlot, useProject, type Project, type RouteNode } from '../context/index.ts'
+import { createSlot, useProject, type Types } from '../context/index.ts'
 import { type ReferenceRow, useReferences } from '../hooks/index.ts'
 import { labelOf, pluralLabel, groupOrder } from '../util/kind.ts'
 import { commentSummaryText } from '../util/comment.ts'
@@ -13,7 +11,7 @@ import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
 
-type PageProps = { decl: docs.Declaration; route: RouteNode<'declaration' | 'module'> }
+type PageProps = { decl: Types.Declaration; route: Types.RouteNode<'declaration' | 'module'> }
 
 export const Page = createSlot('page', (props) => (
   <article>
@@ -46,7 +44,7 @@ export const PageHeader = createSlot('page.header', (props: PageProps) => (
 ))
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
-export const Source = createSlot('page.source', (props: { sources?: docs.Source[] }) => (
+export const Source = createSlot('page.source', (props: { sources?: Types.Source[] }) => (
   <Show when={props.sources?.[0]}>
     {(s) => (
       <div class="text-xs text-mute mt-2">
@@ -58,8 +56,8 @@ export const Source = createSlot('page.source', (props: { sources?: docs.Source[
   </Show>
 ))
 
-type ChildRoute = RouteNode<'declaration' | 'module'>
-type ChildRow = { route: ChildRoute; decl?: docs.Declaration; kind: string; summary: string }
+type ChildRoute = Types.RouteNode<'declaration' | 'module'>
+type ChildRow = { route: ChildRoute; decl?: Types.Declaration; kind: string; summary: string }
 
 /** Child pages of a module / namespace, grouped by kind and linked from the route tree. */
 const Children = (props: { route: ChildRoute }) => {
@@ -95,7 +93,7 @@ const ChildRowView = (props: { row: ChildRow }) => (
 )
 
 /** A terse inline type cue next to a member name (function params / variable type). */
-const Signature = (props: { decl: docs.Declaration }) => {
+const Signature = (props: { decl: Types.Declaration }) => {
   const d = props.decl
   if (d.kind === 'function' && d.signatures[0])
     return (
@@ -113,7 +111,7 @@ const Signature = (props: { decl: docs.Declaration }) => {
 }
 
 /** Bucket child routes by declaration kind, ordered by the canonical group order. */
-const groupChildren = (project: Project, children: ChildRoute[]): { title: string; items: ChildRow[] }[] => {
+const groupChildren = (project: Types.Project, children: ChildRoute[]): { title: string; items: ChildRow[] }[] => {
   const buckets = new Map<string, ChildRow[]>()
   for (const route of children) {
     const decl = project.byId(route.page.id)

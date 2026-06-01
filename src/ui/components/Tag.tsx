@@ -1,7 +1,7 @@
 import type { JSX } from 'solid-js/jsx-runtime'
 import { For, Show } from 'solid-js'
 
-import type * as docs from '../../core/client.ts'
+import { type Types } from '../context/index.ts'
 
 import { createSlot } from '../context/components.tsx'
 
@@ -10,13 +10,13 @@ import { Type } from './Type.tsx'
 import { Link } from './Link.tsx'
 
 export const Tag = createSlot('tag', (props) => {
-  if (props.tag.tag === '@returns') return <TagReturns tag={props.tag as docs.CommentTagMap['@returns']} />
-  if (props.tag.tag === '@throws') return <TagThrows tag={props.tag as docs.CommentTagMap['@throws']} />
-  if (props.tag.tag === '@type') return <TagType tag={props.tag as docs.CommentTagMap['@type']} />
-  if (props.tag.tag === '@satisfies') return <TagSatisfies tag={props.tag as docs.CommentTagMap['@satisfies']} />
-  if (props.tag.tag === '@example') return <TagExample tag={props.tag as docs.CommentTagMap['@example']} />
-  if (props.tag.tag === '@see') return <TagSee tag={props.tag as docs.CommentTagMap['@see']} />
-  if (props.tag.tag === '@template') return <TagTemplate tag={props.tag as docs.CommentTagMap['@template']} />
+  if (props.tag.tag === '@returns') return <TagReturns tag={props.tag as Types.CommentTagMap['@returns']} />
+  if (props.tag.tag === '@throws') return <TagThrows tag={props.tag as Types.CommentTagMap['@throws']} />
+  if (props.tag.tag === '@type') return <TagType tag={props.tag as Types.CommentTagMap['@type']} />
+  if (props.tag.tag === '@satisfies') return <TagSatisfies tag={props.tag as Types.CommentTagMap['@satisfies']} />
+  if (props.tag.tag === '@example') return <TagExample tag={props.tag as Types.CommentTagMap['@example']} />
+  if (props.tag.tag === '@see') return <TagSee tag={props.tag as Types.CommentTagMap['@see']} />
+  if (props.tag.tag === '@template') return <TagTemplate tag={props.tag as Types.CommentTagMap['@template']} />
   return <TagOther tag={props.tag} />
 })
 
@@ -37,25 +37,25 @@ export const TagSection = (props: { title: string; description?: string; childre
   </section>
 )
 
-export const TagExample = createSlot('tag.example', (props: { tag: docs.CommentTagMap['@example'] }) => (
+export const TagExample = createSlot('tag.example', (props: { tag: Types.CommentTagMap['@example'] }) => (
   <TagSection title="Example">
     <Markdown.Inline source={ensureFenced(props.tag.code)} />
   </TagSection>
 ))
 
-export const TagReturns = createSlot('tag.returns', (props: { tag: docs.CommentTagMap['@returns'] }) => (
+export const TagReturns = createSlot('tag.returns', (props: { tag: Types.CommentTagMap['@returns'] }) => (
   <TagSection title="Returns">
     <Type.Inline type={props.tag.type} text={props.tag.text} />
   </TagSection>
 ))
 
-export const TagSatisfies = createSlot('tag.satisfies', (props: { tag: docs.CommentTagMap['@satisfies'] }) => (
+export const TagSatisfies = createSlot('tag.satisfies', (props: { tag: Types.CommentTagMap['@satisfies'] }) => (
   <TagSection title="Satisfies">
     <Type.Inline type={props.tag.type} text={props.tag.text} />
   </TagSection>
 ))
 
-export const TagSee = createSlot('tag.see', (props: { tag: docs.CommentTagMap['@see'] }) => (
+export const TagSee = createSlot('tag.see', (props: { tag: Types.CommentTagMap['@see'] }) => (
   <TagSection title="See">
     <Show when={props.tag.target}>
       <div class="font-mono text-sm mb-1">
@@ -65,7 +65,7 @@ export const TagSee = createSlot('tag.see', (props: { tag: docs.CommentTagMap['@
   </TagSection>
 ))
 
-export const TagTemplate = createSlot('tag.template', (props: { tag: docs.CommentTagMap['@template'] }) => (
+export const TagTemplate = createSlot('tag.template', (props: { tag: Types.CommentTagMap['@template'] }) => (
   <TagSection title="Type Parameters">
     <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
       <For each={props.tag.generics}>
@@ -92,13 +92,13 @@ export const TagTemplate = createSlot('tag.template', (props: { tag: docs.Commen
   </TagSection>
 ))
 
-export const TagThrows = createSlot('tag.throws', (props: { tag: docs.CommentTagMap['@throws'] }) => (
+export const TagThrows = createSlot('tag.throws', (props: { tag: Types.CommentTagMap['@throws'] }) => (
   <TagSection title="Throws">
     <Type.Inline type={props.tag.type} text={props.tag.text} />
   </TagSection>
 ))
 
-export const TagType = createSlot('tag.type', (props: { tag: docs.CommentTagMap['@type'] }) => (
+export const TagType = createSlot('tag.type', (props: { tag: Types.CommentTagMap['@type'] }) => (
   <TagSection title="Type">
     <Type.Inline type={props.tag.type} text={props.tag.text} />
   </TagSection>

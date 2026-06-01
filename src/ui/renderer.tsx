@@ -5,10 +5,10 @@ import type { Components } from './context/components.tsx'
 import { App } from './App.tsx'
 
 import { getJson, getComponents, setComponents } from './context/global.ts'
-import type { ProjectJson } from './context/index.ts'
+import type { Types } from './context/index.ts'
 
 export const renderApp = (props?: {
-  json?: Accessor<ProjectJson | null> | ProjectJson | null
+  json?: Accessor<Types.ProjectJson | null> | Types.ProjectJson | null
   components?: Accessor<Components> | Components
   root?: HTMLElement
 }) => {

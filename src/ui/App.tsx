@@ -7,14 +7,13 @@ import {
   type Components,
   DeclarationScope,
   useProject,
-  type RouteNode,
+  type Types,
 } from './context/index.ts'
 import { Link, Page, MarkdownPage, Layout } from './components/index.ts'
-import type { ProjectJson } from './context/index.ts'
 import { setRendered } from './context/global.ts'
 
 /** First navigable route slug — the implicit home target. */
-const firstSlug = (routes: RouteNode[]): string | undefined => (routes.find((r) => r.nav) ?? routes[0])?.slug
+const firstSlug = (routes: Types.RouteNode[]): string | undefined => (routes.find((r) => r.nav) ?? routes[0])?.slug
 
 /** Resolve the current `/*slug` path to a route and render its page. */
 const PathRoute = () => {
@@ -29,16 +28,16 @@ const PathRoute = () => {
 }
 
 /** Dispatch a route to the page renderer matching its `page.kind`. */
-const RouteView = (props: { route: RouteNode }) => (
+const RouteView = (props: { route: Types.RouteNode }) => (
   <Show
     when={props.route.page.kind === 'markdown'}
-    fallback={<DeclarationView route={props.route as RouteNode<'declaration' | 'module'>} />}
+    fallback={<DeclarationView route={props.route as Types.RouteNode<'declaration' | 'module'>} />}
   >
-    <MarkdownPage route={props.route as RouteNode<'markdown'>} />
+    <MarkdownPage route={props.route as Types.RouteNode<'markdown'>} />
   </Show>
 )
 
-const DeclarationView = (props: { route: RouteNode<'declaration' | 'module'> }) => {
+const DeclarationView = (props: { route: Types.RouteNode<'declaration' | 'module'> }) => {
   const project = useProject()
   const decl = createMemo(() => project().byId(props.route.page.id))
   return (
@@ -84,7 +83,7 @@ export const Routes = () => <Route path="/*slug" component={PathRoute} />
  * the others.
  */
 export const App = (props: {
-  json: Accessor<ProjectJson | null> | ProjectJson | null
+  json: Accessor<Types.ProjectJson | null> | Types.ProjectJson | null
   components?: Accessor<Components> | Components
 }) => {
   createEffect(() => {

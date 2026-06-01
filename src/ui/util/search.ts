@@ -1,6 +1,6 @@
 import { create, insert, search } from '@orama/orama'
 
-import { type Project, type RouteNode } from '../context/index.ts'
+import { type Types } from '../context/index.ts'
 import { type Kind } from './kind.ts'
 
 export type SearchHit = { name: string; qualified: string; kind: Kind; slug: string; file: string }
@@ -13,7 +13,7 @@ export type SearchEngine = { query: (term: string, limit?: number) => Promise<Se
  * `tolerance: 1` allows one-character typos. Each declaration is indexed once
  * — re-export routes share a declaration id, so they're de-duplicated here.
  */
-export const createSearchEngine = async (project: Project): Promise<SearchEngine> => {
+export const createSearchEngine = async (project: Types.Project): Promise<SearchEngine> => {
   const db = await create({
     // `terms` holds the name/qualified split into sub-words so `provider`
     // matches `ProjectProvider` and `render error` matches `renderError`.
@@ -22,7 +22,7 @@ export const createSearchEngine = async (project: Project): Promise<SearchEngine
   })
 
   const seen = new Set<number>()
-  const walk = async (routes: RouteNode[]): Promise<void> => {
+  const walk = async (routes: Types.RouteNode[]): Promise<void> => {
     for (const r of routes) {
       if (r.page.kind !== 'markdown' && !seen.has(r.page.id)) {
         seen.add(r.page.id)

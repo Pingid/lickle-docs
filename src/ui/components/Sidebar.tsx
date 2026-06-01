@@ -1,10 +1,10 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { A, useLocation } from '@solidjs/router'
 
-import { createSlot, useProject, type RouteNode } from '../context/index.ts'
+import { createSlot, useProject, type Types } from '../context/index.ts'
 import { Type } from './Type.tsx'
 
-type Node = RouteNode
+type Node = Types.RouteNode
 
 export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
   const project = useProject()

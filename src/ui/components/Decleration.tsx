@@ -1,9 +1,7 @@
 import { For, Show, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
-import * as docs from '../../core/client.ts'
-
-import { createSlot } from '../context/index.ts'
+import { createSlot, type Types } from '../context/index.ts'
 import { Syntax } from './Syntax.tsx'
 import { Comment } from './Comment.tsx'
 import { Type } from './Type.tsx'
@@ -18,10 +16,10 @@ export const Declaration = createSlot('declaration', (props) => (
   <Dynamic component={dispatch(props.decl.kind)} decl={props.decl} />
 ))
 
-const dispatch = (kind: docs.Declaration['kind']): Component<{ decl: any }> => RENDERERS[kind]
+const dispatch = (kind: Types.Declaration['kind']): Component<{ decl: any }> => RENDERERS[kind]
 
 /** Heritage line — `extends A, B` / `implements C`. */
-const ExtendsLine = (props: { label: string; types?: docs.Type[] }) => (
+const ExtendsLine = (props: { label: string; types?: Types.Type[] }) => (
   <Show when={props.types?.length}>
     <div class="text-sm text-mute font-mono mt-2">
       <span class="text-accent">{props.label} </span>
@@ -105,7 +103,7 @@ const MemberSection = (props: { title: string; when: unknown; children: any }) =
   </Show>
 )
 
-const PropertyRow = (props: { prop: docs.Part<'property'> }) => (
+const PropertyRow = (props: { prop: Types.Part<'property'> }) => (
   <div class="py-2">
     <div class="font-mono text-sm leading-relaxed">
       <span class="font-semibold">{props.prop.name}</span>
@@ -126,7 +124,7 @@ const PropertyRow = (props: { prop: docs.Part<'property'> }) => (
   </div>
 )
 
-const IndexRow = (props: { sig: docs.Part<'index-signature'> }) => (
+const IndexRow = (props: { sig: Types.Part<'index-signature'> }) => (
   <div class="font-mono text-sm leading-relaxed py-2">
     <Syntax.Punct>[</Syntax.Punct>
     <span class="font-semibold">{props.sig.parameter.name}</span>
@@ -139,12 +137,12 @@ const IndexRow = (props: { sig: docs.Part<'index-signature'> }) => (
 
 /** Member listing shared by classes and interfaces. */
 const Members = (props: {
-  constructors?: docs.Part<'signature'>[]
-  properties?: docs.Part<'property'>[]
-  methods?: docs.Part<'method'>[]
-  callSignatures?: docs.Part<'signature'>[]
-  constructSignatures?: docs.Part<'signature'>[]
-  indexSignature?: docs.Part<'index-signature'>
+  constructors?: Types.Part<'signature'>[]
+  properties?: Types.Part<'property'>[]
+  methods?: Types.Part<'method'>[]
+  callSignatures?: Types.Part<'signature'>[]
+  constructSignatures?: Types.Part<'signature'>[]
+  indexSignature?: Types.Part<'index-signature'>
 }) => (
   <>
     <MemberSection title="Constructors" when={props.constructors?.length}>
@@ -177,7 +175,7 @@ export const DeclarationEnum = createSlot('declaration.enum', (props) => (
   </div>
 ))
 
-const EnumMemberRow = (props: { member: docs.Part<'enum-member'> }) => (
+const EnumMemberRow = (props: { member: Types.Part<'enum-member'> }) => (
   <div class="py-2">
     <div class="font-mono text-sm leading-relaxed">
       <span class="font-semibold">{props.member.name}</span>
@@ -199,7 +197,7 @@ export const DeclarationNamespace = createSlot('declaration.namespace', (props) 
   <Comment comment={props.decl.comment} />
 ))
 
-const RENDERERS: Record<docs.Declaration['kind'], Component<{ decl: any }>> = {
+const RENDERERS: Record<Types.Declaration['kind'], Component<{ decl: any }>> = {
   class: DeclarationClass,
   interface: DeclarationInterface,
   enum: DeclarationEnum,

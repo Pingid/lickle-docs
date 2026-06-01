@@ -1,7 +1,7 @@
-import type * as docs from '../../core/client.ts'
+import type { Types } from '../context/index.ts'
 
 /** Single-line plain-text preview of a comment. Used by listings/cards. */
-export const commentSummaryText = (comment: docs.Comment | undefined): string => {
+export const commentSummaryText = (comment: Types.Comment | undefined): string => {
   if (!comment) return ''
   let out = ''
   for (const p of comment.parts) {

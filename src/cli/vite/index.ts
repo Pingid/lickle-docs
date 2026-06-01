@@ -4,48 +4,42 @@ import solid from 'vite-plugin-solid'
 import * as vite from 'vite'
 import path from 'node:path'
 
-import * as lib from '../../_lib/index.ts'
+import * as config from '../../config/index.ts'
 import * as core from '../../core/index.ts'
+import * as lib from '../../_lib/index.ts'
 
 const JSON_ID = 'virtual:lickle/docs.json'
 const CUSTOM_ID = 'virtual:lickle/custom.ts'
 const viteRoot = fileURLToPath(new URL('./client', import.meta.url))
 const libRoot = fileURLToPath(new URL('../../../', import.meta.url))
 
-export type DocsOptions = {
-  srcDir: string
-  outDir?: string
-
-  port?: number
-  load?: string | undefined
-  /** Pre-built reflection data, used for one-shot production builds. */
-  json?: core.project.ProjectJson
-  /** Rebuilds reflection data on demand, used by the watching dev server. */
-  build?: () => Promise<any>
+export interface DocsOptions extends config.ConfigJson {
+  build: () => Promise<core.project.ProjectJson>
+  entrypoint?: string | undefined
   watchPaths?: string[]
+  viteConfig?: vite.InlineConfig
 }
 
-export const dev = async (opts: DocsOptions) => {
-  const server = await vite.createServer({
+const resolveOptions = (opts: DocsOptions, mode: 'dev' | 'build') => {
+  const outDir = opts.custom ? path.join(path.dirname(opts.custom), 'dist') : 'docs/dist'
+  return {
     root: viteRoot,
-    plugins: [solid(), tailwindcss(), docsPlugin(opts)],
-    clearScreen: false,
-  })
+    plugins: [solid(), tailwindcss(), docsPlugin(opts, mode)],
+    build: { outDir: outDir ? path.resolve(process.cwd(), outDir) : path.resolve(process.cwd(), 'docs/dist') },
+  }
+}
+
+export const dev = async (options: DocsOptions) => {
+  const server = await vite.createServer(resolveOptions(options, 'dev'))
   await server.listen()
   server.printUrls()
-
   return server
 }
 
-export const build = async (opts: DocsOptions) =>
-  vite.build({
-    root: viteRoot,
-    plugins: [solid(), tailwindcss(), docsPlugin(opts)],
-    build: { outDir: opts.outDir ?? path.resolve(process.cwd(), 'docs/dist') },
-  })
+export const build = async (options: DocsOptions) => vite.build(resolveOptions(options, 'build'))
 
-const docsPlugin = (opts: DocsOptions): vite.Plugin => {
-  let json: string | undefined = opts.json ? JSON.stringify(opts.json) : undefined
+const docsPlugin = (opts: DocsOptions, mode: 'dev' | 'build'): vite.Plugin => {
+  let json: string | undefined
   let logger: vite.Logger | undefined = undefined
 
   const HMR_PATH = `/@virtual:${JSON_ID}`
@@ -59,28 +53,25 @@ const docsPlugin = (opts: DocsOptions): vite.Plugin => {
     configResolved(config) {
       logger = config.logger
     },
-    config: () => ({
-      resolve: {
-        alias: {
-          '@lickle/docs/ui': LIB_UI_PATH,
-          '@lickle/docs/theme.css': LIB_THEME_CSS_PATH,
-          '@lickle/docs/solidjs': LIB_SOLIDJS_PATH,
+    config: () => {
+      return {
+        resolve: {
+          alias: {
+            '@lickle/docs/ui': LIB_UI_PATH,
+            '@lickle/docs/theme.css': LIB_THEME_CSS_PATH,
+            '@lickle/docs/solidjs': LIB_SOLIDJS_PATH,
+          },
         },
-      },
-      server: { fs: { allow: [viteRoot, ...(opts.load ? [opts.load] : [])] } },
-    }),
-
-    transformIndexHtml: {
-      order: 'pre',
-      handler(html) {
-        // const loaded = opts.load;
-        const loaded = null
-        const script = loaded
-          ? `<script type="module" src="${loaded}"></script>`
-          : '<script type="module" src="./index.tsx"></script>'
-        return html.replace('<script type="module" src="./index.tsx"></script>', script)
-      },
+        server: { fs: { allow: [viteRoot, opts.entrypoint ? path.dirname(opts.entrypoint) : viteRoot] } },
+      }
     },
+
+    // transformIndexHtml: {
+    //   order: 'pre',
+    //   handler(html) {
+    //     return html.replace('<script type="module" src="./index.tsx"></script>', `<script type="module" src="${entrypoint}"></script>`)
+    //   },
+    // },
 
     resolveId(id) {
       if (id === JSON_ID || id === HMR_PATH) return '\0' + JSON_ID
@@ -88,9 +79,12 @@ const docsPlugin = (opts: DocsOptions): vite.Plugin => {
       return undefined
     },
 
-    load(id) {
-      if (id === '\0' + JSON_ID) return json ?? 'null'
-      if (id === '\0' + CUSTOM_ID) return opts.load ? `import ${JSON.stringify(opts.load)}\n` : '\n'
+    async load(id) {
+      if (id === '\0' + JSON_ID) {
+        if (mode === 'build') return JSON.stringify(await opts.build())
+        return json ?? 'null'
+      }
+      if (id === '\0' + CUSTOM_ID) return opts.entrypoint ? `import ${JSON.stringify(opts.entrypoint)}\n` : '\n'
       return undefined
     },
 

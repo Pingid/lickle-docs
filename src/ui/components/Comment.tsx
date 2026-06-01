@@ -1,9 +1,7 @@
 import { createMemo, For, Show } from 'solid-js'
 
-import type * as docs from '../../core/client.ts'
-
+import { createSlot, useDisplay, type Types } from '../context/index.ts'
 import { useCommentMarkdown } from '../hooks/index.ts'
-import { createSlot, useDisplay } from '../context/index.ts'
 
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
@@ -57,7 +55,7 @@ const Parameters = createSlot('comment.parameters', (p) => <NamedTable title="Pa
 
 const NamedTable = (props: {
   title: string
-  tags: docs.CommentTagMap['@property'][] | docs.CommentTagMap['@param'][]
+  tags: Types.CommentTagMap['@property'][] | Types.CommentTagMap['@param'][]
 }) => {
   return (
     <section class="mt-6">
@@ -71,7 +69,7 @@ const NamedTable = (props: {
   )
 }
 
-const NamedRow = (props: { item: docs.CommentTagMap['@property'] | docs.CommentTagMap['@param'] }) => (
+const NamedRow = (props: { item: Types.CommentTagMap['@property'] | Types.CommentTagMap['@param'] }) => (
   <>
     <dt class="font-mono text-sm whitespace-nowrap">
       <span class="font-semibold">{props.item.name}</span>
@@ -96,18 +94,18 @@ const NamedRow = (props: { item: docs.CommentTagMap['@property'] | docs.CommentT
   </>
 )
 
-type Named = docs.CommentTagMap['@property'] | docs.CommentTagMap['@param']
+type Named = Types.CommentTagMap['@property'] | Types.CommentTagMap['@param']
 
 /** Strip a single leading `- ` so `@param foo - desc` collapses cleanly. */
 const trimLead = (s: string): string => (s ?? '').replace(/^\s*-\s*/, '').trim()
 
 // type Named = TagOf<'@param'> | TagOf<'@property'>
 type Group =
-  | { kind: '@param'; items: docs.CommentTagMap['@param'][] }
-  | { kind: '@property'; items: docs.CommentTagMap['@property'][] }
-  | { kind: 'tag'; tag: docs.CommentTag }
+  | { kind: '@param'; items: Types.CommentTagMap['@param'][] }
+  | { kind: '@property'; items: Types.CommentTagMap['@property'][] }
+  | { kind: 'tag'; tag: Types.CommentTag }
 
-const groupTags = (tags: docs.CommentTag[]): Group[] => {
+const groupTags = (tags: Types.CommentTag[]): Group[] => {
   const out: Group[] = []
   const pushRun = <K extends '@param' | '@property'>(kind: K, item: Named) => {
     const last = out[out.length - 1]

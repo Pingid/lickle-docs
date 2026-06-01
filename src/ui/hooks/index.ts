@@ -1,7 +1,6 @@
 import { createMemo, type Accessor } from 'solid-js'
-import * as docs from '../../core/client.ts'
 
-import { useProject, type Project, type RouteNode } from '../context/index.ts'
+import { useProject, type Types } from '../context/index.ts'
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
 import { commentSummaryText } from '../util/comment.ts'
 
@@ -20,7 +19,7 @@ const evalSelector = <T>(s: Selector<T>): T => (typeof s === 'function' ? (s as 
  */
 export const useReflection = (
   selector: Selector<number | string | undefined>,
-): Accessor<docs.Declaration | undefined> => {
+): Accessor<Types.Declaration | undefined> => {
   const project = useProject()
   return createMemo(() => {
     const v = evalSelector(selector)
@@ -49,11 +48,11 @@ export const useSlugFor = () => {
 type DerivedIndex = { slugByName: Map<string, string> }
 const indexCache = new WeakMap<object, DerivedIndex>()
 
-const indexOf = (project: Project): DerivedIndex => {
+const indexOf = (project: Types.Project): DerivedIndex => {
   const cached = indexCache.get(project)
   if (cached) return cached
   const slugByName = new Map<string, string>()
-  const walk = (routes: RouteNode[]): void => {
+  const walk = (routes: Types.RouteNode[]): void => {
     for (const r of routes) {
       if (r.page.kind !== 'markdown') {
         const name = project.byId(r.page.id)?.name
@@ -75,7 +74,7 @@ const indexOf = (project: Project): DerivedIndex => {
 // ============================================================================
 
 export interface ReferenceRow {
-  decl: docs.Declaration
+  decl: Types.Declaration
   slug: string
   /** Everything before the final dot of the qualified name. Empty for top-level symbols. */
   module: string
@@ -89,7 +88,7 @@ export const useReferences = (id: () => number): Accessor<ReferenceRow[]> => {
   return createMemo(() => buildReferenceRows(project(), id()))
 }
 
-const buildReferenceRows = (project: Project, id: number): ReferenceRow[] => {
+const buildReferenceRows = (project: Types.Project, id: number): ReferenceRow[] => {
   const route = project.routeForId(id)
   if (!route || route.page.kind === 'markdown') return []
 
@@ -132,7 +131,7 @@ export const useSearch = (): (() => Promise<SearchEngine>) => {
   return () => buildSearch(project())
 }
 
-const buildSearch = (project: Project): Promise<SearchEngine> => {
+const buildSearch = (project: Types.Project): Promise<SearchEngine> => {
   const cached = searchCache.get(project)
   if (cached) return cached
   const p = createSearchEngine(project)
@@ -140,13 +139,13 @@ const buildSearch = (project: Project): Promise<SearchEngine> => {
   return p
 }
 
-export const useCommentMarkdown = (comment: () => docs.Comment) => {
+export const useCommentMarkdown = (comment: () => Types.Comment) => {
   const slugs = useSlugFor()
   const slugOf = (name: string) => slugs.byName(name)
   return createMemo(() => commentToMarkdown(comment(), slugOf))
 }
 
-const commentToMarkdown = (comment: docs.Comment, slugOf: (name: string) => string | undefined): string => {
+const commentToMarkdown = (comment: Types.Comment, slugOf: (name: string) => string | undefined): string => {
   let out = ''
   for (const p of comment.parts) {
     if (p.kind === 'text') {

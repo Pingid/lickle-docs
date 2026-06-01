@@ -1,14 +1,7 @@
 import type { ProjectJson, RouteNode } from '../../../core/project/index.ts'
-import type * as T from '../../../core/client.ts'
+import * as Types from './types.ts'
 
-export interface Project extends ProjectJson {
-  byId(id: number): T.Declaration | undefined
-  bySlug(slug: string): T.Declaration | undefined
-  routeForId(id: number): RouteNode | undefined
-  routeForSlug(slug: string): RouteNode | undefined
-}
-
-export const create = (json: ProjectJson): Project => {
+export const createProject = (json: ProjectJson): Types.Project => {
   const _byId = new Map()
   const _bySlug = new Map()
   const _routesById = new Map()
@@ -30,11 +23,11 @@ export const create = (json: ProjectJson): Project => {
 
   for (const route of json.routes) indexRoute(route)
 
-  const byId = (id: number): T.Declaration | undefined => _byId.get(id)
-  const bySlug = (slug: string): T.Declaration | undefined => _bySlug.get(slug)
+  const byId = (id: number): Types.Declaration | undefined => _byId.get(id)
+  const bySlug = (slug: string): Types.Declaration | undefined => _bySlug.get(slug)
   const routeForId = (id: number): RouteNode | undefined => _routesById.get(id)
   const routeForSlug = (slug: string): RouteNode | undefined => _routesBySlug.get(slug)
-  const p: Project = json as Project
+  const p: Types.Project = json as Types.Project
 
   hide(p, 'byId', byId)
   hide(p, 'bySlug', bySlug)

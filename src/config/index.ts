@@ -8,7 +8,4 @@ export const defineConfig = <C extends ConfigJson | (() => ConfigJson) | (() => 
   return Promise.resolve(c)
 }
 
-export namespace entrypoints {
-  export const fromExports = async () =>
-    lib.pkg.resolveExportedSources(process.cwd(), await lib.pkg.read(process.cwd()))
-}
+export const fromExports = async () => lib.pkg.resolveExportedSources(process.cwd(), await lib.pkg.read(process.cwd()))

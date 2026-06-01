@@ -1,12 +1,12 @@
 import { Show, type Component } from 'solid-js'
 
-import type * as docs from '../../../core/client.ts'
+import type { Types } from '../../context/index.ts'
 
 import { compile, firstCodeBlock, type CompileOptions } from './transform.ts'
 import { type SandboxIsolate } from './Sandbox.tsx'
 import { Runnable } from './Runnable.tsx'
 
-type ExampleTag = docs.CommentTagMap['@example']
+type ExampleTag = Types.CommentTagMap['@example']
 
 /** Executes already-compiled JS into the host; return a disposer to tear down. */
 export type ExampleRun = (compiled: string, host: HTMLElement) => void | (() => void)
