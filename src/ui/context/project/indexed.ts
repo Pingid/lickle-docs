@@ -1,17 +1,14 @@
-import type * as T from '../reflect/index.ts'
+import type { ProjectJson, RouteNode } from '../../../core/project/index.ts'
+import type * as T from '../../../core/client.ts'
 
-import type * as project from './json.ts'
-
-type RouteNode = project.RouteNode
-
-export interface Project extends project.ProjectJson {
+export interface Project extends ProjectJson {
   byId(id: number): T.Declaration | undefined
   bySlug(slug: string): T.Declaration | undefined
   routeForId(id: number): RouteNode | undefined
   routeForSlug(slug: string): RouteNode | undefined
 }
 
-export const create = (json: project.ProjectJson): Project => {
+export const create = (json: ProjectJson): Project => {
   const _byId = new Map()
   const _bySlug = new Map()
   const _routesById = new Map()

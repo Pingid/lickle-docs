@@ -1,14 +1,20 @@
 import { Show, createMemo, createEffect, type Accessor } from 'solid-js'
 import { Router, Route, useParams, Navigate } from '@solidjs/router'
 
-import { ThemeProvider, ProjectProvider, type Components, DeclarationScope, useProject } from './context/index.ts'
+import {
+  ThemeProvider,
+  ProjectProvider,
+  type Components,
+  DeclarationScope,
+  useProject,
+  type RouteNode,
+} from './context/index.ts'
 import { Link, Page, MarkdownPage, Layout } from './components/index.ts'
+import type { ProjectJson } from './context/index.ts'
 import { setRendered } from './context/global.ts'
 
-import * as docs from '../core/client.ts'
-
 /** First navigable route slug — the implicit home target. */
-const firstSlug = (routes: docs.RouteNode[]): string | undefined => (routes.find((r) => r.nav) ?? routes[0])?.slug
+const firstSlug = (routes: RouteNode[]): string | undefined => (routes.find((r) => r.nav) ?? routes[0])?.slug
 
 /** Resolve the current `/*slug` path to a route and render its page. */
 const PathRoute = () => {
@@ -23,16 +29,16 @@ const PathRoute = () => {
 }
 
 /** Dispatch a route to the page renderer matching its `page.kind`. */
-const RouteView = (props: { route: docs.RouteNode }) => (
+const RouteView = (props: { route: RouteNode }) => (
   <Show
     when={props.route.page.kind === 'markdown'}
-    fallback={<DeclarationView route={props.route as docs.RouteNode<'declaration' | 'module'>} />}
+    fallback={<DeclarationView route={props.route as RouteNode<'declaration' | 'module'>} />}
   >
-    <MarkdownPage route={props.route as docs.RouteNode<'markdown'>} />
+    <MarkdownPage route={props.route as RouteNode<'markdown'>} />
   </Show>
 )
 
-const DeclarationView = (props: { route: docs.RouteNode<'declaration' | 'module'> }) => {
+const DeclarationView = (props: { route: RouteNode<'declaration' | 'module'> }) => {
   const project = useProject()
   const decl = createMemo(() => project().byId(props.route.page.id))
   return (
@@ -78,7 +84,7 @@ export const Routes = () => <Route path="/*slug" component={PathRoute} />
  * the others.
  */
 export const App = (props: {
-  json: Accessor<docs.ProjectJson | null> | docs.ProjectJson | null
+  json: Accessor<ProjectJson | null> | ProjectJson | null
   components?: Accessor<Components> | Components
 }) => {
   createEffect(() => {

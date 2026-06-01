@@ -5,22 +5,26 @@ import * as lib from '../../_lib/index.ts'
 
 export const init = cmd.command({
   name: 'init',
-  description: 'Create a configuration file with custom component',
+  description: 'Scaffold a config file and docs directory with a custom-component example',
   args: {
     dir: cmd.option({
       long: 'dir',
       short: 'd',
       type: cmd.optional(cmd.string),
-      description: 'Path to the docs directory',
+      description: 'Directory to create the docs scaffold in (defaults to ./docs)',
     }),
     file: cmd.option({
       long: 'config',
       short: 'c',
       type: cmd.optional(cmd.string),
       defaultValue: () => path.join(process.cwd(), 'lickle.ts'),
-      description: 'Path to where to create the configuration file',
+      description: 'Path to write the configuration file to (defaults to ./lickle.ts)',
     }),
-    force: cmd.flag({ long: 'force', short: 'f', description: 'Force init even if the docs directory already exists' }),
+    force: cmd.flag({
+      long: 'force',
+      short: 'f',
+      description: 'Overwrite existing scaffold files instead of skipping them',
+    }),
   },
   handler: async (args) => {
     const file = args.file ?? path.join(process.cwd(), 'lickle.ts')

@@ -12,15 +12,20 @@ const CUSTOM_ID = 'virtual:lickle/custom.ts'
 const viteRoot = fileURLToPath(new URL('./client', import.meta.url))
 const libRoot = fileURLToPath(new URL('../../../', import.meta.url))
 
-export type DevOptions = {
+export type DocsOptions = {
   srcDir: string
+  outDir?: string
+
   port?: number
-  watchPaths: string[]
   load?: string | undefined
-  build: () => Promise<any>
+  /** Pre-built reflection data, used for one-shot production builds. */
+  json?: core.project.ProjectJson
+  /** Rebuilds reflection data on demand, used by the watching dev server. */
+  build?: () => Promise<any>
+  watchPaths?: string[]
 }
 
-export const dev = async (opts: DevOptions) => {
+export const dev = async (opts: DocsOptions) => {
   const server = await vite.createServer({
     root: viteRoot,
     plugins: [solid(), tailwindcss(), docsPlugin(opts)],
@@ -32,17 +37,15 @@ export const dev = async (opts: DevOptions) => {
   return server
 }
 
-export type BuildOptions = {
-  srcDir: string
-  load?: string | undefined
-  json: core.project.ProjectJson
-}
+export const build = async (opts: DocsOptions) =>
+  vite.build({
+    root: viteRoot,
+    plugins: [solid(), tailwindcss(), docsPlugin(opts)],
+    build: { outDir: opts.outDir ?? path.resolve(process.cwd(), 'docs/dist') },
+  })
 
-export const build = async (opts: DevOptions) =>
-  vite.build({ root: viteRoot, plugins: [solid(), tailwindcss(), docsPlugin(opts)] })
-
-const docsPlugin = (opts: DevOptions): vite.Plugin => {
-  let json: any | undefined
+const docsPlugin = (opts: DocsOptions): vite.Plugin => {
+  let json: string | undefined = opts.json ? JSON.stringify(opts.json) : undefined
   let logger: vite.Logger | undefined = undefined
 
   const HMR_PATH = `/@virtual:${JSON_ID}`
@@ -74,7 +77,7 @@ const docsPlugin = (opts: DevOptions): vite.Plugin => {
         const loaded = null
         const script = loaded
           ? `<script type="module" src="${loaded}"></script>`
-          : '<script type="module" src="./dev.tsx"></script>'
+          : '<script type="module" src="./index.tsx"></script>'
         return html.replace('<script type="module" src="./index.tsx"></script>', script)
       },
     },
@@ -92,9 +95,11 @@ const docsPlugin = (opts: DevOptions): vite.Plugin => {
     },
 
     configureServer(s) {
+      if (!opts.build) return
+      const build = opts.build
       const handleJson = async () => {
         if (json) logger?.info('Rebuilding docs', { timestamp: true })
-        const nextJson = await opts.build()
+        const nextJson = await build()
         json = JSON.stringify(nextJson)
         logger?.info('Docs built successfully', { timestamp: true })
 
@@ -105,10 +110,11 @@ const docsPlugin = (opts: DevOptions): vite.Plugin => {
         }
       }
 
-      opts.watchPaths.forEach((p) => s.watcher.add(p))
+      const watchPaths = opts.watchPaths ?? []
+      watchPaths.forEach((p) => s.watcher.add(p))
 
       const rebuild = lib.util.serial(() => handleJson())
-      s.watcher.on('change', (changedPath) => opts.watchPaths.some((p) => changedPath.includes(p)) && rebuild())
+      s.watcher.on('change', (changedPath) => watchPaths.some((p) => changedPath.includes(p)) && rebuild())
       rebuild()
     },
   }

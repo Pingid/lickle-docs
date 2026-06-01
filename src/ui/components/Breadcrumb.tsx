@@ -1,9 +1,7 @@
 import { For, Show, createMemo } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import * as docs from '../../core/client.ts'
-
-import { createSlot, useProject } from '../context/index.ts'
+import { createSlot, useProject, type Project } from '../context/index.ts'
 
 type Crumb = { label: string; href?: string }
 
@@ -43,7 +41,7 @@ export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: num
  * resolves through `routeForSlug`, which returns pages even when they aren't in
  * the sidebar. Levels with no page render as plain text.
  */
-const buildCrumbs = (project: docs.Project, id: number): Crumb[] => {
+const buildCrumbs = (project: Project, id: number): Crumb[] => {
   const route = project.routeForId(id)
   if (!route?.slug) return []
   const segs = route.slug.split('/')

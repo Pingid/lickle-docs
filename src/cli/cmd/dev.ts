@@ -8,19 +8,19 @@ import { vite } from '../util/index.ts'
 
 export const dev = cmd.command({
   name: 'dev',
-  description: 'Dev server for a project',
+  description: 'Start a local dev server that rebuilds and live-reloads the docs on change',
   args: {
     docsDir: cmd.option({
       long: 'docs-dir',
       short: 'd',
       type: cmd.optional(cmd.string),
-      description: 'Path to the docs directory',
+      description: 'Directory containing the docs sources (defaults to the configured srcDir)',
     }),
     port: cmd.option({
       long: 'port',
       short: 'p',
       type: cmd.optional(cmd.number),
-      description: 'Port to listen on',
+      description: 'Port the dev server listens on (defaults to Vite\u2019s next free port)',
     }),
   },
   handler: (args) => runDev(args),
@@ -28,16 +28,16 @@ export const dev = cmd.command({
 
 export const build = cmd.command({
   name: 'build',
-  description: 'Build the project',
+  description: 'Build the static documentation site into the output directory',
   args: {
     docsDir: cmd.option({
       long: 'docs-dir',
       short: 'd',
       type: cmd.optional(cmd.string),
-      description: 'Path to the docs directory',
+      description: 'Directory containing the docs sources (defaults to the configured srcDir)',
     }),
   },
-  handler: async (args) => console.log('build', args),
+  handler: (args) => runBuild(args),
 })
 
 type Options = {
@@ -64,11 +64,13 @@ const runDev = async (opts: Options) => {
   lib.util.registerNodeCleanup(async () => await server.close())
 }
 
-export const runBuild = async () => {
-  const c = await config.load()
+export const runBuild = async (opts: Options = {}) => {
+  const c = await config.load(opts.docsDir ?? process.cwd())
+  const json = await core.project.buildJson(await config.toGenerateOptions(c))
+
   await vite.build({
     srcDir: c.srcDir ?? 'src',
     load: c.custom ? path.join(process.cwd(), c.custom) : undefined,
-    json: await core.project.buildJson(await config.toGenerateOptions(c)),
+    json,
   })
 }

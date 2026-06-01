@@ -4,6 +4,8 @@ import type { JSX } from 'solid-js/jsx-runtime'
 import { Dynamic } from 'solid-js/web'
 
 import type * as docs from '../../core/client.ts'
+
+import type { RouteNode } from '../context/index.ts'
 import type { t } from '../../_lib/index.ts'
 
 const ComponentsCtx = createContext<Accessor<Components>>(() => ({}))
@@ -52,7 +54,7 @@ export type DeclarationProps<K extends keyof docs.DeclarationMap> = WithDefault<
   decl: docs.DeclarationMap[K]
 }>
 
-type PageProps = { decl: docs.Declaration; route: docs.RouteNode<'declaration' | 'module'> }
+type PageProps = { decl: docs.Declaration; route: RouteNode<'declaration' | 'module'> }
 
 export type SlotComponent<K extends keyof Components> = Components[K]
 /**
@@ -68,7 +70,7 @@ export interface Components {
 
   // Page slots
   page?: Component<WithDefault<PageProps>>
-  'page.markdown'?: Component<WithDefault<{ route: docs.RouteNode<'markdown'> }>>
+  'page.markdown'?: Component<WithDefault<{ route: RouteNode<'markdown'> }>>
   'page.header'?: Component<WithDefault<PageProps>>
   'page.header.breadcrumb'?: Component<WithDefault<{ id: number }>>
   'page.source'?: Component<WithDefault<{ sources?: docs.Source[] }>>

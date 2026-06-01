@@ -1,7 +1,7 @@
 import { For, Show, createMemo } from 'solid-js'
 import { A } from '@solidjs/router'
 
-import { useProject } from '../context/project.tsx'
+import { useProject } from '../context/index.ts'
 import { createSlot } from '../context/index.ts'
 import { ThemeToggle } from './ThemeToggle.tsx'
 

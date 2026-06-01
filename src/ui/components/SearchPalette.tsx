@@ -1,10 +1,9 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 
+import { useProject, type Project, type RouteNode } from '../context/index.ts'
 import { type SearchHit } from '../util/search.ts'
 import { useSearch } from '../hooks/index.ts'
-import { useProject } from '../context/index.ts'
-import * as docs from '../../core/client.ts'
 import { type Kind } from '../util/kind.ts'
 import { Type } from './Type.tsx'
 
@@ -187,7 +186,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
 }
 
 /** Map a route's direct children into search-hit rows for the default listing. */
-const childHits = (project: docs.Project, route: docs.RouteNode): SearchHit[] => {
+const childHits = (project: Project, route: RouteNode): SearchHit[] => {
   const out: SearchHit[] = []
   for (const child of route.children) {
     if (child.page.kind === 'markdown') continue

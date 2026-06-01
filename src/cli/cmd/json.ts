@@ -7,12 +7,12 @@ import * as lib from '../../_lib/index.ts'
 
 export const json = cmd.command({
   name: 'json',
-  description: 'Json reflections for a project',
+  description: 'Generate the project\u2019s JSON reflection data into the docs directory',
   args: {
     print: cmd.flag({
       long: 'print',
       short: 'p',
-      description: 'Print the routes to the console',
+      description: 'Print the generated route tree to the console',
     }),
     full: cmd.flag({
       long: 'full',
@@ -21,7 +21,7 @@ export const json = cmd.command({
   },
   handler: async (args) => {
     await lib.fs.ensureDir('docs')
-    const p = await core.project.buildJson(await config.loadGen(process.cwd()))
+    const p = await core.project.buildJson(await config.loadGen(process.cwd(), { full: args.full }))
     if (args.print) project.displayRoutes(p.routes)
   },
 })

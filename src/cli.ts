@@ -3,4 +3,4 @@
 import { app } from './cli/index.ts'
 import { run } from 'cmd-ts'
 
-run(app(), process.argv.slice(2))
+run(await app(), process.argv.slice(2))

@@ -1,9 +1,9 @@
 import { createMemo, type Accessor } from 'solid-js'
 import * as docs from '../../core/client.ts'
 
+import { useProject, type Project, type RouteNode } from '../context/index.ts'
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
 import { commentSummaryText } from '../util/comment.ts'
-import { useProject } from '../context/project.tsx'
 
 // ============================================================================
 // SELECTOR HOOKS
@@ -49,11 +49,11 @@ export const useSlugFor = () => {
 type DerivedIndex = { slugByName: Map<string, string> }
 const indexCache = new WeakMap<object, DerivedIndex>()
 
-const indexOf = (project: docs.Project): DerivedIndex => {
+const indexOf = (project: Project): DerivedIndex => {
   const cached = indexCache.get(project)
   if (cached) return cached
   const slugByName = new Map<string, string>()
-  const walk = (routes: docs.RouteNode[]): void => {
+  const walk = (routes: RouteNode[]): void => {
     for (const r of routes) {
       if (r.page.kind !== 'markdown') {
         const name = project.byId(r.page.id)?.name
@@ -89,7 +89,7 @@ export const useReferences = (id: () => number): Accessor<ReferenceRow[]> => {
   return createMemo(() => buildReferenceRows(project(), id()))
 }
 
-const buildReferenceRows = (project: docs.Project, id: number): ReferenceRow[] => {
+const buildReferenceRows = (project: Project, id: number): ReferenceRow[] => {
   const route = project.routeForId(id)
   if (!route || route.page.kind === 'markdown') return []
 
@@ -132,7 +132,7 @@ export const useSearch = (): (() => Promise<SearchEngine>) => {
   return () => buildSearch(project())
 }
 
-const buildSearch = (project: docs.Project): Promise<SearchEngine> => {
+const buildSearch = (project: Project): Promise<SearchEngine> => {
   const cached = searchCache.get(project)
   if (cached) return cached
   const p = createSearchEngine(project)

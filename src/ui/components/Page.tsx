@@ -3,8 +3,8 @@ import { A } from '@solidjs/router'
 
 import * as docs from '../../core/client.ts'
 
+import { createSlot, useProject, type Project, type RouteNode } from '../context/index.ts'
 import { type ReferenceRow, useReferences } from '../hooks/index.ts'
-import { createSlot, useProject } from '../context/index.ts'
 import { labelOf, pluralLabel, groupOrder } from '../util/kind.ts'
 import { commentSummaryText } from '../util/comment.ts'
 
@@ -13,7 +13,7 @@ import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
 
-type PageProps = { decl: docs.Declaration; route: docs.RouteNode<'declaration' | 'module'> }
+type PageProps = { decl: docs.Declaration; route: RouteNode<'declaration' | 'module'> }
 
 export const Page = createSlot('page', (props) => (
   <article>
@@ -58,7 +58,7 @@ export const Source = createSlot('page.source', (props: { sources?: docs.Source[
   </Show>
 ))
 
-type ChildRoute = docs.RouteNode<'declaration' | 'module'>
+type ChildRoute = RouteNode<'declaration' | 'module'>
 type ChildRow = { route: ChildRoute; decl?: docs.Declaration; kind: string; summary: string }
 
 /** Child pages of a module / namespace, grouped by kind and linked from the route tree. */
@@ -113,7 +113,7 @@ const Signature = (props: { decl: docs.Declaration }) => {
 }
 
 /** Bucket child routes by declaration kind, ordered by the canonical group order. */
-const groupChildren = (project: docs.Project, children: ChildRoute[]): { title: string; items: ChildRow[] }[] => {
+const groupChildren = (project: Project, children: ChildRoute[]): { title: string; items: ChildRow[] }[] => {
   const buckets = new Map<string, ChildRow[]>()
   for (const route of children) {
     const decl = project.byId(route.page.id)
