@@ -23,7 +23,21 @@ export const dev = cmd.command({
       description: 'Port to listen on',
     }),
   },
-  handler: (args) => run(args),
+  handler: (args) => runDev(args),
+})
+
+export const build = cmd.command({
+  name: 'build',
+  description: 'Build the project',
+  args: {
+    docsDir: cmd.option({
+      long: 'docs-dir',
+      short: 'd',
+      type: cmd.optional(cmd.string),
+      description: 'Path to the docs directory',
+    }),
+  },
+  handler: async (args) => console.log('build', args),
 })
 
 type Options = {
@@ -31,7 +45,7 @@ type Options = {
   port?: number
 }
 
-export const run = async (opts: Options) => {
+const runDev = async (opts: Options) => {
   let watchList: string[] = []
   const configFile = await config.findFile(process.cwd())
   if (configFile) watchList.push(configFile)
@@ -48,4 +62,13 @@ export const run = async (opts: Options) => {
   })
 
   lib.util.registerNodeCleanup(async () => await server.close())
+}
+
+export const runBuild = async () => {
+  const c = await config.load()
+  await vite.build({
+    srcDir: c.srcDir ?? 'src',
+    load: c.custom ? path.join(process.cwd(), c.custom) : undefined,
+    json: await core.project.buildJson(await config.toGenerateOptions(c)),
+  })
 }

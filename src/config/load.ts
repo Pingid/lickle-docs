@@ -40,6 +40,27 @@ export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.
   return gen
 }
 
+export const toGenerateOptions = async (c: ConfigJson & { compilerOptions: ts.CompilerOptions }) => {
+  const gen: project.GenerateOptions = {
+    dir: process.cwd(),
+    ...c,
+    exclude: c.exclude ?? [],
+    config: { entrypoints: [], links: [], ...c, routes: [] },
+    compilerOptions: c.compilerOptions,
+    full: c.full,
+  }
+
+  if (c.readme) {
+    const page: project.PageType<'markdown'> = {
+      kind: 'markdown',
+      content: await lib.fs.readFile(c.readme, 'utf-8'),
+    }
+    gen.config.routes = [{ label: 'Overview', slug: '', page, children: [], nav: true }]
+  }
+
+  return gen
+}
+
 export const load = async (
   dir: string = process.cwd(),
   opts?: Partial<types.ConfigJson>,

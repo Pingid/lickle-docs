@@ -5,13 +5,14 @@ import * as vite from 'vite'
 import path from 'node:path'
 
 import * as lib from '../../_lib/index.ts'
+import * as core from '../../core/index.ts'
 
 const JSON_ID = 'virtual:lickle/docs.json'
 const CUSTOM_ID = 'virtual:lickle/custom.ts'
 const viteRoot = fileURLToPath(new URL('./client', import.meta.url))
 const libRoot = fileURLToPath(new URL('../../../', import.meta.url))
 
-type Options = {
+export type DevOptions = {
   srcDir: string
   port?: number
   watchPaths: string[]
@@ -19,7 +20,7 @@ type Options = {
   build: () => Promise<any>
 }
 
-export const dev = async (opts: Options) => {
+export const dev = async (opts: DevOptions) => {
   const server = await vite.createServer({
     root: viteRoot,
     plugins: [solid(), tailwindcss(), docsPlugin(opts)],
@@ -31,7 +32,16 @@ export const dev = async (opts: Options) => {
   return server
 }
 
-const docsPlugin = (opts: Options): vite.Plugin => {
+export type BuildOptions = {
+  srcDir: string
+  load?: string | undefined
+  json: core.project.ProjectJson
+}
+
+export const build = async (opts: DevOptions) =>
+  vite.build({ root: viteRoot, plugins: [solid(), tailwindcss(), docsPlugin(opts)] })
+
+const docsPlugin = (opts: DevOptions): vite.Plugin => {
   let json: any | undefined
   let logger: vite.Logger | undefined = undefined
 
