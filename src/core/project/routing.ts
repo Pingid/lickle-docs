@@ -1,4 +1,4 @@
-import type { RouteNode, PageType } from './json.ts'
+import type { RouteNode, PageType } from './types.ts'
 import * as reflect from '../reflect/index.ts'
 import * as config from '../../config/load.ts'
 import * as naming from './naming.ts'
@@ -140,13 +140,4 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
   const roots = full ? [...index.declarations()].filter((d) => d.kind === 'module') : [...index.roots()]
   for (const r of roots) seen.add(r.id)
   return roots.map((root) => buildRoute(root.id))
-}
-
-export const displayRoutes = (routes: RouteNode[], prefix: string = '') => {
-  const kinds = { module: 'M', markdown: '.MD', declaration: 'D' }
-  for (const r of routes) {
-    const id = (r.page as { id?: number }).id ?? r.label
-    console.log(`${prefix}${kinds[r.page.kind]} ${id} (${r.slug})`)
-    if (r.children) displayRoutes(r.children, prefix + '  ')
-  }
 }
