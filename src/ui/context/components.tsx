@@ -82,7 +82,7 @@ export interface Components {
   'declaration.class'?: Component<DeclarationProps<'class'>>
   'declaration.interface'?: Component<DeclarationProps<'interface'>>
   'declaration.enum'?: Component<DeclarationProps<'enum'>>
-  'declaration.module'?: Component<DeclarationProps<'module'>>
+  'declaration.module'?: Component<WithDefault<{ decl: Types.Module }>>
   'declaration.namespace'?: Component<DeclarationProps<'namespace'>>
 
   comment?: Component<WithDefault<{ comment?: Types.Comment; class?: string }>>

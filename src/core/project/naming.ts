@@ -1,5 +1,20 @@
-import * as path from '../../_lib/path/index.ts'
 import type * as reflect from '../reflect/index.ts'
+import * as path from '../../_lib/path/index.ts'
+import type { ProjectJson } from './types.ts'
+
+export const getNaming = (json: ProjectJson) => {
+  const slugs = path.slugMaker()
+
+  for (const p of json.pages) p.slug = slugs.uniq(p.slug ?? p.title)
+
+  // for (const m of json.modules) m.slug = slugs.uniq(m.path)
+
+  return {
+    rootName: json.name,
+    aliases: new Map(),
+    commonDir: '',
+  }
+}
 
 /** Display + URL identity for a route. */
 export type Parts = { label: string; slug: string; qualified: string }
@@ -17,7 +32,7 @@ export type NameOptions = {
  * Parts for a root entry module — its slug is the site-relative base that all
  * descendants build on. The main entry (`.`) lives at the root (`''`).
  */
-export const rootParts = (d: reflect.Declaration<'module'>, opts: NameOptions): Parts => {
+export const rootParts = (d: reflect.Module, opts: NameOptions): Parts => {
   const alias = opts.aliases.get(d.path)
   if (alias && alias !== '.') return { label: alias, slug: alias, qualified: alias }
   const seg = moduleSegments(d.path, opts.commonDir)

@@ -49,7 +49,7 @@ export const Source = createSlot('page.source', (props: { sources?: Types.Source
     {(s) => (
       <div class="text-xs text-mute mt-2">
         <span class="font-mono">
-          {s().file}:{s().line}
+          {s().module}:{s().line}
         </span>
       </div>
     )}

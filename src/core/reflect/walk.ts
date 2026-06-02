@@ -14,7 +14,6 @@ export interface Visitor {
  */
 export const Declaration = (d: T.Declaration, v: Visitor): void => {
   switch (d.kind) {
-    case 'module':
     case 'namespace':
       return
     case 'variable':

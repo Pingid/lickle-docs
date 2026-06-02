@@ -19,24 +19,7 @@ const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 
 export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.ConfigJson>) => {
   const c = await load(dir, opts)
-  const gen: project.GenerateOptions = {
-    ...c,
-    dir,
-    exclude: c.exclude ?? [],
-    config: { entrypoints: [], links: [], ...c, routes: [] },
-    compilerOptions: c.compilerOptions,
-    full: c.full,
-  }
-
-  if (c.readme) {
-    const page: project.PageType<'markdown'> = {
-      kind: 'markdown',
-      content: await lib.fs.readFile(c.readme, 'utf-8'),
-    }
-    gen.config.routes = [{ label: 'Overview', slug: '', page, children: [], nav: true }]
-  }
-
-  return gen
+  return toGenerateOptions(c)
 }
 
 export const toGenerateOptions = async (c: ConfigJson & { compilerOptions: ts.CompilerOptions }) => {
@@ -44,17 +27,27 @@ export const toGenerateOptions = async (c: ConfigJson & { compilerOptions: ts.Co
     dir: process.cwd(),
     ...c,
     exclude: c.exclude ?? [],
-    config: { entrypoints: [], links: [], ...c, routes: [] },
     compilerOptions: c.compilerOptions,
     full: c.full,
+    config: {
+      name: c.name,
+      version: c.version,
+      repository: c.repository,
+      links: c.links ?? [],
+      entrypoints: c.entrypoints ?? [],
+      pages: c.pages ?? [],
+
+      declarations: {},
+      modules: {},
+      sources: {},
+      comments: {},
+    },
   }
 
-  if (c.readme) {
-    const page: project.PageType<'markdown'> = {
-      kind: 'markdown',
-      content: await lib.fs.readFile(c.readme, 'utf-8'),
-    }
-    gen.config.routes = [{ label: 'Overview', slug: '', page, children: [], nav: true }]
+  if (c.readme) gen.config.pages = [{ title: 'Overview', slug: '', content: c.readme }]
+
+  for (const page of c.pages ?? []) {
+    page.content = await lib.fs.readFile(page.content, 'utf-8')
   }
 
   return gen

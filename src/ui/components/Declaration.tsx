@@ -191,7 +191,7 @@ const EnumMemberRow = (props: { member: Types.Part<'enum-member'> }) => (
   </div>
 )
 
-export const DeclarationModule = createSlot('declaration.module', (props) => <Comment comment={props.decl.comment} />)
+// export const DeclarationModule = createSlot('declaration.module', (props) => <Comment comment={props.decl.comment} />)
 
 export const DeclarationNamespace = createSlot('declaration.namespace', (props) => (
   <Comment comment={props.decl.comment} />
@@ -204,7 +204,6 @@ const RENDERERS: Record<Types.Declaration['kind'], Component<{ decl: any }>> = {
   function: DeclarationFunction,
   variable: DeclarationVariable,
   'type-alias': DeclarationTypeAlias,
-  module: DeclarationModule,
   namespace: DeclarationNamespace,
   export: () => null,
 }

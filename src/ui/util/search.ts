@@ -33,7 +33,7 @@ export const createSearchEngine = async (project: Types.Project): Promise<Search
           qualified: r.page.qualified,
           kind,
           slug: r.slug,
-          file: decl?.sources?.[0]?.file ?? '',
+          file: project.mod(decl?.sources?.[0]?.module ?? 0)?.path ?? '',
           terms: termsOf(r.label, r.page.qualified),
         })
       }

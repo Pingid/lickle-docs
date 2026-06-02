@@ -2,14 +2,20 @@ import { is } from '@lickle/is'
 
 import type { t } from '../../_lib/index.ts'
 
-export type Source = { file: string; line: number; column: number }
-export type Typebase = { parent: number; comment?: Comment; sources: Source[] }
-export type Base = Typebase & { id: number; name: string; exported: boolean }
+export type Source = { module: number; line: number; column: number }
+export type Typebase = { id: number; parent: number }
+
+export type Module = {
+  id: number
+  path: string
+  declarations: number[]
+}
 
 export interface DeclerationDefinitions {
-  variable: { type: Type; defaultValue?: string }
-  function: { signatures: Part<'signature'>[] }
+  variable: { name: string; type: Type; defaultValue?: string }
+  function: { name: string; signatures: Part<'signature'>[] }
   class: {
+    name: string
     generics?: Part<'generic'>[]
     extends?: Type[]
     implements?: Type[]
@@ -19,6 +25,7 @@ export interface DeclerationDefinitions {
     indexSignature?: Part<'index-signature'>
   }
   interface: {
+    name: string
     generics?: Part<'generic'>[]
     extends?: Type[]
     properties: Part<'property'>[]
@@ -27,11 +34,10 @@ export interface DeclerationDefinitions {
     constructSignatures?: Part<'signature'>[]
     indexSignature?: Part<'index-signature'>
   }
-  'type-alias': { generics?: Part<'generic'>[]; type: Type }
-  export: { names: { name: string; ref: number }[]; star: boolean }
-  enum: { const?: boolean; members: Part<'enum-member'>[] }
-  namespace: {}
-  module: { path: string }
+  'type-alias': { name: string; generics?: Part<'generic'>[]; type: Type }
+  export: { name?: string; names: { name: string; ref: number }[]; star: boolean }
+  enum: { name: string; const?: boolean; members: Part<'enum-member'>[] }
+  namespace: { name: string }
 }
 
 export type ReferenceTypeMap = t.MapKind<
@@ -122,7 +128,7 @@ const ISK = is.or(ISD, IST, ISP)
 export const isKind = (x: any): x is Any => ISK(x)
 
 // ---------------- Remapped with kind and base ----------------
-export type DeclarationMap = t.MapKind<DeclerationDefinitions, 'kind', Base>
+export type DeclarationMap = t.MapKind<DeclerationDefinitions, 'kind', Typebase>
 export type TypeMap = t.MapKind<TypeDefinitions, 'kind', Typebase>
 export type PartMap = t.MapKind<TypeComponentDefinitions, 'kind', Typebase>
 export type KindsMap = DeclarationMap & TypeMap & PartMap

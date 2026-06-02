@@ -1,9 +1,9 @@
 import ts from 'typescript'
 
-import type { ScanState } from './state.ts'
+import type { ScanContext } from './state.ts'
 import * as T from './types.ts'
 
-export const resolve = (s: ScanState) => {
+export const resolve = (s: ScanContext) => {
   const idByDecl = new Map<ts.Node, number>()
   for (const [id, sym] of s.symbolsById) sym.declarations?.forEach((d) => idByDecl.set(d, id))
 
@@ -32,7 +32,7 @@ export const resolve = (s: ScanState) => {
 }
 
 const resolveExport = (
-  s: ScanState,
+  s: ScanContext,
   exp: T.Declaration<'export'>,
   idByDecl: Map<ts.Node, number>,
   moduleIdForSpecifier: (origin: ts.ExportDeclaration) => number | undefined,

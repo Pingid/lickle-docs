@@ -14,10 +14,35 @@ export interface ScanOptions {
   include: (sf: ts.SourceFile) => boolean
 }
 
-export interface ScanState extends ScanOptions {
-  /** Monotonic id source. Every node that needs identity calls this. */
+export interface ScanContext extends ScanState {
   nextId: () => number
-  getPath: (sf: ts.SourceFile) => string
+  // getPath: (sf: ts.SourceFile) => string
+  getModule: (sf: ts.SourceFile, make: (path: string) => T.Module) => T.Module
+  // sourceOf: (node: ts.Node) => T.Source
+  // getFile: (sf: ts.SourceFile) => number
+}
+
+export const makeScanContext = (checker: ts.TypeChecker, options: ScanOptions): ScanContext => {
+  const s = makeScanState(checker, options)
+  let id = 0
+  // const getPath = (sf: ts.SourceFile) => relPath.get(sf) ?? path.relative(options.rootDir, sf.fileName)
+  const getModule = (sf: ts.SourceFile, make: (path: string) => T.Module) => {
+    let m = s.modByFile.get(sf)
+    if (!m) {
+      s.modByFile.set(sf, (m = make(path.relative(options.rootDir, sf.fileName))))
+      s.modules.set(m.id, m)
+    }
+    return m
+  }
+
+  const api: Omit<ScanContext, keyof ScanState> = {
+    nextId: () => ++id,
+    getModule,
+  }
+  return Object.assign(s, api)
+}
+
+export interface ScanState extends ScanOptions {
   root: number
   parent: number
   currentStmt: number
@@ -25,7 +50,14 @@ export interface ScanState extends ScanOptions {
   checker: ts.TypeChecker
   references: T.Type<'reference'>[]
   exports: T.Declaration<'export'>[]
-  declarations: T.Declaration[]
+
+  modByFile: WeakMap<ts.SourceFile, T.Module>
+
+  modules: Map<number, T.Module>
+  comments: Map<number, T.Comment>
+  sources: Map<number, T.Source[]>
+  declarations: Map<number, T.Declaration>
+
   symbolsById: Map<number, ts.Symbol>
   referenceOrigins: Map<number, ts.Node>
   /** Symbol for inferred references, which have no syntactic origin to re-resolve. */
@@ -48,20 +80,19 @@ export interface ScanState extends ScanOptions {
 }
 
 export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): ScanState => {
-  const relPath = new WeakMap<ts.SourceFile, string>()
-  let id = 0
-  const getPath = (sf: ts.SourceFile) => relPath.get(sf) ?? path.relative(options.rootDir, sf.fileName)
   return {
     ...options,
     root: 0,
     parent: 0,
     currentStmt: 0,
     checker,
-    nextId: () => ++id,
-    getPath,
+    modByFile: new WeakMap(),
+    modules: new Map(),
+    comments: new Map(),
+    sources: new Map(),
     references: [],
     exports: [],
-    declarations: [],
+    declarations: new Map(),
     symbolsById: new Map(),
     referenceOrigins: new Map(),
     referenceSymbols: new Map(),

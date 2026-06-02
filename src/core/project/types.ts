@@ -1,5 +1,3 @@
-import { type t } from '../../_lib/index.ts'
-
 import * as reflect from '../reflect/index.ts'
 import * as config from '../../config/load.ts'
 
@@ -15,33 +13,28 @@ export interface ProjectJson {
   links: config.Link[]
   /** Entrypoints — relative source paths reachable from `main` / `exports`. */
   entrypoints: config.Entry[]
-  /** Routes of the project. */
-  routes: RouteNode[]
-  /** Flat list of every declaration in the project, source order. */
-  declarations: reflect.Declaration[]
+  // /** Routes of the project. */
+  // routes: RouteNode[]
+  pages: Page[]
+
+  naming: Record<number, Naming>
+  declarations: Record<number, reflect.Declaration>
+  modules: Record<number, reflect.Module>
+  sources: Record<number, reflect.Source[]>
+  comments: Record<number, reflect.Comment>
 }
 
-/** Used to generate navigation, for now all declarations are pages */
-export type BaseRoute<P> = {
-  /** Label used in the navigation */
+export interface Page {
+  /** Page title */
+  title: string
+  /** Page path */
+  slug?: string
+  /** Page content */
+  content: string
+}
+
+export interface Naming {
   label: string
-  /** Slug of the page, used in the URL */
   slug: string
-  /** Page type to display */
-  page: P
-  /** sub pages */
-  children: BaseRoute<P>[]
-  /** Whether the page should be displayed in the navigation */
-  nav: boolean
-  /** Adds a label above in navigation*/
-  group?: string
+  qualified: string
 }
-
-type PageTypeMap = t.MapKind<{
-  markdown: { content: string }
-  module: { id: number; alias?: string; qualified: string; referencedIn: number[] }
-  declaration: { id: number; alias?: string; qualified: string; referencedIn: number[] }
-}>
-
-export type PageType<K extends keyof PageTypeMap = keyof PageTypeMap> = PageTypeMap[K]
-export type RouteNode<K extends keyof PageTypeMap = keyof PageTypeMap> = BaseRoute<PageType<K>>

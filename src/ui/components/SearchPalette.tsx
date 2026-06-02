@@ -196,7 +196,7 @@ const childHits = (project: Types.Project, route: Types.RouteNode): SearchHit[] 
       qualified: child.page.qualified,
       kind: (decl?.kind ?? 'module') as Kind,
       slug: child.slug,
-      file: decl?.sources?.[0]?.file ?? '',
+      file: project.mod(decl?.sources?.[0]?.module ?? 0)?.path ?? '',
     })
   }
   return out

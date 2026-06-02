@@ -1,10 +1,10 @@
-import type { ScanState } from './state.ts'
+import type { ScanContext } from './state.ts'
 
 interface Compacted {
   files: string[]
 }
 
-export const compact = (s: ScanState, rootFiles: { as: string; path: string }[]): Compacted => {
+export const compact = (_s: ScanContext, _rootFiles: { as: string; path: string }[]): Compacted => {
   return {
     files: [],
   }
