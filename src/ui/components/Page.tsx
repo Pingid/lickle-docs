@@ -44,17 +44,25 @@ export const PageHeader = createSlot('page.header', (props: PageProps) => (
 ))
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
-export const Source = createSlot('page.source', (props: { sources?: Types.Source[] }) => (
-  <Show when={props.sources?.[0]}>
-    {(s) => (
-      <div class="text-xs text-mute mt-2">
-        <span class="font-mono">
-          {s().file}:{s().line}
-        </span>
-      </div>
-    )}
-  </Show>
-))
+export const Source = createSlot('page.source', (props: { sources?: Types.Source[] }) => {
+  const project = useProject()
+  return (
+    <Show when={props.sources?.[0]}>
+      {(s) => {
+        const link = project().sourceLink(s())
+        const text = `${s().file}:${s().line}`
+        if (link) {
+          return (
+            <a href={link} class="text-xs text-mute mt-2 font-mono">
+              {text}
+            </a>
+          )
+        }
+        return <div class="text-xs text-mute mt-2 font-mono">{text}</div>
+      }}
+    </Show>
+  )
+})
 
 type ChildRoute = Types.RouteNode<'declaration' | 'module'>
 type ChildRow = { route: ChildRoute; decl?: Types.Declaration; kind: string; summary: string }

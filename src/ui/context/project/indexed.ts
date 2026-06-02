@@ -8,6 +8,11 @@ export const createProject = (json: ProjectJson): Types.Project => {
   const _routesBySlug = new Map<string, RouteNode>()
   const _slugByName = new Map<string, RouteNode>()
 
+  const sourceLink = (src: Types.Source) => {
+    if (!json.repository?.fileUrl) return undefined
+    return json.repository.fileUrl.replace('{PATH}', src.file).replace('{LINE}', src.line.toString())
+  }
+
   for (const declaration of json.declarations) {
     _byId.set(declaration.id, declaration)
   }
@@ -39,6 +44,7 @@ export const createProject = (json: ProjectJson): Types.Project => {
   hide(p, 'routeForId', routeForId)
   hide(p, 'routeForSlug', routeForSlug)
   hide(p, 'routeByName', routeByName)
+  hide(p, 'sourceLink', sourceLink)
   return p
 }
 

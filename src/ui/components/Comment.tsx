@@ -83,7 +83,7 @@ const NamedRow = (props: { item: Types.CommentTagMap['@property'] | Types.Commen
     </dt>
     <dd class="text-sm text-mute min-w-0">
       <Show when={trimLead(props.item.text)}>
-        <Markdown class="lk-md-inline" source={trimLead(props.item.text)} />
+        <Markdown.Inline source={trimLead(props.item.text)} />
       </Show>
     </dd>
   </>

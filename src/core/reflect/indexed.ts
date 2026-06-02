@@ -129,6 +129,13 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     return true
   }
 
+  // Public members of a module / namespace: exported declarations plus the
+  // `export …` statements themselves (which carry re-exports). Internal,
+  // non-exported helpers are left out of the exposure graph.
+  const members = function* (id: number): Iterable<T.Declaration> {
+    for (const child of deps.children(id)) if (child.exported) yield child
+  }
+
   const expose = (id: number, exposer: number, alias?: string): void => {
     const d = deps.get(id)
     if (!d) return
@@ -140,11 +147,11 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
             setModule(exposer, { id: name.ref, kind: 'namespace', alias: name.name })
           }
           if (record(name.ref, exposer, name.name)) {
-            for (const child of deps.children(name.ref)) expose(child.id, name.ref)
+            for (const child of members(name.ref)) expose(child.id, name.ref)
           }
         } else if (d.star) {
           if (deps.get(name.ref)?.kind === 'module') setModule(exposer, { id: name.ref, kind: 'star' })
-          for (const child of deps.children(name.ref)) expose(child.id, exposer)
+          for (const child of members(name.ref)) expose(child.id, exposer)
         } else {
           if (deps.get(name.ref)?.kind === 'module') addNamed(exposer, name.ref, name.name)
           expose(name.ref, exposer, name.name)
@@ -155,14 +162,14 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     if (d.kind === 'namespace') {
       setModule(exposer, { id, kind: 'namespace', alias: alias ?? d.name })
       if (record(id, exposer, alias ?? d.name)) {
-        for (const child of deps.children(id)) expose(child.id, id)
+        for (const child of members(id)) expose(child.id, id)
       }
       return
     }
     // A re-exported module (`export * as ns from './m'`) nests its members.
     if (d.kind === 'module') {
       if (record(id, exposer, alias ?? d.name)) {
-        for (const child of deps.children(id)) expose(child.id, id)
+        for (const child of members(id)) expose(child.id, id)
       }
       return
     }
@@ -182,7 +189,7 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
 
   b.after(() => {
     for (const root of deps.roots()) {
-      for (const child of deps.children(root.id)) expose(child.id, root.id)
+      for (const child of members(root.id)) expose(child.id, root.id)
     }
   })
 

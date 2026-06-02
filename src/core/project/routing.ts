@@ -183,5 +183,52 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
   // and re-exposures resolve to its canonical slug.
   const roots = full ? [...index.declarations()].filter((d) => d.kind === 'module') : [...index.roots()]
   for (const r of roots) (seen.add(r.id), routed.set(r.id, nameOf(r.id)))
-  return roots.map((root) => buildRoute(root.id))
+
+  // Build a root *after* any entrypoint modules it re-exports, so a declaration
+  // reachable both directly (a barrel `export *`) and through its own module is
+  // owned by the module — the barrel only links to it. Display order is kept as
+  // the config order regardless.
+  const built = new Map<number, RouteNode<Page>>()
+  for (const id of buildOrder(roots, index)) built.set(id, buildRoute(id))
+  return roots.map((root) => built.get(root.id)!)
+}
+
+/**
+ * Roots topologically sorted so an entrypoint module is built before any other
+ * root that re-exports its declarations (a barrel `export *`). That way each
+ * declaration is owned by the module that defines it, and the barrel only links.
+ */
+const buildOrder = (roots: reflect.Declaration[], index: reflect.Index): number[] => {
+  const rootIds = new Set(roots.map((r) => r.id))
+
+  // The entrypoint module a declaration is defined in (walk to its module ancestor).
+  const moduleOf = (id: number): number | undefined => {
+    let d = index.get(id)
+    while (d && d.kind !== 'module') d = index.get(d.parent)
+    return d?.id
+  }
+
+  // Roots whose declarations `rootId` re-exposes from elsewhere.
+  const deps = (rootId: number): Iterable<number> => {
+    const out = new Set<number>()
+    for (const e of index.exposed(rootId)) {
+      const m = moduleOf(e.id)
+      if (m !== undefined && m !== rootId && rootIds.has(m)) out.add(m)
+    }
+    return out
+  }
+
+  const order: number[] = []
+  const placed = new Set<number>()
+  const stack = new Set<number>()
+  const visit = (id: number): void => {
+    if (placed.has(id) || stack.has(id)) return
+    stack.add(id)
+    for (const dep of deps(id)) visit(dep)
+    stack.delete(id)
+    placed.add(id)
+    order.push(id)
+  }
+  for (const r of roots) visit(r.id)
+  return order
 }
