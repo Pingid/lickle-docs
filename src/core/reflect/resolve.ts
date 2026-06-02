@@ -129,7 +129,10 @@ const symbolAt = (checker: ts.TypeChecker, origin?: ts.Node): ts.Symbol | undefi
   return undefined
 }
 
-const asExternal = (ref: T.Type<'reference'>, external: 'stdlib' | 'package' | 'anonymous' | 'type-parameter'): void => {
+const asExternal = (
+  ref: T.Type<'reference'>,
+  external: 'stdlib' | 'package' | 'anonymous' | 'type-parameter',
+): void => {
   const r = ref as Extract<T.Type<'reference'>, { type: 'external' }>
   r.type = 'external'
   r.external = external

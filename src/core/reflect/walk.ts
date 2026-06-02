@@ -2,6 +2,7 @@ import type * as T from './types.ts'
 
 export interface Visitor {
   onReference: (ref: T.Type<'reference'>) => void
+  onSources: (sources: T.Source[]) => void
 }
 
 /**

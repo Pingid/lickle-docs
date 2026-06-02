@@ -2,6 +2,7 @@ import type { ScanOptions } from './state.ts'
 
 import * as indexed from './indexed.ts'
 import { resolve } from './resolve.ts'
+import { compact } from './compact.ts'
 import { scan } from './scan.ts'
 
 export type { ScanOptions } from './state.ts'
@@ -14,5 +15,6 @@ export const generate = (rootFiles: { as: string; path: string }[], options: Sca
     options,
   )
   const r = resolve(s)
+  console.log(compact(r, rootFiles))
   return indexed.create(r, rootFiles)
 }

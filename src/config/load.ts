@@ -36,7 +36,6 @@ export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.
     gen.config.routes = [{ label: 'Overview', slug: '', page, children: [], nav: true }]
   }
 
-  console.log(c)
   return gen
 }
 
