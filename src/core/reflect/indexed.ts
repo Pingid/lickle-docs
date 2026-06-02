@@ -8,15 +8,21 @@ export const create = (s: ScanState, entries: { as: string; path: string }[]) =>
 export type Index = Roots & TreeIndex & ReferenceIndex & ExposerIndex
 
 /** */
-export type Roots = { roots(): Iterable<T.Declaration>; commonDir: () => string }
+export type Roots = {
+  roots(): Iterable<T.Declaration<'module'>>
+  commonDir: () => string
+  modules: () => T.Declaration<'module'>[]
+}
 export const roots =
   (entries: { as: string; path: string }[]): Indexer<Roots> =>
   (b): Roots => {
-    const roots = new Map<string, T.Declaration>()
+    const roots = new Map<string, T.Declaration<'module'>>()
+    const modules: T.Declaration<'module'>[] = []
     const byPath = new Map<string, number>()
     let commonDir = ''
     b.init((d) => {
       if (d.kind === 'module' && d.path) {
+        modules.push(d)
         byPath.set(d.path, d.id)
         for (const entry of entries) {
           if (d.path === entry.path) {
@@ -29,7 +35,7 @@ export const roots =
     b.after(() => {
       commonDir = path.common(Array.from(byPath.keys()))
     })
-    return { roots: () => roots.values(), commonDir: () => commonDir }
+    return { roots: () => roots.values(), commonDir: () => commonDir, modules: () => modules }
   }
 
 export type TreeIndex = {
@@ -79,7 +85,7 @@ export type ExposedModule =
   | { id: number; kind: 'star' }
   | { id: number; kind: 'namespace'; alias: string }
   | { id: number; kind: 'named'; names: {}[] }
-  
+
 export type ExposerIndex = {
   exposedBy: (id: number) => Iterable<Exposure>
   exposes: (id: number) => Iterable<Exposed>
@@ -89,7 +95,7 @@ export type ExposerIndex = {
    * Exposed modules / namespaces. With no argument, every one (deduped by id);
    * with an exposer id, only those exposed directly by that module/namespace.
    */
-  modules: (exposer?: number) => Iterable<ExposedModule>
+  exposedModules: (exposer?: number) => Iterable<ExposedModule>
 }
 export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) => {
   const exposedBy = new Map<number, Exposure[]>()
@@ -193,7 +199,7 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     exposedBy: (id) => exposedBy.get(id) ?? EMPTY_BY,
     exposes: (id) => exposes(id),
     exposed: (id) => direct.get(id) ?? EMPTY_EXP,
-    modules: (exposer) =>
+    exposedModules: (exposer) =>
       exposer === undefined ? exposedModules.values() : (modulesByExposer.get(exposer) ?? EMPTY_MODULES).values(),
   }
 }

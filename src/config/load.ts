@@ -1,6 +1,4 @@
-import { pathToFileURL } from 'node:url'
 import fs from 'node:fs/promises'
-import { createJiti } from 'jiti'
 import { v } from '@lickle/is'
 import path from 'node:path'
 import ts from 'typescript'
@@ -19,24 +17,7 @@ const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 
 export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.ConfigJson>) => {
   const c = await load(dir, opts)
-  const gen: project.GenerateOptions = {
-    ...c,
-    dir,
-    exclude: c.exclude ?? [],
-    config: { entrypoints: [], links: [], ...c, routes: [] },
-    compilerOptions: c.compilerOptions,
-    full: c.full,
-  }
-
-  if (c.readme) {
-    const page: project.PageType<'markdown'> = {
-      kind: 'markdown',
-      content: await lib.fs.readFile(c.readme, 'utf-8'),
-    }
-    gen.config.routes = [{ label: 'Overview', slug: '', page, children: [], nav: true }]
-  }
-
-  return gen
+  return toGenerateOptions(c)
 }
 
 export const toGenerateOptions = async (c: ConfigJson & { compilerOptions: ts.CompilerOptions }) => {
@@ -54,7 +35,7 @@ export const toGenerateOptions = async (c: ConfigJson & { compilerOptions: ts.Co
       kind: 'markdown',
       content: await lib.fs.readFile(c.readme, 'utf-8'),
     }
-    gen.config.routes = [{ label: 'Overview', slug: '', page, children: [], nav: true }]
+    gen.config.routes = [{ label: 'README', slug: 'readme', page, children: [], sidebar: true }]
   }
 
   return gen
@@ -86,13 +67,8 @@ export const findFile = async (dir: string): Promise<string | undefined> => {
 }
 
 const readCode = async (file: string): Promise<ConfigJson> => {
-  const jti = createJiti(pathToFileURL(import.meta.url).href, {
-    moduleCache: false,
-    cache: false,
-  })
-  const mod = await jti.import<{ default: any }>(file)
-  const fl = await mod.default
-  return valid(fl)
+  const mod = await lib.jiti.importModule<{ default: any }>(file)
+  return valid(mod.default)
 }
 
 const readJson = async (file: string): Promise<ConfigJson> => {

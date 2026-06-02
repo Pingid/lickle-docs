@@ -14,7 +14,7 @@ import { Link, Page, MarkdownPage, Layout } from './components/index.ts'
 import { setRendered } from './context/global.ts'
 
 /** First navigable route slug — the implicit home target. */
-const firstSlug = (routes: Types.RouteNode[]): string | undefined => (routes.find((r) => r.nav) ?? routes[0])?.slug
+const firstSlug = (routes: Types.RouteNode[]): string | undefined => (routes.find((r) => r.sidebar) ?? routes[0])?.slug
 
 /** Resolve the current `/*slug` path to a route and render its page. */
 const PathRoute = () => {

@@ -110,34 +110,78 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
     return out
   }
 
+  // Canonical parts for every routed declaration, so a page re-exposed
+  // elsewhere can link back to where it actually lives. Seeded with the roots
+  // up front (below) so a root re-exported by another resolves to its own slug.
+  const routed = new Map<number, naming.Parts>()
+
+  const nameOf = (id: number, parent?: naming.Parts, alias?: string): naming.Parts => {
+    const named = provider.name({ decl: index.get(id)!, alias, parent, index, options })
+    return { ...named, slug: uniqueSlug(named.slug) }
+  }
+
+  const makePage = (id: number, parts: naming.Parts): PageType<Page> => ({
+    kind: index.get(id)!.kind === 'module' ? 'module' : 'declaration',
+    id,
+    alias: parts.label,
+    qualified: parts.qualified,
+    referencedIn: [...index.referencedIn(id)],
+  })
+
+  // A page already owned by another route, surfaced here as a link only: it
+  // shows in the parent's child list but stays out of the sidebar and carries
+  // no subtree, so clicking it lands on the canonical route.
+  const linkNode = (
+    id: number,
+    parent: naming.Parts,
+    alias: string | undefined,
+    canon: naming.Parts,
+  ): RouteNode<Page> => {
+    const cx: RouteContext = { decl: index.get(id)!, alias, parent, index, options }
+    const group = provider.group(cx)
+    return {
+      label: provider.name(cx).label,
+      slug: canon.slug,
+      page: makePage(id, canon),
+      children: [],
+      sidebar: false,
+      ...(group ? { group } : {}),
+    }
+  }
+
   const buildRoute = (id: number, parent?: naming.Parts, alias?: string): RouteNode<Page> => {
     const decl = index.get(id)!
     const cx: RouteContext = { decl, alias, parent, index, options }
-    const named = provider.name(cx)
-    const parts: naming.Parts = { ...named, slug: uniqueSlug(named.slug) }
+    const parts = routed.get(id) ?? nameOf(id, parent, alias)
+    routed.set(id, parts)
 
     seen.add(id)
     const children: RouteNode<Page>[] = []
     for (const e of childrenOf(id)) {
-      if (seen.has(e.id)) continue
+      if (e.id === id) continue
+      if (seen.has(e.id)) {
+        const canon = routed.get(e.id)
+        if (canon) children.push(linkNode(e.id, parts, e.alias, canon))
+        continue
+      }
       children.push(buildRoute(e.id, parts, e.alias))
     }
 
-    const kind: Page = decl.kind === 'module' ? 'module' : 'declaration'
-    const page: PageType<Page> = {
-      kind,
-      id,
-      alias: parts.label,
-      qualified: parts.qualified,
-      referencedIn: [...index.referencedIn(id)],
-    }
     const group = provider.group(cx)
-    return { label: parts.label, slug: parts.slug, page, children, nav: provider.nav(cx), ...(group ? { group } : {}) }
+    return {
+      label: parts.label,
+      slug: parts.slug,
+      page: makePage(id, parts),
+      children,
+      sidebar: provider.nav(cx),
+      ...(group ? { group } : {}),
+    }
   }
 
-  // `full` lists every module; `exposed` only the entrypoints. Reserve all
-  // roots up front so one re-exported by another stays top-level.
+  // `full` lists every module; `exposed` only the entrypoints. Name (and slug-
+  // reserve) every root up front so one re-exported by another stays top-level
+  // and re-exposures resolve to its canonical slug.
   const roots = full ? [...index.declarations()].filter((d) => d.kind === 'module') : [...index.roots()]
-  for (const r of roots) seen.add(r.id)
+  for (const r of roots) (seen.add(r.id), routed.set(r.id, nameOf(r.id)))
   return roots.map((root) => buildRoute(root.id))
 }

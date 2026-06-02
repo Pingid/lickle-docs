@@ -32,7 +32,7 @@ export type BaseRoute<P> = {
   /** sub pages */
   children: BaseRoute<P>[]
   /** Whether the page should be displayed in the navigation */
-  nav: boolean
+  sidebar: boolean
   /** Adds a label above in navigation*/
   group?: string
 }

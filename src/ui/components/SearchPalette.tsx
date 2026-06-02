@@ -45,7 +45,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
 
   // Before the user types, suggest the first module's entries so the palette
   // opens with something to browse instead of an empty box.
-  const firstModule = createMemo(() => project().routes.find((r) => r.nav && r.page.kind !== 'markdown'))
+  const firstModule = createMemo(() => project().routes.find((r) => r.sidebar && r.page.kind !== 'markdown'))
   const suggestions = createMemo<SearchHit[]>(() => {
     const mod = firstModule()
     return mod ? childHits(project(), mod).slice(0, DEFAULT_LIMIT) : []

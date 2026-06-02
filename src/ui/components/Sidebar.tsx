@@ -8,7 +8,7 @@ type Node = Types.RouteNode
 
 export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
   const project = useProject()
-  const routes = createMemo(() => project().routes.filter((r) => r.nav))
+  const routes = createMemo(() => project().routes.filter((r) => r.sidebar))
 
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
@@ -46,7 +46,7 @@ type NodeProps = { node: Node; depth: number; onNavigate?: () => void }
 
 const NavNode = (props: NodeProps) => {
   const loc = useLocation()
-  const kids = createMemo(() => props.node.children.filter((c) => c.nav))
+  const kids = createMemo(() => props.node.children.filter((c) => c.sidebar))
   const hasChildren = () => kids().length > 0
   const isActive = () => loc.pathname === `/${props.node.slug}`
   const [open, setOpen] = createSignal(false)

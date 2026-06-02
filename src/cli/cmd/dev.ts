@@ -5,6 +5,7 @@ import * as config from '../../config/load.ts'
 import * as core from '../../core/index.ts'
 import * as lib from '../../_lib/index.ts'
 import * as vite from '../vite/index.ts'
+import { getRootPath } from '../env.ts'
 
 export const dev = cmd.command({
   name: 'dev',
@@ -52,10 +53,14 @@ const runDev = async (opts: Options) => {
 
   const c = await config.load()
   if (c.srcDir) watchList.push(c.srcDir)
+  watchList.push(getRootPath('src/core'))
 
   const server = await vite.dev({
     ...c,
-    build: async () => core.project.buildJson(await config.loadGen(process.cwd())),
+    build: async () =>
+      lib.jiti
+        .importModule<typeof core>(getRootPath('src/core'))
+        .then(async (core) => core.project.buildJson(await config.loadGen(process.cwd()))),
     watchPaths: [...watchList],
     entrypoint: c.custom ? path.join(process.cwd(), c.custom) : undefined,
     viteConfig: {
