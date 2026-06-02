@@ -14,7 +14,7 @@ export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: num
       <ol class="flex items-center gap-1.5 flex-wrap">
         <li>
           <A href="/" class="hover:text-fg">
-            {project.name}
+            {project().name}
           </A>
         </li>
         <For each={crumbs()}>

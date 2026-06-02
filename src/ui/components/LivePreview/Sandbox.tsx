@@ -4,7 +4,7 @@ import { onMount, onCleanup } from 'solid-js'
 export type SandboxIsolate = 'inline'
 
 /** The element examples render into, plus its teardown. */
-export type Container = { target: HTMLElement; dispose: () => void }
+export type Container = { target: HTMLElement; dispose: () => void; reset: () => void }
 
 /** Builds a {@link Container} inside `root`. Add new strategies to {@link strategies}. */
 export type ContainerStrategy = (root: HTMLElement) => Container
@@ -13,7 +13,7 @@ export type ContainerStrategy = (root: HTMLElement) => Container
 const inline: ContainerStrategy = (root) => {
   const target = document.createElement('div')
   root.appendChild(target)
-  return { target, dispose: () => target.remove() }
+  return { target, dispose: () => target.remove(), reset: () => target.replaceChildren() }
 }
 
 // Shadow DOM / iframe strategies can be added here later (iframe will need an

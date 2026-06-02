@@ -1,11 +1,13 @@
 import { createMemo, For, Show } from 'solid-js'
+import type { JSX } from 'solid-js/jsx-runtime'
 
-import { createSlot, useDisplay, type Types } from '../context/index.ts'
+import { createSlot, type Types } from '../context/index.ts'
 import { useCommentMarkdown } from '../hooks/index.ts'
 
+import { CodeBlock } from './Code/index.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
-import { Tag } from './Tag.tsx'
+import { Link } from './Link.tsx'
 
 /**
  * Render a single doc comment: summary markdown first, then every tag in
@@ -17,31 +19,24 @@ import { Tag } from './Tag.tsx'
  * through to {@link UnknownTag}.
  */
 export const Comment = createSlot('comment', (props) => {
-  const display = useDisplay()
   return (
     <Show when={props.comment}>
       {(c) => {
         const summary = useCommentMarkdown(c)
         const groups = createMemo(() => groupTags(c().tags ?? []))
-        const trimmed = createMemo(() => summary().split('\n')[0])
-        const compact = createMemo(() => display() === 'compact')
+
         return (
           <Show when={summary() || props.comment?.tags?.length}>
             <div class={props.class}>
-              <Show when={compact()}>
-                <Show when={trimmed()}>{(c) => <Markdown.Inline class="text-sm text-mute" source={c()} />}</Show>
-              </Show>
-              <Show when={!compact()}>
-                <Show when={summary()}>{(c) => <Markdown source={c()} />}</Show>
-                <For each={groups()}>
-                  {(g) => {
-                    if (g.kind === '@param') return <Parameters tags={g.items} />
-                    if (g.kind === '@property') return <Properties tags={g.items} />
-                    if (g.tag.tag === '@module') return null
-                    return <Tag tag={g.tag} />
-                  }}
-                </For>
-              </Show>
+              <Show when={summary()}>{(c) => <Markdown source={c()} />}</Show>
+              <For each={groups()}>
+                {(g) => {
+                  if (g.kind === '@param') return <Parameters tags={g.items} />
+                  if (g.kind === '@property') return <Properties tags={g.items} />
+                  if (g.tag.tag === '@module') return null
+                  return <Tag tag={g.tag} />
+                }}
+              </For>
             </div>
           </Show>
         )
@@ -99,7 +94,6 @@ type Named = Types.CommentTagMap['@property'] | Types.CommentTagMap['@param']
 /** Strip a single leading `- ` so `@param foo - desc` collapses cleanly. */
 const trimLead = (s: string): string => (s ?? '').replace(/^\s*-\s*/, '').trim()
 
-// type Named = TagOf<'@param'> | TagOf<'@property'>
 type Group =
   | { kind: '@param'; items: Types.CommentTagMap['@param'][] }
   | { kind: '@property'; items: Types.CommentTagMap['@property'][] }
@@ -119,3 +113,109 @@ const groupTags = (tags: Types.CommentTag[]): Group[] => {
   }
   return out
 }
+
+export const Tag = createSlot('tag', (props) => {
+  if (props.tag.tag === '@returns') return <TagReturns tag={props.tag as Types.CommentTagMap['@returns']} />
+  if (props.tag.tag === '@throws') return <TagThrows tag={props.tag as Types.CommentTagMap['@throws']} />
+  if (props.tag.tag === '@type') return <TagType tag={props.tag as Types.CommentTagMap['@type']} />
+  if (props.tag.tag === '@satisfies') return <TagSatisfies tag={props.tag as Types.CommentTagMap['@satisfies']} />
+  if (props.tag.tag === '@example') return <TagExample tag={props.tag as Types.CommentTagMap['@example']} />
+  if (props.tag.tag === '@see') return <TagSee tag={props.tag as Types.CommentTagMap['@see']} />
+  if (props.tag.tag === '@template') return <TagTemplate tag={props.tag as Types.CommentTagMap['@template']} />
+  return <TagOther tag={props.tag} />
+})
+
+/** Section frame shared across tag renderers. */
+export const TagSection = (props: { tag: Types.CommentTag; description?: string; children: JSX.Element }) => (
+  <section class="mt-6">
+    <div class="flex items-baseline gap-2 mb-2">
+      <TagTitle tag={props.tag} />
+      <Show when={props.description}>
+        {(description) => (
+          <div class="text-xs text-mute min-w-0">
+            <Markdown.Inline source={description()} />
+          </div>
+        )}
+      </Show>
+    </div>
+    {props.children}
+  </section>
+)
+
+const TagTitle = (props: { tag: Types.CommentTag }) => {
+  const title = props.tag.tag.replace(/^@/, '')
+  return <h4 class="text-mute uppercase text-[0.7rem] font-semibold tracking-wider">{title}</h4>
+}
+
+export const TagExample = createSlot('tag.example', (props: { tag: Types.CommentTagMap['@example'] }) => (
+  <TagSection tag={props.tag}>
+    <CodeBlock code={props.tag.code} />
+  </TagSection>
+))
+
+export const TagReturns = createSlot('tag.returns', (props: { tag: Types.CommentTagMap['@returns'] }) => (
+  <TagSection tag={props.tag}>
+    <Type.Inline type={props.tag.type} text={props.tag.text} />
+  </TagSection>
+))
+
+export const TagSatisfies = createSlot('tag.satisfies', (props: { tag: Types.CommentTagMap['@satisfies'] }) => (
+  <TagSection tag={props.tag}>
+    <Type.Inline type={props.tag.type} text={props.tag.text} />
+  </TagSection>
+))
+
+export const TagSee = createSlot('tag.see', (props: { tag: Types.CommentTagMap['@see'] }) => (
+  <TagSection tag={props.tag}>
+    <Show when={props.tag.target}>
+      <div class="font-mono text-sm mb-1">
+        <Link.ByName name={props.tag.target ?? ''} />
+      </div>
+    </Show>
+  </TagSection>
+))
+
+export const TagTemplate = createSlot('tag.template', (props: { tag: Types.CommentTagMap['@template'] }) => (
+  <TagSection tag={props.tag}>
+    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
+      <For each={props.tag.generics}>
+        {(tp) => (
+          <>
+            <dt class="font-mono text-sm font-semibold">{tp.name}</dt>
+            <dd class="text-sm text-mute">
+              <Show when={tp.constraint}>
+                <>
+                  <span class="text-accent">extends </span>
+                  <Type type={tp.constraint!} />
+                </>
+              </Show>
+            </dd>
+          </>
+        )}
+      </For>
+    </dl>
+    <Show when={props.tag.text?.trim()}>
+      <div class="mt-2">
+        <Markdown.Inline source={props.tag.text} />
+      </div>
+    </Show>
+  </TagSection>
+))
+
+export const TagThrows = createSlot('tag.throws', (props: { tag: Types.CommentTagMap['@throws'] }) => (
+  <TagSection tag={props.tag}>
+    <Type.Inline type={props.tag.type} text={props.tag.text} />
+  </TagSection>
+))
+
+export const TagType = createSlot('tag.type', (props: { tag: Types.CommentTagMap['@type'] }) => (
+  <TagSection tag={props.tag}>
+    <Type.Inline type={props.tag.type} text={props.tag.text} />
+  </TagSection>
+))
+
+export const TagOther = createSlot('tag.*', (props) => (
+  <TagSection tag={props.tag}>
+    <Markdown source={(props.tag as { text?: string }).text ?? ''} />
+  </TagSection>
+))

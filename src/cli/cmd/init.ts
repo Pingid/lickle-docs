@@ -49,16 +49,16 @@ export default defineConfig({
 `
 
 const example = `
-import { registerComponent } from '@lickle/docs/ui'
+import { registerComponent, LiveExample, transform } from '@lickle/docs/ui'
 
-registerComponent('tag.example', (props) => {
-  return (
-    <div>
-      <h2>Custom wrapper</h2>
-      <props.Default {...props} />
-    </div>
-  )
-})`
+// Execute the compiled example into its preview host. \`host\` is the live DOM
+// node, available to the example as a global.
+const run = (code: string, host: HTMLElement) => new Function('host', code)(host)
+
+// Opt in to runnable \`@example\` blocks: compile with \`transform\` then \`run\`.
+registerComponent('tag.example', (props) => (
+  <LiveExample {...props} run={(code, host) => run(transform(code), host)} />
+))`
 
 const initFiles = {
   '.gitignore': [`docs.json`, `dist`],

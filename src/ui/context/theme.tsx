@@ -38,4 +38,8 @@ export const ThemeProvider = (props: { children: JSX.Element }) => {
   return <Ctx.Provider value={{ mode, setMode }}>{props.children}</Ctx.Provider>
 }
 
-export const useTheme = (): ThemeCtx => useContext(Ctx)!
+export const useTheme = (): ThemeCtx => {
+  const ctx = useContext(Ctx)
+  if (!ctx) throw new Error('useTheme must be used within a <ThemeProvider>')
+  return ctx
+}

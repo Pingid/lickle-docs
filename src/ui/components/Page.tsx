@@ -6,7 +6,7 @@ import { type ReferenceRow, useReferences } from '../hooks/index.ts'
 import { labelOf, pluralLabel, groupOrder } from '../util/kind.ts'
 import { commentSummaryText } from '../util/comment.ts'
 
-import { Declaration } from './Decleration.tsx'
+import { Declaration } from './Declaration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'

@@ -1,7 +1,7 @@
 import { createMemo, type Accessor } from 'solid-js'
 
-import { useProject, type Types } from '../context/index.ts'
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
+import { useProject, type Types } from '../context/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
 
 // ============================================================================
@@ -10,62 +10,17 @@ import { commentSummaryText } from '../util/comment.ts'
 // of pulling `project` apart directly.
 // ============================================================================
 
-type Selector<T> = T | (() => T)
-const evalSelector = <T>(s: Selector<T>): T => (typeof s === 'function' ? (s as () => T)() : s)
-
-/**
- * Resolve a declaration by id or slug. Pass a function to participate in
- * Solid's reactive graph (e.g. `useReflection(() => params.slug)`).
- */
-export const useReflection = (
-  selector: Selector<number | string | undefined>,
-): Accessor<Types.Declaration | undefined> => {
-  const project = useProject()
-  return createMemo(() => {
-    const v = evalSelector(selector)
-    if (v == null) return undefined
-    return typeof v === 'number' ? project().byId(v) : project().bySlug(v)
-  })
-}
-
 /**
  * Slug accessors keyed two ways. `byId` is the id-driven path used by render
- * code; `byName` powers `{@link Foo}` / `<code>Foo</code>` resolution.
+ * code; `byName` powers `{@link Foo}` / `<code>Foo</code>` resolution (short
+ * names and qualified names both resolve via the project's name index).
  */
 export const useSlugFor = () => {
   const project = useProject()
   return {
     byId: (id: number): string | undefined => project().routeForId(id)?.slug,
-    byName: (name: string): string | undefined => indexOf(project() ?? []).slugByName.get(name),
+    byName: (name: string): string | undefined => project().routeByName(name)?.slug,
   }
-}
-
-// ============================================================================
-// DERIVED INDEX
-// Name -> slug map, built once per project by walking the route tree.
-// ============================================================================
-
-type DerivedIndex = { slugByName: Map<string, string> }
-const indexCache = new WeakMap<object, DerivedIndex>()
-
-const indexOf = (project: Types.Project): DerivedIndex => {
-  const cached = indexCache.get(project)
-  if (cached) return cached
-  const slugByName = new Map<string, string>()
-  const walk = (routes: Types.RouteNode[]): void => {
-    for (const r of routes) {
-      if (r.page.kind !== 'markdown') {
-        const name = project.byId(r.page.id)?.name
-        if (name && !slugByName.has(name)) slugByName.set(name, r.slug)
-        slugByName.set(r.page.qualified, r.slug)
-      }
-      walk(r.children)
-    }
-  }
-  walk(project.routes)
-  const idx = { slugByName }
-  indexCache.set(project, idx)
-  return idx
 }
 
 // ============================================================================

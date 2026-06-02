@@ -14,6 +14,8 @@
   /* Typography mapping to Tailwind v4 namespaces */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-code: var(--font-mono);
+  --font-code-size: 0.85em;
   --text-font-size: 15px;
   --leading-line-height: 1.65;
   --tracking-letter-spacing: -0.005em;
@@ -100,10 +102,51 @@
     scrollbar-width: thin;
     scrollbar-color: var(--color-line) transparent;
   }
+}
 
-  /* shiki — light is the default; dark swap overrides via !important.
-     We deliberately do NOT set background-color so `.markdown pre` / `.editor`
-     own the surface color. */
+@layer components {
+  code, pre {
+    background: transparent !important;
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
+
+  code {
+    font-family: var(--font-code);
+    font-size: var(--font-code-size);
+    white-space: pre-wrap;
+    tab-size: 2;
+  }
+
+  code,
+  code span {
+    color: var(--shiki-light);
+    font-style: var(--shiki-light-font-style);
+    font-weight: var(--shiki-light-font-weight);
+    text-decoration: var(--shiki-light-text-decoration);
+  }
+  :root[data-theme='dark'] code,
+  :root[data-theme='dark'] code span {
+    color: var(--shiki-dark) !important;
+    font-style: var(--shiki-dark-font-style) !important;
+    font-weight: var(--shiki-dark-font-weight) !important;
+    text-decoration: var(--shiki-dark-text-decoration) !important;
+  }
+
+  .codeblock {
+    background: var(--color-code-bg);
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .codeblock:focus-within {
+    border-color: var(--color-mute);
+  }
+}
+
+/* Syntax highlighting */
+@layer components {
   .shiki,
   .shiki span {
     color: var(--shiki-light);
@@ -118,21 +161,19 @@
     font-weight: var(--shiki-dark-font-weight) !important;
     text-decoration: var(--shiki-dark-text-decoration) !important;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .shiki,
-    :root:not([data-theme='light']) .shiki span {
-      color: var(--shiki-dark) !important;
-      font-style: var(--shiki-dark-font-style) !important;
-      font-weight: var(--shiki-dark-font-weight) !important;
-      text-decoration: var(--shiki-dark-text-decoration) !important;
-    }
-  }
 }
 
 @layer components {
   .markdown {
     color: var(--color-fg);
   }
+  .markdown.markdown-tight > :first-child {
+    margin-top: 0;
+  }
+  .markdown.markdown-tight > :last-child {
+    margin-bottom: 0;
+  }
+
   .markdown h1 {
     font-weight: 600;
     font-size: 1.875rem;
@@ -257,148 +298,5 @@
     vertical-align: middle;
     max-width: 100%;
     border-radius: 4px;
-  }
-
-  .codeblock {
-    background: var(--color-code-bg);
-    border: 1px solid var(--color-line);
-    border-radius: 8px;
-    padding: 14px 16px;
-    overflow-x: auto;
-    font-size: 0.85em;
-    font-family: var(--font-mono);
-  }
-
-  /* CodeJar editor — mirrors `.markdown pre` so live examples match rendered code blocks */
-  .editor {
-    background: var(--color-code-bg);
-    border: 1px solid var(--color-line);
-    border-radius: 8px;
-    padding: 14px 16px;
-    overflow-x: auto;
-    font-size: 0.85em;
-    font-family: var(--font-mono);
-    outline: none;
-    white-space: pre;
-    tab-size: 2;
-  }
-  .editor:focus-within {
-    border-color: var(--color-mute);
-  }
-  .editor pre,
-  .editor pre code {
-    background: transparent !important;
-    padding: 0;
-    margin: 0;
-    border: 0;
-  }
-
-  /* Runnable `@example` — editor on top, output sandbox below, single card frame.
-     The nested `.editor` drops its own border / radius so the parent owns the surface. */
-  .lk-runnable {
-    border: 1px solid var(--color-line);
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--color-bg);
-  }
-  .lk-runnable .editor {
-    border: 0;
-    border-radius: 0;
-  }
-  .lk-runnable .editor:focus-within {
-    border: 0;
-  }
-  .lk-runnable-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 5px 12px;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--color-mute);
-    background: var(--color-panel);
-    border-top: 1px solid var(--color-line);
-    border-bottom: 1px solid var(--color-line);
-    font-weight: 600;
-  }
-  .lk-runnable-reset {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    cursor: pointer;
-    color: var(--color-mute);
-    transition: color 150ms;
-    font: inherit;
-    text-transform: inherit;
-    letter-spacing: inherit;
-  }
-  .lk-runnable-reset:hover {
-    color: var(--color-fg);
-  }
-  .lk-runnable-output {
-    padding: 14px 16px;
-    min-height: 2.75rem;
-  }
-  .lk-runnable-slot:empty {
-    display: none;
-  }
-  .lk-runnable-error {
-    padding: 10px 12px;
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    color: var(--color-error);
-    background: var(--color-error-bg);
-    border-left: 2px solid var(--color-error);
-    border-radius: 4px;
-    white-space: pre-wrap;
-    overflow-x: auto;
-  }
-  /* When both a slot render and an error coexist (handler partially succeeded
-     then threw), separate them with a little breathing room. */
-  .lk-runnable-slot:not(:empty) + .lk-runnable-error {
-    margin-top: 10px;
-  }
-
-  /* Compact markdown — used inside table cells and tag rows so a single
-     paragraph doesn't collide with the surrounding block margins. */
-  .markdown.lk-md-inline > :first-child {
-    margin-top: 0;
-  }
-  .markdown.lk-md-inline > :last-child {
-    margin-bottom: 0;
-  }
-
-  /* "Used in" list — column-aligned `(usage, kind, module.name, summary)` */
-  .lk-references ul {
-    display: grid;
-    grid-template-columns: 6rem minmax(0, auto) minmax(0, 1fr);
-    column-gap: 1rem;
-    row-gap: 0.35rem;
-    align-items: baseline;
-  }
-  .lk-references li {
-    display: contents;
-  }
-  .lk-references .usage,
-  .lk-references .kind {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    color: var(--color-mute);
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-  }
-  .lk-references .symbol {
-    font-family: var(--font-mono);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .lk-references .summary {
-    font-size: 0.875rem;
-    color: var(--color-mute);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 }

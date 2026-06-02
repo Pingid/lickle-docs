@@ -4,7 +4,6 @@ import { A } from '@solidjs/router'
 import { type Types } from '../context/index.ts'
 
 import { type Kind, labelOf, shortOf } from '../util/kind.ts'
-import { useDisplay } from '../context/index.ts'
 import { useSlugFor } from '../hooks/index.ts'
 
 import { Markdown } from './Markdown.tsx'
@@ -559,21 +558,15 @@ Type.Signature = (props: {
   id?: number
   kind?: 'function' | 'method' | 'constructor'
 }) => {
-  const display = useDisplay()
   return (
-    <Show
-      when={display() === 'full'}
-      fallback={<Type.SignatureCompact sig={props.sig} name={props.name} id={props.id} kind={props.kind} />}
-    >
-      <div class="mb-8">
-        <Type.SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
-        <Show when={props.sig.comment}>
-          <div class="mt-2">
-            <Comment comment={props.sig.comment} />
-          </div>
-        </Show>
-      </div>
-    </Show>
+    <div class="mb-8">
+      <Type.SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
+      <Show when={props.sig.comment}>
+        <div class="mt-2">
+          <Comment comment={props.sig.comment} />
+        </div>
+      </Show>
+    </div>
   )
 }
 

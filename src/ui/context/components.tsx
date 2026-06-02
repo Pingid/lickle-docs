@@ -10,7 +10,7 @@ const ComponentsCtx = createContext<Accessor<Components>>(() => ({}))
 
 /**
  * Provide a component registry to descendants. When nested inside another
- * `<ComponentsProvider>` the inner value is deep-merged onto the outer one,
+ * `<ComponentsProvider>` the inner value is shallow-merged onto the outer one,
  * so a wrapper preset can establish defaults that an app extends without
  * losing the outer's entries.
  */
@@ -100,23 +100,4 @@ export interface Components {
   'tag.augments'?: Component<WithDefault<{ tag: Types.CommentTagMap['@augments'] }>>
   'tag.implements'?: Component<WithDefault<{ tag: Types.CommentTagMap['@implements'] }>>
   'tag.*'?: Component<WithDefault<{ tag: Types.CommentTag }>>
-}
-
-/**
- * Recursive merge that bottoms out on functions, arrays, and primitives.
- * The right-hand value wins at every leaf; nested plain objects (the four
- * registry buckets and their per-key sub-records) are walked.
- */
-const isPlain = (v: unknown): v is Record<string, unknown> =>
-  v !== null && typeof v === 'object' && !Array.isArray(v) && typeof v !== 'function'
-
-const deepMerge = <T,>(a: T, b: T): T => {
-  if (!isPlain(a) || !isPlain(b)) return b ?? a
-  const out: Record<string, unknown> = { ...a }
-  for (const k of Object.keys(b)) {
-    const av = (a as Record<string, unknown>)[k]
-    const bv = (b as Record<string, unknown>)[k]
-    out[k] = av !== undefined && bv !== undefined ? deepMerge(av as any, bv as any) : (bv ?? av)
-  }
-  return out as T
 }

@@ -8,6 +8,7 @@ import {
   DeclarationScope,
   useProject,
   type Types,
+  MarkupProvider,
 } from './context/index.ts'
 import { Link, Page, MarkdownPage, Layout } from './components/index.ts'
 import { setRendered } from './context/global.ts'
@@ -101,9 +102,11 @@ export const App = (props: {
           components={typeof props.components === 'function' ? props.components() : props.components}
         >
           <ThemeProvider>
-            <Router root={(p) => <Layout>{p.children}</Layout>}>
-              <Routes />
-            </Router>
+            <MarkupProvider>
+              <Router root={(p) => <Layout>{p.children}</Layout>}>
+                <Routes />
+              </Router>
+            </MarkupProvider>
           </ThemeProvider>
         </ProjectProvider>
       )}
