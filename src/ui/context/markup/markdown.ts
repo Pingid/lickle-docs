@@ -1,8 +1,8 @@
 import { Marked } from 'marked'
 
+import { withBaseUrl } from '../../util/base.ts'
 import type { Highlighter } from './shiki.ts'
 import { langOf } from './util.ts'
-import { withBaseUrl } from '../../util/base.ts'
 
 export const buildMarked = (h: Highlighter | undefined, lookup?: (raw: string) => string | undefined) => {
   const m = new Marked({
@@ -29,6 +29,7 @@ export const buildMarked = (h: Highlighter | undefined, lookup?: (raw: string) =
       },
     },
   })
+
   return m
 }
 

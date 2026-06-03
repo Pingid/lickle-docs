@@ -4,9 +4,9 @@ import path from 'node:path'
 import * as config from '../../../config/load.ts'
 import * as core from '../../../core/index.ts'
 import * as lib from '../../../_lib/index.ts'
-import * as vite from './vite.ts'
 
-import { getRootPath } from '../../env.ts'
+// import * as ssg from './ssg/index.ts'
+import * as vite from './vite.ts'
 
 export const dev = cmd.command({
   name: 'dev',
@@ -79,7 +79,7 @@ export const runBuild = async (opts: Options = {}) => {
     config: configLoader(dir),
     viteConfig: {
       base: opts.base,
-      build: { outDir: opts.docsDir ? path.join(path.dirname(opts.docsDir), 'dist') : 'docs/dist' },
+      build: { outDir: opts.docsDir ? path.resolve(path.dirname(opts.docsDir), 'dist') : path.resolve('docs/dist') },
     },
   })
 }

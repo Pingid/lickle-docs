@@ -1,10 +1,10 @@
 import { createSignal, onCleanup, onMount } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
 
-import { useLocation } from '@solidjs/router'
 import { createEffect } from 'solid-js'
 
 import { createSlot, MarkupProvider, ThemeProvider } from '../context/index.tsx'
+import { useLocation } from '../context/router.tsx'
 
 import { SearchPalette } from './SearchPalette.tsx'
 import { Sidebar } from './Sidebar.tsx'

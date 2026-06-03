@@ -1,8 +1,9 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
-import { CodeJar } from 'codejar'
+// import { CodeJar } from 'codejar'
 import { cn } from '@lickle/cn'
 
 import { useMarkup, useCodeToHtml, type Highlighter } from '../../context/index.tsx'
+import { isServer } from 'solid-js/web'
 
 export const Code = (props: { code: string; lang?: string }) => {
   const html = useCodeToHtml({ ...props, structure: 'inline' })
@@ -35,40 +36,44 @@ export const CodeEditor = (props: CodeEditorProps) => {
   return <div ref={editor.onBind} spellcheck={false} />
 }
 
+type CodeJar = ReturnType<typeof import('codejar').CodeJar>
+
 const useCodeEditor = (props: CodeEditorProps) => {
   const markup = useMarkup()
-  let _jar: ReturnType<typeof CodeJar> | null = null
+  let _jar: CodeJar | null = null
   let _host: HTMLElement | null = null
   let initialized = false
   let current = props.value()
 
-  const [jar, setJar] = createSignal<ReturnType<typeof CodeJar> | null>(null)
+  const [jar, setJar] = createSignal<CodeJar | null>(null)
 
   const setup = (host: HTMLElement, h: Highlighter) => {
-    if (initialized) return
+    if (initialized && !isServer) return
     initialized = true
-    _jar = CodeJar(
-      host,
-      (el) => {
-        try {
-          el.innerHTML = h.codeToHtml({ text: el.textContent ?? '', lang: props.lang })
-        } catch (err) {
-          console.warn('[Editor] highlight failed', err)
-        }
-      },
-      {
-        preserveIdent: true,
-        addClosing: true,
-      },
-    )
+    import('codejar').then(({ CodeJar }) => {
+      _jar = CodeJar(
+        host,
+        (el) => {
+          try {
+            el.innerHTML = h.codeToHtml({ text: el.textContent ?? '', lang: props.lang })
+          } catch (err) {
+            console.warn('[Editor] highlight failed', err)
+          }
+        },
+        {
+          preserveIdent: true,
+          addClosing: true,
+        },
+      )
 
-    _jar.updateCode(current)
-    _jar.onUpdate(() => {
-      current = host.innerText
-      props.onChange?.(host.innerText)
+      _jar.updateCode(current)
+      _jar.onUpdate(() => {
+        current = host.innerText
+        props.onChange?.(host.innerText)
+      })
+      if (props.readonly) host.contentEditable = 'false'
+      setJar(_jar)
     })
-    if (props.readonly) host.contentEditable = 'false'
-    setJar(_jar)
   }
 
   const teardown = () => {

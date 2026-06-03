@@ -5,6 +5,7 @@ import type { Marked } from 'marked'
 import { highlighter, type Highlighter, type CodeToHtmlOptions } from './shiki.ts'
 import { useProject } from '../project/index.tsx'
 import { buildMarked } from './markdown.ts'
+import { isServer } from 'solid-js/web'
 
 export * from './util.ts'
 
@@ -20,6 +21,19 @@ type MarkupContext = {
 const Context = createContext<MarkupContext>()
 
 export const MarkupProvider = (props: { children: JSX.Element }) => {
+  if (isServer) {
+    return (
+      <Context.Provider
+        value={{
+          promise: Promise.resolve({ codeToHtml: () => '' } as Highlighter),
+          highlighter: () => ({ codeToHtml: () => '' }) as Highlighter,
+          marked: () => ({ parse: () => '' }) as any as Marked,
+        }}
+      >
+        {props.children}
+      </Context.Provider>
+    )
+  }
   const project = useProject()
   const lookup = (name: string) => project().routeByName(name)?.slug
   const [h] = createResource(async () => await H)

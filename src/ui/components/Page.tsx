@@ -1,10 +1,10 @@
 import { For, Show, createMemo } from 'solid-js'
-import { A } from '@solidjs/router'
 
 import { createSlot, useProject, type Types } from '../context/index.tsx'
 import { type ReferenceRow, useReferences } from '../hooks/index.ts'
 import { labelOf, pluralLabel, groupOrder } from '../util/kind.ts'
 import { commentSummaryText } from '../util/comment.ts'
+import { A } from '../context/router.tsx'
 
 import { Declaration } from './Declaration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'

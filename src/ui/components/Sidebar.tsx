@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
-import { A, useLocation } from '@solidjs/router'
+import { A, useLocation } from '../context/router.tsx'
 
 import { createSlot, useProject, type Types } from '../context/index.tsx'
 import { Type } from './Type.tsx'

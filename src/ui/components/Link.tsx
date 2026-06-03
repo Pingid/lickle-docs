@@ -1,7 +1,7 @@
 import { Show } from 'solid-js'
-import { A } from '@solidjs/router'
 
 import { useSlugFor } from '../hooks/index.ts'
+import { A } from '../context/router.tsx'
 import { Syntax } from './Syntax.tsx'
 
 export const Link = (props: { href: string; children: string }) => {
@@ -17,7 +17,11 @@ export const Link = (props: { href: string; children: string }) => {
  * the target isn't resolvable. The `?` prefix marks anonymous external
  * references the resolver couldn't anchor to anything.
  */
-Link.Type = (props: { id?: number; name: string; external?: 'stdlib' | 'package' | 'anonymous' | 'type-parameter' }) => {
+Link.Type = (props: {
+  id?: number
+  name: string
+  external?: 'stdlib' | 'package' | 'anonymous' | 'type-parameter'
+}) => {
   const slugs = useSlugFor()
   const slug = () => (props.id != null ? slugs.byId(props.id) : undefined)
   return (

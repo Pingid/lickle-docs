@@ -1,5 +1,5 @@
 import { Show, createMemo, type Accessor, type Component } from 'solid-js'
-import { Route, useParams, Navigate, HashRouter } from '@solidjs/router'
+import { Route, useParams, Navigate, HashRouter } from './context/router.tsx'
 import type { JSX } from 'solid-js/jsx-runtime'
 
 import {
@@ -16,12 +16,12 @@ import { BASE_URL } from './util/base.ts'
 
 export interface AppProps {
   components?: Components
-  project?: Accessor<ProjectJson | null>
+  project?: Accessor<ProjectJson | null> | ProjectJson
   Router?: Component<{ children: JSX.Element; root?: Component<{ children?: JSX.Element }>; base?: string }>
 }
 
 export const App = (p: AppProps) => {
-  const json = createMemo(() => p.project?.() ?? null)
+  const json = createMemo(() => (typeof p.project === 'function' ? p.project() : (p.project ?? null)))
   const Router = p.Router ?? HashRouter
   return (
     <ComponentsProvider value={p.components}>

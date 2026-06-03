@@ -1,6 +1,6 @@
 import { For, Show, createMemo, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
-import { A } from '@solidjs/router'
+import { A } from '../context/router.tsx'
 
 import { type Types } from '../context/index.tsx'
 

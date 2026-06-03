@@ -7,8 +7,8 @@ import { type Types, App } from '@lickle/docs/ui'
 // @ts-ignore
 import initialDocs from 'virtual:lickle/docs.json'
 
-// @ts-ignore
 import '@lickle/docs/theme.css'
+
 // @ts-ignore
 import * as custom from 'virtual:lickle/custom-components'
 

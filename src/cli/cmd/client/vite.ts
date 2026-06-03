@@ -1,6 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import solid from 'vite-plugin-solid'
 import * as vite from 'vite'
+
 import path from 'node:path'
 
 import * as config from '../../../config/index.ts'
@@ -8,8 +9,10 @@ import * as core from '../../../core/index.ts'
 import * as lib from '../../../_lib/index.ts'
 import { libRoot } from '../../env.ts'
 
+import * as ssg from './ssg/index.ts'
+
 export interface DocsOptions {
-  config: () => Promise<{ json: core.project.ProjectJson; config: config.ConfigJson; file: string }>
+  config: () => Promise<{ json: core.project.ProjectJson; config: config.ConfigJson; file?: string }>
   dir: string
   viteConfig?: vite.InlineConfig
 }
@@ -21,9 +24,45 @@ export const dev = async (options: DocsOptions) => {
   return server
 }
 
-export const build = async (options: DocsOptions) => vite.build(resolveOptions(options, 'build'))
+// export const build = async (options: DocsOptions) => vite.build(resolveOptions(options, 'build'))
+
+export const build = async (options: DocsOptions) =>
+  ssg.buildStatic({
+    json: await options.config().then((c) => c.json),
+    clientVite: {
+      ...options.viteConfig,
+      root: viteRoot,
+      plugins: [solid({ solid: { hydratable: true } }), tailwindcss(), docsPlugin(options, 'build')],
+    },
+    serverVite: {
+      ...options.viteConfig,
+      root: viteRoot,
+      // Bundle every dependency into the SSR entry: Node imports it from a temp dir
+      // inside the *consumer* project, which may not have these installed.
+      ssr: { noExternal: true },
+      // CSS plays no part in the rendered HTML — the client build emits the real
+      // stylesheet. Stubbing it (instead of running Tailwind) avoids resolving a
+      // consumer's `@import "tailwindcss"`, which they need not have installed.
+      plugins: [ignoreCss(), solid({ ssr: true, solid: { hydratable: true } }), docsPlugin(options, 'build')],
+    },
+  })
+
+/** SSR-only: turn stylesheet imports into empty modules (HTML render needs no CSS). */
+const ignoreCss = (): vite.Plugin => ({
+  name: 'docs:ignore-css',
+  enforce: 'pre',
+  load: (id) => (/\.(css|scss|sass|less|styl)(\?|$)/.test(id) ? '' : undefined),
+})
 
 const viteRoot = path.resolve(libRoot, 'client')
+
+// Anchor for the fallback resolver: a real file inside lickle-docs whose
+// directory has access to lickle-docs' node_modules.
+const libImporter = path.resolve(viteRoot, 'entry-client.tsx')
+
+/** A bare specifier (a package import), not relative/absolute/virtual. */
+const isBareImport = (id: string): boolean =>
+  !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('\0') && !id.includes(':') && !path.isAbsolute(id)
 const resolveOptions = (opts: DocsOptions, mode: 'dev' | 'build') => ({
   ...opts.viteConfig,
   root: viteRoot,
@@ -50,10 +89,20 @@ const docsPlugin = (opts: DocsOptions, _mode: 'dev' | 'build'): vite.Plugin => {
       }
     },
 
-    resolveId(id) {
+    async resolveId(id, importer, resolveOpts) {
       if (id === PROJECT_JSON_ID) return '\0' + PROJECT_JSON_ID
       if (id === CUSTOM_COMPONENTS_ID) return '\0' + CUSTOM_COMPONENTS_ID
-      return undefined
+
+      // A consumer's custom-components file lives outside this project and may
+      // not have our dependencies installed. The Solid JSX transform also
+      // injects bare `solid-js/web` imports into it. When such a bare import
+      // can't be resolved from the consumer, fall back to resolving it from
+      // lickle-docs — going back through Vite so export conditions (server vs
+      // client) and aliases still apply. This avoids aliasing each package.
+      if (!importer || !isBareImport(id)) return undefined
+      const normal = await this.resolve(id, importer, { ...resolveOpts, skipSelf: true })
+      if (normal) return undefined
+      return (await this.resolve(id, libImporter, { ...resolveOpts, skipSelf: true }))?.id
     },
 
     async load(id) {

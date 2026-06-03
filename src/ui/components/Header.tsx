@@ -1,10 +1,10 @@
 import { For, Show, createMemo } from 'solid-js'
-import { A } from '@solidjs/router'
 
 import { useProject } from '../context/index.tsx'
 import { createSlot } from '../context/index.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
 import { withBaseUrl } from '../util/base.ts'
+import { A } from '../context/router.tsx'
 
 const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
 

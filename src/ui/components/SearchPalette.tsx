@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
-import { useNavigate } from '@solidjs/router'
+import { useNavigate } from '../context/router.tsx'
 
 import { useProject, type Types } from '../context/index.tsx'
 import { type SearchHit } from '../util/search.ts'

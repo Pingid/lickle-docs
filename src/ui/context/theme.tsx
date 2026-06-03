@@ -12,7 +12,7 @@ type ThemeCtx = {
 const Ctx = createContext<ThemeCtx>()
 
 const read = (): ThemeMode => {
-  if (typeof localStorage === 'undefined') return 'system'
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return 'system'
   const v = localStorage.getItem(STORAGE_KEY)
   return v === 'light' || v === 'dark' ? v : 'system'
 }
@@ -29,6 +29,7 @@ export const ThemeProvider = (props: { children: JSX.Element }) => {
   onMount(() => apply(mode()))
 
   const setMode = (m: ThemeMode) => {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') return
     if (m === 'system') localStorage.removeItem(STORAGE_KEY)
     else localStorage.setItem(STORAGE_KEY, m)
     set(m)
