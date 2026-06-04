@@ -510,6 +510,7 @@ const buildTag = (s: State, tag: ts.JSDocTag): T.CommentTag => {
   const exprType = (te?: ts.JSDocTypeExpression) => (te ? scan.Type(s, te.type) : undefined)
   if (ts.isJSDocPropertyTag(tag)) {
     return {
+      kind: '@property',
       tag: '@property',
       name: tag.name.getText(),
       type: exprType(tag.typeExpression),
@@ -518,6 +519,7 @@ const buildTag = (s: State, tag: ts.JSDocTag): T.CommentTag => {
   }
   if (ts.isJSDocParameterTag(tag)) {
     return {
+      kind: '@param',
       tag: '@param',
       name: tag.name.getText(),
       type: exprType(tag.typeExpression),
@@ -527,27 +529,34 @@ const buildTag = (s: State, tag: ts.JSDocTag): T.CommentTag => {
   }
   if (ts.isJSDocReturnTag(tag)) {
     const type = exprType(tag.typeExpression)
-    return { tag: '@returns', ...(type ? { type } : {}), text }
+    return { kind: '@returns', tag: '@returns', ...(type ? { type } : {}), text }
   }
   if (ts.isJSDocThrowsTag(tag)) {
     const type = exprType(tag.typeExpression)
-    return { tag: '@throws', ...(type ? { type } : {}), text }
+    return { kind: '@throws', tag: '@throws', ...(type ? { type } : {}), text }
   }
-  if (ts.isJSDocTypeTag(tag)) return { tag: '@type', type: exprType(tag.typeExpression)!, text }
-  if (ts.isJSDocSatisfiesTag(tag)) return { tag: '@satisfies', type: exprType(tag.typeExpression)!, text }
+  if (ts.isJSDocTypeTag(tag)) return { kind: '@type', tag: '@type', type: exprType(tag.typeExpression)!, text }
+  if (ts.isJSDocSatisfiesTag(tag))
+    return { kind: '@satisfies', tag: '@satisfies', type: exprType(tag.typeExpression)!, text }
   if (ts.isJSDocTemplateTag(tag)) {
-    return { tag: '@template', generics: tag.typeParameters.map((tp) => scan.TypeParam(s, tp)), text }
+    return {
+      kind: '@template',
+      tag: '@template',
+      generics: tag.typeParameters.map((tp) => scan.TypeParam(s, tp)),
+      text,
+    }
   }
   if (ts.isJSDocSeeTag(tag)) {
-    return { tag: '@see', ...(tag.name ? { target: tag.name.name.getText() } : {}), text }
+    return { kind: '@see', tag: '@see', ...(tag.name ? { target: tag.name.name.getText() } : {}), text }
   }
-  if (ts.isJSDocAugmentsTag(tag)) return { tag: '@augments', class: scan.Type(s, tag.class), text }
-  if (ts.isJSDocImplementsTag(tag)) return { tag: '@implements', class: scan.Type(s, tag.class), text }
+  if (ts.isJSDocAugmentsTag(tag)) return { kind: '@augments', tag: '@augments', class: scan.Type(s, tag.class), text }
+  if (ts.isJSDocImplementsTag(tag))
+    return { kind: '@implements', tag: '@implements', class: scan.Type(s, tag.class), text }
   const name = '@' + tag.tagName.text
   // `@example` carries semantic indentation; re-extract from source so the
   // leader-strip never eats author tabs (see `rawTagBody`).
   if (name === '@example') return parseExample(rawTagBody(tag))
-  return { tag: name, text }
+  return { kind: '*', tag: name, text }
 }
 /**
  * Reconstruct the body of a JSDoc tag from source, stripping the per-line
@@ -574,13 +583,13 @@ const rawTagBody = (tag: ts.JSDocTag): string => {
  */
 const parseExample = (raw: string): T.CommentTagMap['@example'] => {
   const html = raw.match(/^<caption>([\s\S]*?)<\/caption>\s*([\s\S]*)$/)
-  if (html) return { tag: '@example', caption: html[1]!.trim(), code: html[2]!.trim() }
+  if (html) return { kind: '@example', tag: '@example', caption: html[1]!.trim(), code: html[2]!.trim() }
   const fence = raw.search(/^```/m)
   if (fence > 0) {
     const caption = raw.slice(0, fence).trim()
-    if (caption) return { tag: '@example', caption, code: raw.slice(fence).trim() }
+    if (caption) return { kind: '@example', tag: '@example', caption, code: raw.slice(fence).trim() }
   }
-  return { tag: '@example', code: raw.trim() }
+  return { kind: '@example', tag: '@example', code: raw.trim() }
 }
 export const commentForModule = (s: State, sf: ts.SourceFile): T.Comment | undefined => {
   if (sf.statements.length === 0) return undefined

@@ -1,21 +1,13 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
-// import { CodeJar } from 'codejar'
+import { isServer } from 'solid-js/web'
 import { cn } from '@lickle/cn'
 
-import { useMarkup, useCodeToHtml, type Highlighter } from '../../context/index.tsx'
-import { isServer } from 'solid-js/web'
+import { type MarkupContext, useMarkup } from '../../context/index.tsx'
 
-export const Code = (props: { code: string; lang?: string }) => {
-  const html = useCodeToHtml({ ...props, structure: 'inline' })
-  const visibility = createMemo(() => (html() ? 'opacity-100' : 'opacity-0'))
-  const className = createMemo(() => cn('transition-opacity duration-200', visibility()))
-  return (
-    <code class={className()}>
-      <Show when={html()} fallback={<pre class="h-12 w-full" />}>
-        {(h) => <pre innerHTML={h()} />}
-      </Show>
-    </code>
-  )
+export const Code = (props: { code: string; lang?: string; class?: string }) => {
+  const markup = useMarkup()
+  const html = createMemo(() => markup()?.highlight({ text: props.code, lang: props.lang }) ?? '')
+  return <Show when={html()}>{(h) => <div class={props.class} innerHTML={h()} />}</Show>
 }
 
 export const CodeBlock = (props: { code: string; lang?: string }) => (
@@ -33,12 +25,25 @@ type CodeEditorProps = {
 
 export const CodeEditor = (props: CodeEditorProps) => {
   const editor = useCodeEditor(props)
-  return <div ref={editor.onBind} spellcheck={false} />
+  const showWhenReady = createMemo(() =>
+    cn('row-span-full col-span-full', editor.ready() ? 'opacity-100' : 'opacity-0'),
+  )
+  return (
+    <div class="grid grid-cols-1 grid-rows-1">
+      <Show when={!editor.ready() || isServer}>
+        <Code code={props.value()} lang={props.lang} class="row-span-full col-span-full" />
+      </Show>
+      <Show when={!isServer}>
+        <div ref={editor.onBind} spellcheck={false} class={showWhenReady()} />
+      </Show>
+    </div>
+  )
 }
 
 type CodeJar = ReturnType<typeof import('codejar').CodeJar>
 
 const useCodeEditor = (props: CodeEditorProps) => {
+  const [ready, setReady] = createSignal(false)
   const markup = useMarkup()
   let _jar: CodeJar | null = null
   let _host: HTMLElement | null = null
@@ -47,7 +52,7 @@ const useCodeEditor = (props: CodeEditorProps) => {
 
   const [jar, setJar] = createSignal<CodeJar | null>(null)
 
-  const setup = (host: HTMLElement, h: Highlighter) => {
+  const setup = (host: HTMLElement, c: MarkupContext) => {
     if (initialized && !isServer) return
     initialized = true
     import('codejar').then(({ CodeJar }) => {
@@ -55,7 +60,7 @@ const useCodeEditor = (props: CodeEditorProps) => {
         host,
         (el) => {
           try {
-            el.innerHTML = h.codeToHtml({ text: el.textContent ?? '', lang: props.lang })
+            el.innerHTML = c.highlight({ text: el.textContent ?? '', lang: props.lang })
           } catch (err) {
             console.warn('[Editor] highlight failed', err)
           }
@@ -73,6 +78,7 @@ const useCodeEditor = (props: CodeEditorProps) => {
       })
       if (props.readonly) host.contentEditable = 'false'
       setJar(_jar)
+      setReady(true)
     })
   }
 
@@ -82,9 +88,9 @@ const useCodeEditor = (props: CodeEditorProps) => {
   }
 
   const init = () => {
-    const h = markup.highlighter()
     const el = _host
-    if (h && el) setup(el, h)
+    const c = markup()
+    if (c && el) setup(el, c)
   }
 
   createEffect(init)
@@ -113,5 +119,5 @@ const useCodeEditor = (props: CodeEditorProps) => {
     _host = h
     init()
   }
-  return { onBind, jar }
+  return { onBind, jar, ready }
 }

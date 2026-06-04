@@ -3,6 +3,7 @@ import { For, Show, createMemo } from 'solid-js'
 import { useProject } from '../context/index.tsx'
 import { createSlot } from '../context/index.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
+import { clientOnly } from '../util/solid.tsx'
 import { withBaseUrl } from '../util/base.ts'
 import { A } from '../context/router.tsx'
 
@@ -22,18 +23,19 @@ const iconFor = (label: string): string | null => {
   return ICON_BY_NAME[k] ?? null
 }
 
-export const Header = createSlot('header', (props: { onMenu?: () => void; onSearch?: () => void }) => {
+/** id of the CSS-only drawer toggle checkbox; the mobile menu `<label>` targets it. */
+export const MENU_TOGGLE_ID = 'lickle-menu-toggle'
+
+export const Header = createSlot('header', (props: { onSearch?: () => void }) => {
   const project = useProject()
-  const searchHint = createMemo(() => (isMac() ? '\u2318K' : 'Ctrl K'))
 
   return (
     <header class="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur-md backdrop-saturate-150">
       <div class="flex items-center h-14 px-4 lg:px-6 gap-4">
-        <button
-          type="button"
-          aria-label="Open menu"
+        <label
+          for={MENU_TOGGLE_ID}
+          aria-label="Toggle menu"
           class="lg:hidden p-1.5 rounded hover:bg-hover cursor-pointer"
-          onClick={() => props.onMenu?.()}
         >
           <svg
             width="18"
@@ -46,7 +48,7 @@ export const Header = createSlot('header', (props: { onMenu?: () => void; onSear
           >
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
-        </button>
+        </label>
         <A href="/" class="flex items-baseline gap-2 hover:opacity-70 transition-opacity">
           <span class="font-semibold text-[0.95rem] tracking-tight">{project().name}</span>
           <Show when={project().version}>
@@ -54,19 +56,7 @@ export const Header = createSlot('header', (props: { onMenu?: () => void; onSear
           </Show>
         </A>
 
-        <button
-          type="button"
-          onClick={() => props.onSearch?.()}
-          aria-label="Search"
-          class="ml-4 flex items-center gap-2 px-2.5 py-1 text-xs text-mute border border-line rounded-md hover:text-fg hover:bg-hover transition-colors cursor-pointer"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" stroke-linecap="round" />
-          </svg>
-          <span class="hidden sm:inline">Search</span>
-          <kbd class="font-mono text-[0.65rem] text-mute">{searchHint()}</kbd>
-        </button>
+        <SearchButton onSearch={props.onSearch} />
 
         <nav class="ml-auto flex items-center gap-1">
           <For each={project().links}>
@@ -96,5 +86,25 @@ export const Header = createSlot('header', (props: { onMenu?: () => void; onSear
         </nav>
       </div>
     </header>
+  )
+})
+
+const SearchButton = clientOnly(() => (props: { onSearch?: () => void }) => {
+  const searchHint = createMemo(() => (isMac() ? '\u2318K' : 'Ctrl K'))
+
+  return (
+    <button
+      type="button"
+      onClick={() => props.onSearch?.()}
+      aria-label="Search"
+      class="ml-4 flex items-center gap-2 px-2.5 py-1 text-xs text-mute border border-line rounded-md hover:text-fg hover:bg-hover transition-colors cursor-pointer"
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.5-3.5" stroke-linecap="round" />
+      </svg>
+      <span class="hidden sm:inline">Search</span>
+      <kbd class="font-mono text-[0.65rem] text-mute">{searchHint()}</kbd>
+    </button>
   )
 })

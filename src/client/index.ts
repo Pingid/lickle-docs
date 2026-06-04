@@ -6,8 +6,8 @@ import path from 'node:path'
 import * as Lib from '../_lib/index.ts'
 
 import { clientFiles, libRoot } from './env.ts'
-import * as Context from './contex.ts'
 import * as Plugin from './plugins.ts'
+import * as Context from './contex.ts'
 import * as Ssg from './ssg.ts'
 
 export type ClientOptions = Context.ViteContextOptions & {
@@ -15,6 +15,8 @@ export type ClientOptions = Context.ViteContextOptions & {
   port?: number
   outDir: string
   baseUrl: string
+  router?: 'hash' | 'browser'
+  noJavascript?: boolean
 }
 
 export const dev = async (options: ClientOptions) => {
@@ -38,10 +40,15 @@ export const buildStatic = async (options: ClientOptions) => {
   const context = Context.makeContext(options)
   const clientOptions = ssgClient(options, context)
   const serverOptions = ssgServer(options, context)
+  const logger = vite.createLogger()
 
-  await Promise.all([vite.build(clientOptions), vite.build(serverOptions)])
+  await Promise.all([
+    vite.build({ ...clientOptions, customLogger: logger }),
+    vite.build({ ...serverOptions, customLogger: { ...logger, info: () => {}, warn: () => {} } }),
+  ])
 
   await Ssg.generateStatic({
+    logger,
     json: await context.json(),
     outDir: options.outDir,
     baseUrl: options.baseUrl,
@@ -49,26 +56,34 @@ export const buildStatic = async (options: ClientOptions) => {
     serverOutDir: serverOptions.build.outDir,
     serverEntry: serverOptions.build.ssr,
     assetsDir: path.join(options.outDir, clientOptions.build.assetsDir),
+    noJavascript: options.noJavascript,
   })
 }
 
 export const client = (opts: ClientOptions) => {
   const context = Context.makeContext(opts)
   const config = shared(opts, context)
-  config.plugins!.push(solid(), ...tailwindcss())
-  return Lib.util.deepMerge(config, { resolve: { alias: devAlias() } })
+  config.plugins!.push(Plugin.html(context), solid(), ...tailwindcss())
+
+  return Lib.util.deepMerge(config, {
+    resolve: { alias: devAlias() },
+    define: { 'import.meta.env.VITE_ROUTER_TYPE': JSON.stringify(opts.router) },
+    build: {
+      rolldownOptions: { output: { advancedChunks: { groups: [{ name: 'docs', test: /lickle\/docs\.json/ }] } } },
+    },
+  } satisfies vite.UserConfig)
 }
 
 // vite.mergeConfig()
 export const ssgClient = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
-  config.plugins.push(solid({ solid: { hydratable: true } }), ...tailwindcss())
+  config.plugins.push(Plugin.html(context), solid({ solid: { hydratable: !opts.noJavascript } }), ...tailwindcss())
   return Lib.util.deepMerge(config, { build: { manifest: true, rolldownOptions: { input: clientFiles.entry.client } } })
 }
 
 export const ssgServer = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
-  config.plugins.push(solid({ ssr: true, solid: { hydratable: true } }), Plugin.ignoreCss())
+  config.plugins.push(solid({ ssr: true, solid: { hydratable: !opts.noJavascript } }), Plugin.ignoreCss())
   return Lib.util.deepMerge(config, {
     build: {
       manifest: true,
@@ -84,10 +99,11 @@ const shared = (opts: ClientOptions, context: Context.ViteContext) =>
   ({
     root: clientFiles.root,
     base: opts.baseUrl,
-    plugins: [Plugin.project(context), Plugin.components(context)],
+    plugins: [Plugin.project(context), Plugin.components(context), Plugin.shiki(context), Plugin.resolve(context)],
     build: { outDir: opts.outDir, emptyOutDir: true, assetsDir: 'lickle-doc-assets' },
     server: { port: opts.port, fs: { allow: [clientFiles.root] } },
     resolve: { alias: {} },
+    clearScreen: false,
   }) satisfies vite.UserConfig
 
 const devAlias = () => {

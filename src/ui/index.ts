@@ -6,6 +6,7 @@ export {
   useMarkup,
   ThemeProvider,
   MarkupProvider,
+  EagerMarkupProvider,
   ComponentsProvider,
   ProjectProvider,
   type Types,

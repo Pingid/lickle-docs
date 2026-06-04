@@ -62,6 +62,7 @@
     "fast-glob": "^3.3.3",
     "get-tsconfig": "^4.14.0",
     "hosted-git-info": "^10.1.1",
+    "picocolors": "1.1.1",
     "jiti": "^2.7.0",
     "marked": "^18.0.4",
     "micromatch": "^4.0.8",

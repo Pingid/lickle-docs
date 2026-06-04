@@ -2,8 +2,8 @@ import { For, Show, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
 import { createSlot, type Types } from '../context/index.tsx'
+import { Comment } from './Comment/index.tsx'
 import { Syntax } from './Syntax.tsx'
-import { Comment } from './Comment.tsx'
 import { Type } from './Type.tsx'
 
 /**
@@ -28,16 +28,16 @@ const ExtendsLine = (props: { label: string; types?: Types.Type[] }) => (
   </Show>
 )
 
-export const DeclarationFunction = createSlot('declaration.function', (props) => (
+export const DeclarationFunction = (props: { decl: Types.Declaration<'function'> }) => (
   <div class="mt-2">
     <For each={props.decl.signatures}>
       {(sig) => <Type.SignatureLine sig={sig} name={props.decl.name} id={props.decl.id} kind="function" />}
     </For>
     <Comment comment={props.decl.comment} />
   </div>
-))
+)
 
-export const DeclarationVariable = createSlot('declaration.variable', (props) => (
+export const DeclarationVariable = (props: { decl: Types.Declaration<'variable'> }) => (
   <div>
     <div class="font-mono text-sm leading-relaxed">
       <Syntax.Kw>const </Syntax.Kw>
@@ -50,9 +50,9 @@ export const DeclarationVariable = createSlot('declaration.variable', (props) =>
     </div>
     <Comment comment={props.decl.comment} />
   </div>
-))
+)
 
-export const DeclarationTypeAlias = createSlot('declaration.type-alias', (props) => (
+export const DeclarationTypeAlias = (props: { decl: Types.Declaration<'type-alias'> }) => (
   <div>
     <div class="font-mono text-sm leading-relaxed">
       <Syntax.Kw>type </Syntax.Kw>
@@ -63,9 +63,9 @@ export const DeclarationTypeAlias = createSlot('declaration.type-alias', (props)
     </div>
     <Comment comment={props.decl.comment} />
   </div>
-))
+)
 
-export const DeclarationClass = createSlot('declaration.class', (props) => (
+export const DeclarationClass = (props: { decl: Types.Declaration<'class'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
     <ExtendsLine label="implements" types={props.decl.implements} />
@@ -77,9 +77,9 @@ export const DeclarationClass = createSlot('declaration.class', (props) => (
       indexSignature={props.decl.indexSignature}
     />
   </div>
-))
+)
 
-export const DeclarationInterface = createSlot('declaration.interface', (props) => (
+export const DeclarationInterface = (props: { decl: Types.Declaration<'interface'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
     <Comment comment={props.decl.comment} />
@@ -91,7 +91,7 @@ export const DeclarationInterface = createSlot('declaration.interface', (props) 
       indexSignature={props.decl.indexSignature}
     />
   </div>
-))
+)
 
 /** Section heading matching the module-children layout in `Page.tsx`. */
 const MemberSection = (props: { title: string; when: unknown; children: any }) => (
@@ -166,14 +166,14 @@ const Members = (props: {
   </>
 )
 
-export const DeclarationEnum = createSlot('declaration.enum', (props) => (
+export const DeclarationEnum = (props: { decl: Types.Declaration<'enum'> }) => (
   <div>
     <Comment comment={props.decl.comment} />
     <MemberSection title="Members" when={props.decl.members?.length}>
       <For each={props.decl.members}>{(m) => <EnumMemberRow member={m} />}</For>
     </MemberSection>
   </div>
-))
+)
 
 const EnumMemberRow = (props: { member: Types.Part<'enum-member'> }) => (
   <div class="py-2">
@@ -191,11 +191,13 @@ const EnumMemberRow = (props: { member: Types.Part<'enum-member'> }) => (
   </div>
 )
 
-export const DeclarationModule = createSlot('declaration.module', (props) => <Comment comment={props.decl.comment} />)
-
-export const DeclarationNamespace = createSlot('declaration.namespace', (props) => (
+export const DeclarationModule = (props: { decl: Types.Declaration<'module'> }) => (
   <Comment comment={props.decl.comment} />
-))
+)
+
+export const DeclarationNamespace = (props: { decl: Types.Declaration<'namespace'> }) => (
+  <Comment comment={props.decl.comment} />
+)
 
 const RENDERERS: Record<Types.Declaration['kind'], Component<{ decl: any }>> = {
   class: DeclarationClass,

@@ -1,9 +1,11 @@
+import * as vite from 'vite'
 import path from 'node:path'
+import pc from 'picocolors'
 
 import * as Core from '../core/index.ts'
 import * as Lib from '../_lib/index.ts'
 
-import { clientFiles } from './env.ts'
+import { htmlShellGenerator } from './contex.ts'
 
 type GenerateStaticOptions = {
   json: Core.project.ProjectJson
@@ -13,11 +15,14 @@ type GenerateStaticOptions = {
   clientEntry: string
   serverOutDir: string
   serverEntry: string
+  logger: vite.Logger
+  noJavascript?: boolean
 }
 
 type RenderPage = (json: Core.project.ProjectJson, url: string) => Promise<{ body: string; head: string }>
 
 export const generateStatic = async (opts: GenerateStaticOptions) => {
+  opts.logger.info(`\nGenerating static routes...\n`)
   // Client script and css
   const manifest = await readManifest(path.join(opts.outDir, '.vite', 'manifest.json'))
   const entry = manifest[path.basename(opts.clientEntry)]
@@ -45,20 +50,22 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   for (const route of routes) {
     const { body, head } = await renderPage(opts.json, prefixSlash(route.slug))
 
+    const bodyHtml = [`<div id="root">${body}</div>`, `<script type="module" src="${jsonHref}"></script>`]
+    if (!opts.noJavascript) bodyHtml.push(`<script type="module" src="${clientSrc}"></script>`)
+
     const html = htmlShell({
-      body: [
-        `<div id="root">${body}</div>`,
-        `<script type="module" src="${jsonHref}"></script>`,
-        `<script type="module" src="${clientSrc}"></script>`,
-      ].join('\n'),
+      body: bodyHtml.join('\n'),
       head: [`<link rel="stylesheet" href="${cssHref}" />`, head].join('\n'),
-      title: isRouteRoot(route) ? opts.json.name : route.label,
+      title: isRouteRoot(route) ? opts.json.name : route.page.kind === 'markdown' ? route.label : route.page.qualified,
     })
 
     const outPath = path.join(opts.outDir, isRouteRoot(route) ? 'index.html' : route.slug + '.html')
 
     await Lib.fs.ensureDir(outPath)
     await Lib.fs.writeFile(outPath, html)
+    opts.logger.info(
+      `${pc.gray(path.relative(process.cwd(), opts.outDir) + '/')}${pc.green(path.relative(opts.outDir, outPath))}`,
+    )
   }
 
   await Lib.fs.rm(opts.serverOutDir, { recursive: true })
@@ -87,12 +94,6 @@ const serializeJson = (json: unknown): string =>
     .replace(/\u2029/g, '\\u2029')
 
 const prefixSlash = (p: string) => (p.startsWith('/') ? p : `/${p}`)
-
-const htmlShellGenerator = async () => {
-  const template = await Lib.fs.readFile(clientFiles.htmlTemplate, 'utf8')
-  return (opts: { body: string; head: string; title: string }) =>
-    template.replace('{{TITLE}}', opts.title).replace('{{BODY}}', opts.body).replace('{{HEAD}}', opts.head)
-}
 
 const isRouteRoot = (route: Core.project.RouteNode) => {
   const s = route.slug.trim()

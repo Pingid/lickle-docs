@@ -11,9 +11,9 @@ import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
 
-type PageProps = { decl: Types.Declaration; route: Types.RouteNode<'declaration' | 'module'> }
+type PageProps = { decl: Types.Declaration; route: Types.RouteNode<'doc'> }
 
-export const Page = createSlot('page', (props) => (
+export const Page = createSlot('page.doc', (props) => (
   <article>
     <PageHeader {...props} />
     <Declaration decl={props.decl} />
@@ -29,7 +29,7 @@ export const MarkdownPage = createSlot('page.markdown', (props) => (
   </article>
 ))
 
-export const PageHeader = createSlot('page.header', (props: PageProps) => (
+export const PageHeader = createSlot('page.doc.header', (props: PageProps) => (
   <header class="mb-5">
     <Breadcrumb id={props.decl.id} />
     <div class="flex items-baseline gap-3 flex-wrap">
@@ -44,7 +44,7 @@ export const PageHeader = createSlot('page.header', (props: PageProps) => (
 ))
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
-export const Source = createSlot('page.source', (props: { sources?: Types.Source[] }) => {
+export const Source = (props: { sources?: Types.Source[] }) => {
   const project = useProject()
   return (
     <Show when={props.sources?.[0]}>
@@ -62,9 +62,9 @@ export const Source = createSlot('page.source', (props: { sources?: Types.Source
       }}
     </Show>
   )
-})
+}
 
-type ChildRoute = Types.RouteNode<'declaration' | 'module'>
+type ChildRoute = Types.RouteNode<'doc'>
 type ChildRow = { route: ChildRoute; decl?: Types.Declaration; kind: string; summary: string }
 
 /** Child pages of a module / namespace, grouped by kind and linked from the route tree. */
@@ -134,7 +134,7 @@ const groupChildren = (project: Types.Project, children: ChildRoute[]): { title:
     .map(([title, items]) => ({ title, items: items.sort((a, b) => a.route.label.localeCompare(b.route.label)) }))
 }
 
-export const References = createSlot('page.references', (props: { id: number }) => {
+export const References = (props: { id: number }) => {
   const rows = useReferences(() => props.id)
 
   return (
@@ -147,7 +147,7 @@ export const References = createSlot('page.references', (props: { id: number }) 
       </section>
     </Show>
   )
-})
+}
 
 const ReferenceRowView = (props: { row: ReferenceRow }) => (
   <li class="contents">

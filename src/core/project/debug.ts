@@ -1,7 +1,7 @@
 import type { RouteNode } from './index.ts'
 
 export const displayRoutes = (routes: RouteNode[], prefix: string = '') => {
-  const kinds = { module: 'M', markdown: '.MD', declaration: 'D' }
+  const kinds = { doc: 'D', markdown: '.MD' }
   // console.log(JSON.stringify(compact(routes)))
 
   // routes.map

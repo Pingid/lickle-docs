@@ -156,9 +156,11 @@ export interface Comment {
   tags?: CommentTag[]
 }
 
-export type CommentTagMap = t.MapKind<CommentTagDefinitions, 'tag'>
-export type CommentTag<K extends keyof CommentTagMap = keyof CommentTagMap> =
-  | CommentTagMap[K]
-  | { tag: string; name?: string; text: string }
+export type CommentTagMap = t.Compute<
+  { [K in keyof CommentTagDefinitions]: t.Compute<CommentTagDefinitions[K] & { tag: K; kind: K }> } & {
+    '*': { tag: string; kind: '*'; name?: string; text: string }
+  }
+>
+export type CommentTag<K extends keyof CommentTagMap = keyof CommentTagMap> = CommentTagMap[K]
 
 // ---------------- Utilities ----------------

@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from 'solid-js'
+import { For, Show, createMemo } from 'solid-js'
 import { A, useLocation } from '../context/router.tsx'
 
 import { createSlot, useProject, type Types } from '../context/index.tsx'
@@ -44,43 +44,55 @@ const GroupHeader = (props: { label: string; depth: number }) => (
 
 type NodeProps = { node: Node; depth: number; onNavigate?: () => void }
 
+/**
+ * A single route. Branches render as a native `<details>` so expand/collapse
+ * works with zero JavaScript; the branch on the active path is open by default
+ * (slugs are hierarchical, so the active page lives under the node's prefix).
+ */
 const NavNode = (props: NodeProps) => {
   const loc = useLocation()
   const kids = createMemo(() => props.node.children.filter((c) => c.sidebar))
-  const hasChildren = () => kids().length > 0
-  const isActive = () => loc.pathname === `/${props.node.slug}`
-  const [open, setOpen] = createSignal(false)
+  const base = () => `/${props.node.slug}`
+  const isActive = () => loc.pathname === base()
+  const onPath = () => isActive() || loc.pathname.startsWith(`${base()}/`)
 
   return (
-    <div>
-      <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
-        <Show when={hasChildren()} fallback={<span class="w-5 shrink-0" />}>
-          <button
-            type="button"
-            aria-label={open() ? 'Collapse' : 'Expand'}
-            aria-expanded={open()}
-            onClick={() => setOpen((v) => !v)}
-            class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors cursor-pointer"
-          >
-            <Chevron open={open()} />
-          </button>
-        </Show>
-        <A
-          href={`/${props.node.slug}`}
-          class="flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors min-w-0"
-          classList={{ '!text-fg !bg-hover font-medium': isActive() }}
-          onClick={() => props.onNavigate?.()}
+    <Show
+      when={kids().length}
+      fallback={
+        <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
+          <span class="w-5 shrink-0" />
+          <NodeLink {...props} active={isActive()} />
+        </div>
+      }
+    >
+      <details open={onPath()} class="group">
+        <summary
+          class="flex items-center list-none cursor-pointer [&::-webkit-details-marker]:hidden"
+          style={{ 'padding-left': indent(props.depth) }}
         >
-          <KindCue node={props.node} />
-          <span class="font-mono truncate">{props.node.label}</span>
-        </A>
-      </div>
-      <Show when={hasChildren() && open()}>
+          <span class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors">
+            <Chevron />
+          </span>
+          <NodeLink {...props} active={isActive()} />
+        </summary>
         <NavList nodes={kids()} depth={props.depth + 1} onNavigate={props.onNavigate} />
-      </Show>
-    </div>
+      </details>
+    </Show>
   )
 }
+
+const NodeLink = (props: NodeProps & { active: boolean }) => (
+  <A
+    href={`/${props.node.slug}`}
+    class="flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors min-w-0"
+    classList={{ '!text-fg !bg-hover font-medium': props.active }}
+    onClick={() => props.onNavigate?.()}
+  >
+    <KindCue node={props.node} />
+    <span class="font-mono truncate">{props.node.label}</span>
+  </A>
+)
 
 const indent = (depth: number): string => `${depth * 0.75}rem`
 
@@ -94,12 +106,12 @@ const KindCue = (props: { node: Node }) => {
   return <Show when={kind()}>{(k) => <Type.KindBadge kind={k()} class="text-[0.7rem]! w-3.5 shrink-0" />}</Show>
 }
 
-const Chevron = (props: { open: boolean }) => (
+const Chevron = () => (
   <svg
     width="10"
     height="10"
     viewBox="0 0 12 12"
-    class={`shrink-0 text-mute transition-transform ${props.open ? 'rotate-90' : ''}`}
+    class="shrink-0 text-mute transition-transform group-open:rotate-90"
     aria-hidden="true"
   >
     <path d="M4 2.5 7.5 6 4 9.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" />

@@ -5,62 +5,99 @@ import * as Client from '../../client/index.ts'
 import * as Config from '../../config/load.ts'
 import * as Core from '../../core/index.ts'
 
+/** Flags and options shared across the `dev`, `build`, and `preview` commands. */
 const Options = {
   base: cmd.option({
-    long: 'basePath',
+    long: 'base',
     short: 'b',
     type: cmd.optional(cmd.string),
-    description: 'Base URL the documentation site is served under (e.g. /my-lib/)',
+    description: 'Public base path the site is served under, e.g. /my-lib/ (default: /)',
   }),
   port: cmd.option({
     long: 'port',
     short: 'p',
     type: cmd.optional(cmd.number),
-    description: 'Port the dev server listens on (defaults to Vite\u2019s next free port)',
+    description: 'Port for the dev or preview server (default: first free port)',
   }),
-  ssg: cmd.flag({ long: 'ssg', short: 's', description: 'Build the static site generator (defaults to false)' }),
+  static: cmd.flag({
+    long: 'static',
+    short: 's',
+    description: 'Pre-render every route to static HTML instead of a client-only SPA',
+  }),
   outDir: cmd.option({
     long: 'outDir',
     short: 'o',
-    type: cmd.optional(cmd.string),
-    description: 'Directory to output the built site to (defaults to ./docs/dist)',
+    type: cmd.string,
+    defaultValue: () => 'docs/dist' as const,
+    defaultValueIsSerializable: true,
+    description: 'Directory to write the built site into',
+  }),
+  router: cmd.option({
+    long: 'router',
+    short: 'r',
+    type: cmd.oneOf(['hash', 'browser']),
+    defaultValue: () => 'browser' as const,
+    defaultValueIsSerializable: true,
+    description: 'Client routing mode: browser (clean URLs) or hash',
+  }),
+  noScript: cmd.flag({
+    long: 'no-script',
+    description: 'Emit plain HTML with no client JavaScript (applies to --static builds only)',
   }),
 }
 
 export const dev = cmd.command({
   name: 'dev',
   description: 'Start a local dev server that rebuilds and live-reloads the docs on change',
-  args: { base: Options.base, port: Options.port },
+  args: { base: Options.base, port: Options.port, router: Options.router },
   handler: (args) => Client.dev(resolveOptions(args)),
 })
 
 export const build = cmd.command({
   name: 'build',
-  description: 'Build the static documentation site into the output directory',
-  args: { base: Options.base, port: Options.port, ssg: Options.ssg, outDir: Options.outDir },
+  description: 'Build the documentation site into the output directory',
+  args: {
+    base: Options.base,
+    port: Options.port,
+    static: Options.static,
+    outDir: Options.outDir,
+    router: Options.router,
+    noScript: Options.noScript,
+  },
   handler: async (args) => {
-    if (args.ssg) await Client.buildStatic(resolveOptions(args))
+    if (args.static) await Client.buildStatic(resolveOptions(args))
     else await Client.build(resolveOptions(args))
   },
 })
 
 export const preview = cmd.command({
   name: 'preview',
-  description: 'Start a preview server',
+  description: 'Serve a previously built site locally',
   args: { base: Options.base, port: Options.port },
   handler: (args) => Client.preview(resolveOptions(args)),
 })
 
-const resolveOptions = (args: { base?: string; port?: number; ssg?: boolean; outDir?: string }) => {
+/** Map parsed CLI args to the options shape the client builders expect. */
+const resolveOptions = (args: {
+  base?: string
+  port?: number
+  static?: boolean
+  outDir?: string
+  router?: 'hash' | 'browser'
+  noScript?: boolean
+}) => {
   const dir = process.cwd()
   return {
     dir,
     config: configLoader(dir),
+    router: args.router,
     baseUrl: args.base ?? '/',
     outDir: path.resolve(dir, args.outDir ?? 'docs/dist'),
+    noJavascript: args.noScript,
   }
 }
 
+/** Lazily load config + reflection JSON for the project rooted at `dir`. */
 const configLoader = (dir: string) => async () => {
   const c = await Config.load(dir)
   const file = await Config.findFile(dir)

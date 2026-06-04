@@ -4,11 +4,11 @@ import fs from 'node:fs/promises'
 import { v } from '@lickle/is'
 import fg from 'fast-glob'
 
-import { type ConfigJson } from './types.ts'
+import { type UserConfig } from './types.ts'
 
 const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 
-export const load = async (dir: string): Promise<ConfigJson | undefined> => {
+export const load = async (dir: string): Promise<UserConfig | undefined> => {
   const file = await find(dir)
   if (!file) return undefined
   if (file.endsWith('.json')) return readJson(file)
@@ -21,7 +21,7 @@ const find = async (dir: string): Promise<string | undefined> => {
   return files?.[0]
 }
 
-const readCode = async (file: string): Promise<ConfigJson> => {
+const readCode = async (file: string): Promise<UserConfig> => {
   const jti = createJiti(pathToFileURL(import.meta.url).href, {
     moduleCache: false,
     cache: false,
@@ -31,7 +31,7 @@ const readCode = async (file: string): Promise<ConfigJson> => {
   return valid(fl)
 }
 
-const readJson = async (file: string): Promise<ConfigJson> => {
+const readJson = async (file: string): Promise<UserConfig> => {
   const content = await fs.readFile(file, 'utf-8')
   const j = JSON.parse(content) as unknown
   return valid(j)

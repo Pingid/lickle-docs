@@ -1,11 +1,11 @@
 import { For, Show, createMemo } from 'solid-js'
 import { A } from '../context/router.tsx'
 
-import { createSlot, useProject, type Types } from '../context/index.tsx'
+import { useProject, type Types } from '../context/index.tsx'
 
 type Crumb = { label: string; href?: string }
 
-export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: number }) => {
+export const Breadcrumb = (props: { id: number }) => {
   const project = useProject()
   const crumbs = createMemo(() => buildCrumbs(project(), props.id))
 
@@ -34,7 +34,7 @@ export const Breadcrumb = createSlot('page.header.breadcrumb', (props: { id: num
       </ol>
     </nav>
   )
-})
+}
 
 /**
  * One crumb per slug segment, so every module level is reachable — each prefix

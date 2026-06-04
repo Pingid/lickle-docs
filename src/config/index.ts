@@ -1,8 +1,8 @@
 import type { Components } from '../ui/context/components.tsx'
-import type { ConfigJson } from './types.ts'
+import type { UserConfig } from './types.ts'
 export type * from './types.ts'
 
-export const defineConfig = <C extends ConfigJson | (() => ConfigJson) | (() => Promise<ConfigJson>)>(config: C) => {
+export const defineConfig = (config: UserConfig | (() => UserConfig) | (() => Promise<UserConfig>)) => {
   const c = typeof config === 'function' ? config() : config
   return Promise.resolve(c)
 }

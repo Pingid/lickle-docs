@@ -24,13 +24,13 @@ export const App = (p: AppProps) => {
   const json = createMemo(() => (typeof p.project === 'function' ? p.project() : (p.project ?? null)))
   const Router = p.Router ?? HashRouter
   return (
-    <ComponentsProvider value={p.components}>
-      <ProjectProvider json={json}>
+    <ProjectProvider json={json}>
+      <ComponentsProvider value={p.components}>
         <Router base={BASE_URL} root={(p) => <Layout>{p.children}</Layout>}>
           <Routes />
         </Router>
-      </ProjectProvider>
-    </ComponentsProvider>
+      </ComponentsProvider>
+    </ProjectProvider>
   )
 }
 /**
@@ -58,13 +58,13 @@ const PathRoute = () => {
 const RouteView = (props: { route: Types.RouteNode }) => (
   <Show
     when={props.route.page.kind === 'markdown'}
-    fallback={<DeclarationView route={props.route as Types.RouteNode<'declaration' | 'module'>} />}
+    fallback={<DeclarationView route={props.route as Types.RouteNode<'doc'>} />}
   >
     <MarkdownPage route={props.route as Types.RouteNode<'markdown'>} />
   </Show>
 )
 
-const DeclarationView = (props: { route: Types.RouteNode<'declaration' | 'module'> }) => {
+const DeclarationView = (props: { route: Types.RouteNode<'doc'> }) => {
   const project = useProject()
   const decl = createMemo(() => project().byId(props.route.page.id))
   return (

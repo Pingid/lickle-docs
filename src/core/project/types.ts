@@ -39,8 +39,7 @@ export type BaseRoute<P> = {
 
 type PageTypeMap = t.MapKind<{
   markdown: { content: string }
-  module: { id: number; alias?: string; qualified: string; referencedIn: number[] }
-  declaration: { id: number; alias?: string; qualified: string; referencedIn: number[] }
+  doc: { id: number; alias?: string; qualified: string; referencedIn: number[] }
 }>
 
 export type PageType<K extends keyof PageTypeMap = keyof PageTypeMap> = PageTypeMap[K]

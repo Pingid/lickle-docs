@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { ConfigJson } from './types.ts'
+import type { UserConfig } from './types.ts'
 
 import * as lib from '../_lib/index.ts'
 
@@ -11,7 +11,7 @@ import * as lib from '../_lib/index.ts'
  * (`README.md`) and the working directory. `declarations` / `children` stay
  * empty here — the reflection pass fills them once scanning is wired up.
  */
-export const apply = async (dir: string, c?: Partial<ConfigJson>): Promise<ConfigJson> => {
+export const apply = async (dir: string, c?: Partial<UserConfig>): Promise<UserConfig> => {
   const pkg = await lib.pkg.read(process.cwd())
   const info = await lib.repo.info(dir)
   const readme = await lib.fs.existingPath(path.join(dir, 'README.md'))

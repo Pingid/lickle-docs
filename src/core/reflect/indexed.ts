@@ -10,13 +10,17 @@ export type Index = Roots & TreeIndex & ReferenceIndex & ExposerIndex
 /** */
 export type Roots = {
   roots(): Iterable<T.Declaration<'module'>>
+  isRoot(id: number): boolean
+  alias(id: number): string | undefined
   commonDir: () => string
   modules: () => T.Declaration<'module'>[]
 }
 export const roots =
   (entries: { as: string; path: string }[]): Indexer<Roots> =>
   (b): Roots => {
+    const rootIds = new Set<number>()
     const roots = new Map<string, T.Declaration<'module'>>()
+    const alias = new Map<number, string>()
     const modules: T.Declaration<'module'>[] = []
     const byPath = new Map<string, number>()
     let commonDir = ''
@@ -27,6 +31,8 @@ export const roots =
         for (const entry of entries) {
           if (d.path === entry.path) {
             roots.set(entry.as, d)
+            alias.set(d.id, entry.as)
+            rootIds.add(d.id)
             break
           }
         }
@@ -35,7 +41,14 @@ export const roots =
     b.after(() => {
       commonDir = path.common(Array.from(byPath.keys()))
     })
-    return { roots: () => roots.values(), commonDir: () => commonDir, modules: () => modules }
+    const isRoot = (id: number): boolean => rootIds.has(id)
+    return {
+      isRoot,
+      alias: (id) => alias.get(id),
+      roots: () => roots.values(),
+      commonDir: () => commonDir,
+      modules: () => modules,
+    }
   }
 
 export type TreeIndex = {

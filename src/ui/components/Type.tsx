@@ -7,8 +7,8 @@ import { type Types } from '../context/index.tsx'
 import { type Kind, labelOf, shortOf } from '../util/kind.ts'
 import { useSlugFor } from '../hooks/index.ts'
 
+import { Comment } from './Comment/index.tsx'
 import { Markdown } from './Markdown.tsx'
-import { Comment } from './Comment.tsx'
 import { Syntax } from './Syntax.tsx'
 import { Link } from './Link.tsx'
 

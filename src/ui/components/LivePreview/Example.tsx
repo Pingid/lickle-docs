@@ -5,11 +5,11 @@ import type { Types } from '../../context/index.tsx'
 
 import { Sandbox, type SandboxIsolate } from './Sandbox.tsx'
 
-import { firstCodeBlock, langOf } from '../../context/index.tsx'
+import { firstCodeBlock } from '../../context/index.tsx'
+import { TagSection } from '../Comment/index.tsx'
 import { CodeEditor } from '../Code/index.tsx'
-import { TagSection } from '../Comment.tsx'
 
-type ExampleTag = Types.CommentTagMap['@example']
+type ExampleTag = Types.CommentTag<'@example'>
 
 /** Executes already-compiled JS into the host; return a disposer to tear down. */
 export type ExampleRun = (src: string, host: HTMLElement) => void | (() => void)
@@ -25,43 +25,36 @@ export type LiveExampleProps = {
 }
 
 export const LiveExample = (props: LiveExampleProps) => {
-  const [rendered, setRendered] = createSignal(false)
   const preview = useWithPreview(props)
-  createEffect(() => {
-    setRendered(true)
-  })
+
   return (
-    <Show when={rendered()}>
-      {(_) => (
-        <TagSection tag={props.tag} description={props.tag.caption}>
-          <div class="rounded-lg border border-line">
-            <div class="p-4 bg-code-bg">
-              <CodeEditor
-                lang={props.language ?? langOf(preview.lang)}
-                readonly={props.readonly}
-                value={preview.value}
-                onChange={preview.onChange}
-              />
-            </div>
-            <div class="relative min-h-12">
-              <Sandbox class="border-t border-line p-4" isolate={props.isolate} ref={preview.onBind} />
-              <Show when={preview.error()}>
-                {(msg) => (
-                  <div class="absolute inset-0 w-full h-full flex items-center justify-start p-4 text-xs text-red-500 border-t border-red-500/30 ">
-                    <div class="flex gap-2">
-                      <span aria-hidden="true" class="select-none leading-5">
-                        ⚠
-                      </span>
-                      <pre class="overflow-x-auto whitespace-pre-wrap wrap-break-word font-mono leading-5">{msg()}</pre>
-                    </div>
-                  </div>
-                )}
-              </Show>
-            </div>
-          </div>
-        </TagSection>
-      )}
-    </Show>
+    <TagSection tag={props.tag} description={props.tag.caption}>
+      <div class="rounded-lg border border-line">
+        <div class="p-4 bg-code-bg">
+          <CodeEditor
+            lang={props.language ?? preview.lang}
+            readonly={props.readonly}
+            value={preview.value}
+            onChange={preview.onChange}
+          />
+        </div>
+        <div class="relative min-h-12">
+          <Sandbox class="border-t border-line p-4" isolate={props.isolate} ref={preview.onBind} />
+          <Show when={preview.error()}>
+            {(msg) => (
+              <div class="absolute inset-0 w-full h-full flex items-center justify-start p-4 text-xs text-red-500 border-t border-red-500/30 ">
+                <div class="flex gap-2">
+                  <span aria-hidden="true" class="select-none leading-5">
+                    ⚠
+                  </span>
+                  <pre class="overflow-x-auto whitespace-pre-wrap wrap-break-word font-mono leading-5">{msg()}</pre>
+                </div>
+              </div>
+            )}
+          </Show>
+        </div>
+      </div>
+    </TagSection>
   )
 }
 

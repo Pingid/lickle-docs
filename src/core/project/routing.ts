@@ -3,7 +3,7 @@ import * as reflect from '../reflect/index.ts'
 import * as config from '../../config/load.ts'
 import * as naming from './naming.ts'
 
-type Page = 'declaration' | 'module'
+type Page = 'doc'
 
 export type Options = {
   rootName: string
@@ -41,15 +41,26 @@ export type RouteContext = {
 /**
  * Customisation seam for the route tree. The traversal, de-duplication and
  * page wiring stay in {@link buildRoutes}; a provider only decides per-route
- * presentation. Build one with {@link createRouteProvider} and override the
- * parts you care about.
+ * presentation. Every hook is optional and receives the stock result as
+ * `defaults`, so an override can build on the default instead of replacing it:
+ *
+ * ```ts
+ * createRouteProvider({ name: (cx, defaults) => ({ ...defaults, label: defaults.label.toUpperCase() }) })
+ * ```
  */
 export interface RouteProvider {
   /** Label, slug and qualified name for the route. */
-  name(cx: RouteContext): naming.Parts
+  name?(cx: RouteContext, defaults: naming.Parts): naming.Parts
   /** Whether the route appears in navigation (the sidebar). */
-  nav(cx: RouteContext): boolean
+  nav?(cx: RouteContext, defaults: boolean): boolean
   /** Optional group heading rendered above the route in navigation. */
+  group?(cx: RouteContext): string | undefined
+}
+
+/** A provider with every hook resolved — what {@link buildRoutes} consumes. */
+export type ResolvedRouteProvider = {
+  name(cx: RouteContext): naming.Parts
+  nav(cx: RouteContext): boolean
   group(cx: RouteContext): string | undefined
 }
 
@@ -60,13 +71,17 @@ const defaultName = (cx: RouteContext): naming.Parts =>
     : naming.childParts(cx.alias ?? cx.decl.name, cx.parent)
 
 /**
- * Compose a provider from optional overrides; unset hooks fall back to the
- * stock behaviour (path-derived names, everything navigable, no groups).
+ * Resolve a (partial) provider: unset hooks fall back to the stock behaviour
+ * (path-derived names, everything navigable, no groups), and each set hook
+ * receives that stock result as its `defaults` argument.
  */
-export const createRouteProvider = (overrides: Partial<RouteProvider> = {}): RouteProvider => ({
-  name: overrides.name ?? defaultName,
-  nav: overrides.nav ?? (() => true),
-  group: overrides.group ?? (() => undefined),
+export const createRouteProvider = (provider: RouteProvider = {}): ResolvedRouteProvider => ({
+  name: (cx) => {
+    const def = defaultName(cx)
+    return provider.name?.(cx, def) ?? def
+  },
+  nav: (cx) => provider.nav?.(cx, true) ?? true,
+  group: (cx) => provider.group?.(cx),
 })
 
 // ----------------------------------------------------------------------------
@@ -86,7 +101,7 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
     aliases: new Map((opts.entrypoints ?? []).map((e) => [e.path, e.as.replace(/^\.\//, '')])),
     commonDir: index.commonDir(),
   }
-  const provider = opts.provider ?? createRouteProvider()
+  const provider = createRouteProvider(opts.provider)
   const full = opts.mode === 'full'
   const seen = new Set<number>()
 
@@ -120,8 +135,10 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
     return { ...named, slug: uniqueSlug(named.slug) }
   }
 
+  // A single `doc` page kind: module vs. declaration is derived from the id's
+  // reflect kind at render time, so the route doesn't duplicate that fact.
   const makePage = (id: number, parts: naming.Parts): PageType<Page> => ({
-    kind: index.get(id)!.kind === 'module' ? 'module' : 'declaration',
+    kind: 'doc',
     id,
     alias: parts.label,
     qualified: parts.qualified,

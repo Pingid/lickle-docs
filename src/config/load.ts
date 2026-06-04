@@ -6,7 +6,7 @@ import fg from 'fast-glob'
 import type * as project from '../core/project/index.ts'
 import * as lib from '../_lib/index.ts'
 
-import { type ConfigJson } from './types.ts'
+import { type Entry, type Link, type UserConfig } from './types.ts'
 import * as defaults from './defaults.ts'
 import * as types from './types.ts'
 
@@ -14,45 +14,52 @@ export type * from './types.ts'
 
 const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 
-export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.ConfigJson>) => {
+export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.UserConfig>) => {
   const c = await load(dir, opts)
   return toGenerateOptions(c)
 }
 
-export const toGenerateOptions = async (c: ConfigJson & { compilerOptions: ts.CompilerOptions }) => {
-  const gen: project.GenerateOptions = {
-    dir: process.cwd(),
-    ...c,
-    exclude: c.exclude ?? [],
-    config: { entrypoints: [], links: [], ...c, routes: [] },
-    compilerOptions: c.compilerOptions,
-    full: c.full,
-  }
-
-  if (c.readme) {
-    const page: project.PageType<'markdown'> = {
-      kind: 'markdown',
-      content: await lib.fs.readFile(c.readme, 'utf-8'),
-    }
-    gen.config.routes = [{ label: 'README', slug: 'readme', page, children: [], sidebar: true }]
-  }
-
-  return gen
+export type PreparedConfig = {
+  rootDir: string
+  links: Link[]
+  config: UserConfig
+  compilerOptions: ts.CompilerOptions
+  routes: project.RouteNode[]
+  entrypoints: Entry[]
+  exclude: string[]
 }
 
-export const load = async (
-  dir: string = process.cwd(),
-  opts?: Partial<types.ConfigJson>,
-): Promise<types.ConfigJson & { compilerOptions: ts.CompilerOptions }> => {
+export const toGenerateOptions = async (c: PreparedConfig): Promise<PreparedConfig> => {
+  if (c.config.readme) {
+    const page: project.PageType<'markdown'> = {
+      kind: 'markdown',
+      content: await lib.fs.readFile(c.config.readme, 'utf-8'),
+    }
+    c.routes.push({ label: 'README', slug: 'readme', page, children: [], sidebar: true })
+  }
+
+  return c
+}
+
+export const load = async (dir: string = process.cwd(), opts?: Partial<types.UserConfig>): Promise<PreparedConfig> => {
   const c = lib.tsconfig.resolve(dir)
   if (!c.config) throw new Error('No tsconfig.json found')
   const loaded = await loadFile(dir)
   const info = await defaults.apply(dir, { ...loaded, ...opts })
   const parsed = ts.parseJsonConfigFileContent(c.config, ts.sys, path.dirname(c.config.path))
-  return { ...info, compilerOptions: parsed.options }
+
+  return {
+    links: info.links ?? [],
+    config: info,
+    exclude: info.exclude ?? [],
+    compilerOptions: parsed.options,
+    routes: [],
+    entrypoints: info.entrypoints ?? [],
+    rootDir: process.cwd(),
+  }
 }
 
-const loadFile = async (dir: string): Promise<ConfigJson | undefined> => {
+const loadFile = async (dir: string): Promise<UserConfig | undefined> => {
   const file = await findFile(dir)
   if (!file) return undefined
   if (file.endsWith('.json')) return readJson(file)
@@ -65,12 +72,12 @@ export const findFile = async (dir: string): Promise<string | undefined> => {
   return files?.[0]
 }
 
-const readCode = async (file: string): Promise<ConfigJson> => {
+const readCode = async (file: string): Promise<UserConfig> => {
   const mod = await lib.jiti.importModule<{ default: any }>(file)
   return types.validate(await mod.default)
 }
 
-const readJson = async (file: string): Promise<ConfigJson> => {
+const readJson = async (file: string): Promise<UserConfig> => {
   const content = await fs.readFile(file, 'utf-8')
   const j = JSON.parse(content) as unknown
   return types.validate(j)

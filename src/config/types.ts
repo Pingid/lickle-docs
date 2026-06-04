@@ -1,5 +1,9 @@
+import { v } from '@lickle/is'
+
+import type { RouteProvider } from '../core/project/routing.ts'
+
 /** Configuration used for generating the project json */
-export interface ConfigJson {
+export interface UserConfig {
   /** The name of the project. default is the package name from package.json */
   name: string
   /** The version of the project. default is the package version from package.json */
@@ -18,6 +22,11 @@ export interface ConfigJson {
   entrypoints?: Entry[]
   /** Pages to include in the project. Default is the README file. */
   pages?: Page[]
+  /** Files to exclude from the project (micromatch glob patterns) */
+  exclude?: string[]
+  /** Document every declaration, not just the exported public API. Default false. */
+  full?: boolean
+
   /**
    * Path to custom components file
    *
@@ -32,10 +41,11 @@ export interface ConfigJson {
    * ```
    * */
   components?: string
-  /** Files to exclude from the project (micromatch glob patterns) */
-  exclude?: string[]
-  /** Document every declaration, not just the exported public API. Default false. */
-  full?: boolean
+  /** Languages used in example code blocks and markdown for syntax highlighting. Defaults to ['ts'] */
+  languages?: string[]
+
+  /** Route provider */
+  provider?: RouteProvider
 }
 
 export interface Page {
@@ -70,8 +80,6 @@ export interface Repo {
   fileUrl?: string
 }
 
-import { v } from '@lickle/is'
-
 // ---------------- Validation ----------------
 const repo = v.struct.match<Repo>({
   url: v.string,
@@ -90,7 +98,9 @@ const entry = v.struct.match<Entry>({
   path: v.string,
 })
 
-export const schema = v.struct.match<ConfigJson>({
+const any = (v: any) => ({ ok: true, value: v }) as const
+
+export const schema = v.struct.match<UserConfig>({
   name: v.string,
   version: v.or(v.string, v.undefined),
   readme: v.or(v.string, v.undefined),
@@ -103,9 +113,11 @@ export const schema = v.struct.match<ConfigJson>({
   components: v.or(v.string, v.undefined),
   exclude: v.or(v.array(v.string), v.undefined),
   full: v.or(v.boolean, v.undefined),
+  languages: v.or(v.array(v.string), v.undefined),
+  provider: any,
 })
 
-export const validate = (v: unknown): ConfigJson => {
+export const validate = (v: unknown): UserConfig => {
   const result = schema(v)
   if (result.ok) return result.value
   throw new Error(result.error)

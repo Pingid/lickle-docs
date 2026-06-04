@@ -4,30 +4,22 @@ import path from 'node:path'
 
 import * as Lib from '../_lib/index.ts'
 
-import type { ViteContext } from './contex.ts'
-import { clientFiles } from './env.ts'
+import { htmlShellGenerator, type ViteContext } from './contex.ts'
+import { clientFiles, clientRoot } from './env.ts'
 
 export const project = (config: ViteContext): vite.Plugin => {
   const PROJECT_JSON_ID = 'virtual:lickle/docs.json'
   let logger: vite.Logger | undefined = undefined
 
-  /** A bare specifier (a package import), not relative/absolute/virtual. */
-  const isBareImport = (id: string): boolean =>
-    !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('\0') && !id.includes(':') && !path.isAbsolute(id)
-
   return {
-    name: '@lickle/docs:project-plugin',
+    name: '@lickle/docs:plugin-project',
     enforce: 'pre',
     configResolved(config) {
       logger = config.logger
     },
-    async resolveId(id, importer, resolveOpts) {
+    async resolveId(id) {
       if (id === PROJECT_JSON_ID) return '\0' + PROJECT_JSON_ID
-      // When such a bare import can't be resolved from the consumer, fall back to resolving it from lickle-docs
-      if (!importer || !isBareImport(id)) return undefined
-      const normal = await this.resolve(id, importer, { ...resolveOpts, skipSelf: true })
-      if (normal) return undefined
-      return (await this.resolve(id, clientFiles.entry.client, { ...resolveOpts, skipSelf: true }))?.id
+      return undefined
     },
 
     async load(id) {
@@ -43,7 +35,6 @@ export const project = (config: ViteContext): vite.Plugin => {
       const handleJson = async () => {
         await config.rebuild()
         const json = await config.json()
-
         s.ws.send({ type: 'custom', event: 'docs-update', data: json })
         logger?.info('Docs built successfully', { timestamp: true })
       }
@@ -65,8 +56,7 @@ export const project = (config: ViteContext): vite.Plugin => {
 export const components = (opts: ViteContext): vite.Plugin => {
   const CUSTOM_COMPONENTS_ID = 'virtual:lickle/custom-components'
   return {
-    name: '@lickle/docs:components-plugin',
-    config: () => ({ server: { fs: { allow: [...(opts.dir ? [path.resolve(opts.dir)] : [])] } } }),
+    name: '@lickle/docs:plugin-components',
     async resolveId(id) {
       if (id === CUSTOM_COMPONENTS_ID) return '\0' + CUSTOM_COMPONENTS_ID
       return undefined
@@ -84,7 +74,105 @@ export const components = (opts: ViteContext): vite.Plugin => {
 
 /** SSR-only: turn stylesheet imports into empty modules (HTML render needs no CSS). */
 export const ignoreCss = (): vite.Plugin => ({
-  name: '@lickle/docs:ignore-css',
+  name: '@lickle/docs:plugin-ignore-css',
   enforce: 'pre',
   load: (id) => (/\.(css|scss|sass|less|styl)(\?|$)/.test(id) ? '' : undefined),
 })
+
+export const html = (opts: ViteContext): vite.Plugin => {
+  const RESOLVED_HTML_ID = path.join(clientFiles.root, 'index.html')
+
+  const htmlShell = htmlShellGenerator()
+  const load = async () => {
+    const json = await opts.json()
+    const html = (await htmlShell)({
+      body: '<div id="root"></div>',
+      head: '<script type="module" src="/entry.tsx"></script>',
+      title: json.name,
+    })
+    return html
+  }
+
+  return {
+    name: '@lickle/docs:plugin-html',
+    enforce: 'pre',
+    resolveId(id) {
+      if (id.endsWith('index.html') || id.endsWith('/index.html')) return RESOLVED_HTML_ID
+      return undefined
+    },
+    load(id) {
+      if (id === RESOLVED_HTML_ID) return load()
+      return undefined
+    },
+
+    async configureServer(s) {
+      s.middlewares.use(async (req, res, next) => {
+        const url = req.url?.split('?')[0]
+        if (!(url?.includes('.') || url?.includes('@') || url?.includes('virtual:')) || url?.endsWith('.html')) {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'text/html')
+          const html = await load()
+          s.transformIndexHtml(req.url!, html).then((html) => res.end(html))
+        } else {
+          next()
+        }
+      })
+    },
+    transformIndexHtml: {
+      order: 'pre',
+      handler: load,
+    },
+  }
+}
+
+export const shiki = (opts: ViteContext): vite.Plugin => {
+  const SHIKI_ID = 'virtual:lickle/shiki'
+  const RESOLVED_SHIKI_ID = '\0' + SHIKI_ID
+
+  return {
+    name: '@lickle/docs:plugin-shiki',
+    enforce: 'pre',
+    async resolveId(id, importer) {
+      if (importer?.includes('ui/context/markup') && id.includes('languages.')) return RESOLVED_SHIKI_ID
+      return undefined
+    },
+    async load(id) {
+      if (id === RESOLVED_SHIKI_ID) {
+        const c = await opts.config().then((c) => c.languages ?? ['ts'])
+        return `
+          ${c.map((l) => `import ${l} from 'shiki/langs/${l}';`).join('\n')}
+          export const languages = [${c.map((c) => `{ name: "${c}", import: ${c} }`).join(',\n')}];
+        `
+      }
+      return undefined
+    },
+    configureServer(s) {
+      opts.on(() => {
+        const mod = s.moduleGraph.getModuleById(RESOLVED_SHIKI_ID)
+        if (mod) {
+          s.moduleGraph.invalidateModule(mod)
+          s.ws.send({ type: 'full-reload', path: '*' })
+        }
+      })
+    },
+  }
+}
+
+export const resolve = (opts: ViteContext): vite.Plugin => {
+  /** A bare specifier (a package import), not relative/absolute/virtual. */
+  const isBareImport = (id: string): boolean =>
+    !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('\0') && !id.includes(':') && !path.isAbsolute(id)
+
+  return {
+    name: '@lickle/docs:plugin-imports',
+    enforce: 'pre',
+    config: () => ({ server: { fs: { allow: [...(opts.dir ? [path.resolve(opts.dir)] : []), clientRoot] } } }),
+    async resolveId(id, importer, resolveOpts) {
+      // When such a bare import can't be resolved from the consumer, fall back to resolving it from lickle-docs
+      if (!importer || !isBareImport(id)) return undefined
+      const normal = await this.resolve(id, importer, { ...resolveOpts, skipSelf: true })
+      if (normal) return undefined
+      return (await this.resolve(id, clientFiles.entry.client, { ...resolveOpts, skipSelf: true }))?.id
+    },
+  }
+}
