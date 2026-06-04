@@ -14,11 +14,6 @@ export type * from './types.ts'
 
 const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 
-export const loadGen = async (dir: string = process.cwd(), opts?: Partial<types.UserConfig>) => {
-  const c = await load(dir, opts)
-  return toGenerateOptions(c)
-}
-
 export type PreparedConfig = {
   rootDir: string
   links: Link[]
@@ -29,18 +24,6 @@ export type PreparedConfig = {
   exclude: string[]
 }
 
-export const toGenerateOptions = async (c: PreparedConfig): Promise<PreparedConfig> => {
-  if (c.config.readme) {
-    const page: project.PageType<'markdown'> = {
-      kind: 'markdown',
-      content: await lib.fs.readFile(c.config.readme, 'utf-8'),
-    }
-    c.routes.push({ label: 'README', slug: 'readme', page, children: [], sidebar: true })
-  }
-
-  return c
-}
-
 export const load = async (dir: string = process.cwd(), opts?: Partial<types.UserConfig>): Promise<PreparedConfig> => {
   const c = lib.tsconfig.resolve(dir)
   if (!c.config) throw new Error('No tsconfig.json found')
@@ -48,12 +31,20 @@ export const load = async (dir: string = process.cwd(), opts?: Partial<types.Use
   const info = await defaults.apply(dir, { ...loaded, ...opts })
   const parsed = ts.parseJsonConfigFileContent(c.config, ts.sys, path.dirname(c.config.path))
 
+  const routes: project.RouteNode[] = []
+  if (info.readme) {
+    const page: project.PageType<'markdown'> = {
+      kind: 'markdown',
+      content: await lib.fs.readFile(info.readme, 'utf-8'),
+    }
+    routes.push({ label: 'README', slug: '', page, children: [], sidebar: true })
+  }
   return {
     links: info.links ?? [],
     config: info,
     exclude: info.exclude ?? [],
     compilerOptions: parsed.options,
-    routes: [],
+    routes,
     entrypoints: info.entrypoints ?? [],
     rootDir: process.cwd(),
   }

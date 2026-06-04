@@ -11,10 +11,13 @@ import type { ChildSpec, RouteContext } from './routing.ts'
 // their own beyond walking the graph.
 
 export class Decl<K extends keyof reflect.DeclarationMap = keyof reflect.DeclarationMap> {
-  constructor(
-    protected decl: reflect.Declaration<K>,
-    protected index: reflect.Index,
-  ) {}
+  protected decl: reflect.Declaration<K>
+  protected index: reflect.Index
+
+  constructor(decl: reflect.Declaration<K>, index: reflect.Index) {
+    this.decl = decl
+    this.index = index
+  }
 
   get id(): number {
     return this.decl.id
@@ -58,25 +61,28 @@ export class Decl<K extends keyof reflect.DeclarationMap = keyof reflect.Declara
 }
 
 export class Exposed<K extends keyof reflect.DeclarationMap = keyof reflect.DeclarationMap> extends Decl<K> {
-  constructor(
-    decl: reflect.Declaration<K>,
-    index: reflect.Index,
-    private _alias?: string,
-  ) {
+  private _alias?: string
+
+  constructor(decl: reflect.Declaration<K>, index: reflect.Index, alias?: string) {
     super(decl, index)
+    this._alias = alias
   }
 
   /** Exposure alias on this path (set by renames / `export * as`). */
   get alias(): string | undefined {
     return this._alias
   }
+
+  module(): reflect.Declaration<'module'> | undefined {
+    const decl = this.decl as reflect.Declaration
+    if (decl.kind === 'module') return decl
+    const parent = this.index.get(decl.parent)
+    if (parent && parent.kind === 'module') return parent
+    return undefined
+  }
 }
 
 export class EntryPoint extends Decl<'module'> {
-  constructor(decl: reflect.Declaration<'module'>, index: reflect.Index) {
-    super(decl, index)
-  }
-
   get path(): string {
     return this.decl.path
   }

@@ -22,7 +22,7 @@ export const compose = (...parts: Partial<RouteProvider>[]): RouteProvider =>
 export const groupByKind = (): Partial<RouteProvider> => ({
   children: (cx, kids) =>
     reshape(cx, kids, ({ all, group, byName }) =>
-      [...groupBy(all, (d) => d.kind).entries()]
+      [..._groupBy(all, (d) => d.kind).entries()]
         .sort(([a], [b]) => kindRank(a) - kindRank(b))
         .map(([kind, items]) => group(pluralOf(kind), [...items].sort(byName))),
     ),
@@ -49,7 +49,7 @@ export const filterChildren = (predicate: (d: Exposed) => boolean): Partial<Rout
 
 // ---------------- internal ----------------
 
-const groupBy = <T, K>(items: T[], key: (t: T) => K): Map<K, T[]> => {
+const _groupBy = <T, K>(items: T[], key: (t: T) => K): Map<K, T[]> => {
   const m = new Map<K, T[]>()
   for (const it of items) {
     const k = key(it)
@@ -73,3 +73,26 @@ const PLURAL: Record<string, string> = {
 }
 
 const pluralOf = (kind: string): string => PLURAL[kind] ?? `${kind}s`
+
+export const groupBy = (label: (d: Exposed) => string | undefined): Partial<RouteProvider> => ({
+  children: (cx, kids) =>
+    reshape(cx, kids, ({ all, group }) => {
+      const buckets = new Map<string, Exposed[]>()
+      const order: (Exposed | string)[] = [] // Exposed = ungrouped (inline); string = a group's slot
+
+      for (const d of all) {
+        const key = label(d)
+        if (key === undefined) {
+          order.push(d)
+          continue
+        }
+        if (!buckets.has(key)) {
+          buckets.set(key, [])
+          order.push(key)
+        }
+        buckets.get(key)!.push(d)
+      }
+
+      return order.map((item) => (typeof item === 'string' ? group(item, buckets.get(item)!) : item))
+    }),
+})

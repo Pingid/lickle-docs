@@ -18,11 +18,13 @@ export const createProject = (json: ProjectJson): Types.Project => {
   }
 
   const indexRoute = (r: RouteNode) => {
-    if (r.slug) _routesBySlug.set(r.slug, r)
+    // `''` is a valid slug (the base/README route); only group nodes, which
+    // have no slug at all, are skipped here.
+    if (r.slug !== undefined) _routesBySlug.set(r.slug, r)
     // Doc routes carry a declaration id; markdown pages resolve by slug only,
     // and group nodes (no page) aren't navigation targets at all.
     if (r.page?.kind === 'doc') {
-      if (r.slug) _bySlug.set(r.slug, _byId.get(r.page.id)!)
+      if (r.slug !== undefined) _bySlug.set(r.slug, _byId.get(r.page.id)!)
       _routesById.set(r.page.id, r)
       const name = _byId.get(r.page.id)?.name
       if (name && !_slugByName.has(name)) _slugByName.set(name, r)

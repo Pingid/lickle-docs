@@ -37,13 +37,14 @@ export const buildJson = async (opts: PreparedConfig): Promise<ProjectJson> => {
     links: opts.links,
     entrypoints: opts.entrypoints,
     declarations: [...graph.declarations()],
-    routes: [...routes],
+    routes: [...opts.routes, ...routes],
   }
 }
 
-/** All slugs in a route subtree, so routing can avoid colliding with them. */
+/** All slugs in a route subtree, so routing can avoid colliding with them.
+ * Includes the empty slug (a README owning `/`); group-only nodes omit it. */
 const collectSlugs = (routes: RouteNode[]): string[] =>
-  routes.flatMap((r) => [...(r.slug ? [r.slug] : []), ...collectSlugs(r.children)])
+  routes.flatMap((r) => [...(r.slug !== undefined ? [r.slug] : []), ...collectSlugs(r.children)])
 
 const keepFile =
   (opts: PreparedConfig) =>

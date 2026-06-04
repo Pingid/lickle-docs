@@ -18,6 +18,16 @@ export type Options = {
   mode?: 'exposed' | 'full'
   /** Slugs already taken by routes built elsewhere (e.g. a README home page). */
   reserved?: Iterable<string>
+  /**
+   * URL prefix applied to every entrypoint route (and, transitively, its
+   * children). Defaults to `'l'`, giving URLs like `/l/<entry>/<symbol>` —
+   * leaving `/` free for a README or other landing page.
+   *
+   * If the empty slug `''` isn't already reserved (no README owns `/`), the
+   * first entrypoint is promoted to `/` instead of being prefixed, so the
+   * docs always have a base route. Set to `''` to disable prefixing entirely.
+   */
+  basePath?: string
 }
 
 // ----------------------------------------------------------------------------
@@ -81,11 +91,20 @@ export interface RouteProvider {
   children?(cx: RouteContext, kids: ChildSpec[]): ChildSpec[]
 }
 
-/** Default naming: entry modules from their path/alias, everything else nested under its parent. */
-const defaultName = (cx: RouteContext): naming.Parts =>
-  cx.parent === undefined
-    ? naming.rootParts(cx.decl as reflect.Declaration<'module'>, cx.options)
-    : naming.childParts(cx.alias ?? cx.decl.name, cx.parent)
+/** URL prefix the default provider nests every generated doc route under. */
+const DOC_BASE = 'l'
+
+/**
+ * Default naming: entry modules from their path/alias, everything else nested
+ * under its parent. The whole API lives under `/l/` so the site root (`/`) is
+ * free for a README or a redirect to the first entrypoint. Children inherit the
+ * prefix via their parent's slug, so only root slugs need it applied here.
+ */
+const defaultName = (cx: RouteContext): naming.Parts => {
+  if (cx.parent !== undefined) return naming.childParts(cx.alias ?? cx.decl.name, cx.parent)
+  const parts = naming.rootParts(cx.decl as reflect.Declaration<'module'>, cx.options)
+  return { ...parts, slug: parts.slug ? `${DOC_BASE}/${parts.slug}` : DOC_BASE }
+}
 
 /**
  * Compose a provider from optional overrides; unset hooks fall back to the
@@ -131,6 +150,23 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
     return (usedSlugs.add(next), next)
   }
 
+  // Default routing puts every entrypoint under `/<basePath>/...` so `/` is
+  // free for a README. When no route already owns `''`, the first entrypoint
+  // is promoted to `/` instead of being prefixed — child slugs of a promoted
+  // entry nest from `''`, so they also drop the prefix.
+  const basePath = opts.basePath
+  const promoteFirstToRoot = !!basePath && !usedSlugs.has('')
+  let promoted = false
+
+  const applyBase = (slug: string): string => {
+    if (!basePath) return slug
+    if (promoteFirstToRoot && !promoted) {
+      promoted = true
+      return ''
+    }
+    return slug ? `${basePath}/${slug}` : basePath
+  }
+
   // Children of a route: the exposure graph in `exposed` mode, the raw
   // declaration tree (minus re-export clauses) in `full` mode.
   const childrenOf = (id: number): ChildSpec[] => {
@@ -147,7 +183,8 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
 
   const nameOf = (id: number, parent?: naming.Parts, alias?: string): naming.Parts => {
     const named = provider.name({ decl: index.get(id)!, alias, parent, index, options })
-    return { ...named, slug: uniqueSlug(named.slug) }
+    const slug = parent === undefined ? applyBase(named.slug) : named.slug
+    return { ...named, slug: uniqueSlug(slug) }
   }
 
   // A single `doc` page kind: module vs. declaration is derived from the id's

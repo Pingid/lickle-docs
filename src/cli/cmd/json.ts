@@ -21,7 +21,7 @@ export const json = cmd.command({
   },
   handler: async (args) => {
     await lib.fs.ensureDir('docs')
-    const p = await core.project.buildJson(await config.loadGen(process.cwd(), { full: args.full }))
+    const p = await core.project.buildJson(await config.load(process.cwd(), { full: args.full }))
     if (args.print) project.displayRoutes(p.routes)
     await lib.fs.writeFile('docs/project.json', JSON.stringify(p, null, 2))
   },
