@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto'
+
+import type { DeepMerge } from '../t.ts'
+
 type Fn = (...args: any[]) => any
 export const memo = <F extends Fn>(fn: F): F => {
   const cache = new Map<string, ReturnType<F>>()
@@ -51,3 +55,23 @@ export const registerNodeCleanup = (fn: () => any) => {
   process.on('SIGINT', cleanup)
   process.on('SIGTERM', cleanup)
 }
+
+export const deepMerge = <T, U>(a: T, b: U): DeepMerge<T, U> => {
+  if (!isObject(a) || !isObject(b)) return b as any
+  const result = { ...a } as any
+  for (const key in b) {
+    if (Object.prototype.hasOwnProperty.call(b, key)) {
+      if (key === '__proto__' || key === 'constructor') continue
+      const valA = result[key]
+      const valB = b[key]
+      if (isObject(valA) && isObject(valB)) result[key] = deepMerge(valA, valB)
+      else result[key] = valB
+    }
+  }
+
+  return result
+}
+const isObject = (obj: any): obj is Record<string, any> =>
+  obj !== null && typeof obj === 'object' && !Array.isArray(obj)
+
+export const hash = (str: string) => createHash('sha256').update(str).digest('hex')

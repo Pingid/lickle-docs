@@ -42,3 +42,12 @@ const uniqueSlug = (base: string, used: Set<string>): string => {
   used.add(slug)
   return slug
 }
+
+export const join = (...parts: string[]): string => parts.reduce(join2, '')
+export const toPosix = (s: string): string => s.replace(/\\/g, '/')
+
+const join2 = (a: string, b: string): string => {
+  if (a.endsWith('/') && !b.startsWith('/')) return a + b
+  if (!a.endsWith('/') && b.startsWith('/')) return a + b
+  return a + '/' + b
+}

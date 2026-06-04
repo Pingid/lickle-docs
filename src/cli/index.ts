@@ -9,6 +9,6 @@ export const app = async () => {
     name: 'ldocs',
     version: version.version,
     description: 'Generate documentation sites from TypeScript projects',
-    cmds: { json: cmds.json, dev: cmds.dev, build: cmds.build, init: cmds.init },
+    cmds: { ...cmds },
   })
 }

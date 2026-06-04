@@ -21,3 +21,18 @@ export const ensureDir = async (pth: string) => {
   const dir = path.extname(pth) ? path.dirname(pth) : pth
   await fs.mkdir(dir, { recursive: true })
 }
+
+export const sanitizeFilename = (str: string) => {
+  return (
+    str
+      // Remove illegal characters for Windows/Mac/Linux
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+      // Remove relative path modifiers
+      .replace(/^\.+/g, '')
+      // Optional: Replace spaces with underscores or dashes for web-friendliness
+      .replace(/\s+/g, '-')
+      // Prevent trailing spaces or periods (invalid in Windows)
+      .trim()
+      .replace(/[\s.]+$/, '')
+  )
+}

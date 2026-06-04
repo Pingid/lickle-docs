@@ -56,3 +56,6 @@ const keepFile =
     if (opts.exclude?.some((i) => mm.isMatch(relative, i))) return false
     return true
   }
+
+export const flattenRoutes = (routes: RouteNode[]): RouteNode[] =>
+  routes.flatMap((r) => [r, ...flattenRoutes(r.children)])
