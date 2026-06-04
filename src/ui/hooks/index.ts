@@ -46,7 +46,7 @@ export const useReferences = (id: () => number): Accessor<ReferenceRow[]> => {
 
 const buildReferenceRows = (project: Types.Project, id: number): ReferenceRow[] => {
   const route = project.routeForId(id)
-  if (!route || route.page.kind === 'markdown') return []
+  if (!route || route.page?.kind !== 'doc') return []
 
   const seen = new Set<number>()
   const out: ReferenceRow[] = []
@@ -55,12 +55,12 @@ const buildReferenceRows = (project: Types.Project, id: number): ReferenceRow[] 
     seen.add(refId)
     const refRoute = project.routeForId(refId)
     const decl = project.byId(refId)
-    if (!refRoute || refRoute.page.kind === 'markdown' || !decl) continue
+    if (!refRoute || refRoute.page?.kind !== 'doc' || !decl) continue
     const qualified = refRoute.page.qualified
     const dot = qualified.lastIndexOf('.')
     out.push({
       decl,
-      slug: refRoute.slug,
+      slug: refRoute.slug ?? '',
       module: dot < 0 ? '' : qualified.slice(0, dot),
       name: dot < 0 ? qualified : qualified.slice(dot + 1),
       qualified,

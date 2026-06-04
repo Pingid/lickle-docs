@@ -12,6 +12,7 @@ export type SearchEngine = { query: (term: string, limit?: number) => Promise<Se
  * Names are boosted above qualified paths so exact-name hits rank first;
  * `tolerance: 1` allows one-character typos. Each declaration is indexed once
  * — re-export routes share a declaration id, so they're de-duplicated here.
+ * Group nodes (no page) are skipped but their children are still walked.
  */
 export const createSearchEngine = async (project: Types.Project): Promise<SearchEngine> => {
   const db = await create({
@@ -24,7 +25,7 @@ export const createSearchEngine = async (project: Types.Project): Promise<Search
   const seen = new Set<number>()
   const walk = async (routes: Types.RouteNode[]): Promise<void> => {
     for (const r of routes) {
-      if (r.page.kind !== 'markdown' && !seen.has(r.page.id)) {
+      if (r.page?.kind === 'doc' && !seen.has(r.page.id)) {
         seen.add(r.page.id)
         const decl = project.byId(r.page.id)
         const kind = (decl?.kind ?? 'module') as Kind
@@ -32,7 +33,7 @@ export const createSearchEngine = async (project: Types.Project): Promise<Search
           name: r.label,
           qualified: r.page.qualified,
           kind,
-          slug: r.slug,
+          slug: r.slug ?? '',
           file: decl?.sources?.[0]?.file ?? '',
           terms: termsOf(r.label, r.page.qualified),
         })

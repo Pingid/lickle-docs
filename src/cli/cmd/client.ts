@@ -101,6 +101,6 @@ const resolveOptions = (args: {
 const configLoader = (dir: string) => async () => {
   const c = await Config.load(dir)
   const file = await Config.findFile(dir)
-  const json = await Core.project.buildJson(await Config.toGenerateOptions(c))
-  return { json, config: c, file }
+  const json = await Core.project.buildJson(c)
+  return { json, config: c.config, file }
 }

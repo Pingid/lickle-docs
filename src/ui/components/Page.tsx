@@ -4,6 +4,7 @@ import { createSlot, useProject, type Types } from '../context/index.tsx'
 import { type ReferenceRow, useReferences } from '../hooks/index.ts'
 import { labelOf, pluralLabel, groupOrder } from '../util/kind.ts'
 import { commentSummaryText } from '../util/comment.ts'
+import { docRoutes } from '../util/routes.ts'
 import { A } from '../context/router.tsx'
 
 import { Declaration } from './Declaration.tsx'
@@ -25,7 +26,7 @@ export const Page = createSlot('page.doc', (props) => (
 /** Renders a markdown page — its `content` parsed inline. */
 export const MarkdownPage = createSlot('page.markdown', (props) => (
   <article>
-    <Markdown source={props.route.page.content} />
+    <Markdown source={props.route.page?.content ?? ''} />
   </article>
 ))
 
@@ -67,10 +68,15 @@ export const Source = (props: { sources?: Types.Source[] }) => {
 type ChildRoute = Types.RouteNode<'doc'>
 type ChildRow = { route: ChildRoute; decl?: Types.Declaration; kind: string; summary: string }
 
-/** Child pages of a module / namespace, grouped by kind and linked from the route tree. */
+/**
+ * Child pages of a module / namespace, grouped by kind. Synthetic group nodes
+ * (sidebar-only headings) are flattened away first via {@link docRoutes}, so
+ * the content listing groups by declaration kind regardless of how the sidebar
+ * is laid out.
+ */
 const Children = (props: { route: ChildRoute }) => {
   const project = useProject()
-  const groups = createMemo(() => groupChildren(project(), props.route.children))
+  const groups = createMemo(() => groupChildren(project(), docRoutes(props.route.children)))
   return (
     <For each={groups()}>
       {(group) => (
@@ -89,7 +95,7 @@ const ChildRowView = (props: { row: ChildRow }) => (
   <li>
     <div class="flex items-baseline gap-2.5 min-w-0">
       <Type.KindBadge kind={props.row.kind} class="w-3.5 shrink-0" />
-      <A href={`/${props.row.route.slug}`} class="font-mono font-semibold text-sm hover:opacity-70">
+      <A href={`/${props.row.route.slug ?? ''}`} class="font-mono font-semibold text-sm hover:opacity-70">
         {props.row.route.label}
       </A>
       <Show when={props.row.decl}>{(d) => <Signature decl={d()} />}</Show>
@@ -119,14 +125,15 @@ const Signature = (props: { decl: Types.Declaration }) => {
 }
 
 /** Bucket child routes by declaration kind, ordered by the canonical group order. */
-const groupChildren = (project: Types.Project, children: ChildRoute[]): { title: string; items: ChildRow[] }[] => {
+const groupChildren = (project: Types.Project, children: Types.RouteNode[]): { title: string; items: ChildRow[] }[] => {
   const buckets = new Map<string, ChildRow[]>()
   for (const route of children) {
+    if (route.page?.kind !== 'doc') continue
     const decl = project.byId(route.page.id)
     const kind = decl?.kind ?? 'module'
     const title = pluralLabel(kind)
     const arr = buckets.get(title) ?? []
-    arr.push({ route, decl, kind, summary: commentSummaryText(decl?.comment) })
+    arr.push({ route: route as ChildRoute, decl, kind, summary: commentSummaryText(decl?.comment) })
     buckets.set(title, arr)
   }
   return [...buckets.entries()]

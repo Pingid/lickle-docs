@@ -2,6 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, on, 
 import { useNavigate } from '../context/router.tsx'
 
 import { useProject, type Types } from '../context/index.tsx'
+import { docRoutes, pageRoutes } from '../util/routes.ts'
 import { type SearchHit } from '../util/search.ts'
 import { useSearch } from '../hooks/index.ts'
 import { type Kind } from '../util/kind.ts'
@@ -45,7 +46,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
 
   // Before the user types, suggest the first module's entries so the palette
   // opens with something to browse instead of an empty box.
-  const firstModule = createMemo(() => project().routes.find((r) => r.sidebar && r.page.kind !== 'markdown'))
+  const firstModule = createMemo(() => pageRoutes(project().routes).find((r) => r.sidebar && r.page?.kind === 'doc'))
   const suggestions = createMemo<SearchHit[]>(() => {
     const mod = firstModule()
     return mod ? childHits(project(), mod).slice(0, DEFAULT_LIMIT) : []
@@ -188,14 +189,14 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
 /** Map a route's direct children into search-hit rows for the default listing. */
 const childHits = (project: Types.Project, route: Types.RouteNode): SearchHit[] => {
   const out: SearchHit[] = []
-  for (const child of route.children) {
-    if (child.page.kind === 'markdown') continue
+  for (const child of docRoutes(route.children)) {
+    if (child.page?.kind !== 'doc') continue
     const decl = project.byId(child.page.id)
     out.push({
       name: child.label,
       qualified: child.page.qualified,
       kind: (decl?.kind ?? 'module') as Kind,
-      slug: child.slug,
+      slug: child.slug ?? '',
       file: decl?.sources?.[0]?.file ?? '',
     })
   }

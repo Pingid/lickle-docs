@@ -57,21 +57,25 @@ const PathRoute = () => {
 /** Dispatch a route to the page renderer matching its `page.kind`. */
 const RouteView = (props: { route: Types.RouteNode }) => (
   <Show
-    when={props.route.page.kind === 'markdown'}
-    fallback={<DeclarationView route={props.route as Types.RouteNode<'doc'>} />}
+    when={props.route.page?.kind === 'markdown'}
+    fallback={<DeclarationView route={props.route} />}
   >
     <MarkdownPage route={props.route as Types.RouteNode<'markdown'>} />
   </Show>
 )
 
-const DeclarationView = (props: { route: Types.RouteNode<'doc'> }) => {
+const DeclarationView = (props: { route: Types.RouteNode }) => {
   const project = useProject()
-  const decl = createMemo(() => project().byId(props.route.page.id))
+  const id = createMemo(() => (props.route.page?.kind === 'doc' ? props.route.page.id : undefined))
+  const decl = createMemo(() => {
+    const i = id()
+    return i != null ? project().byId(i) : undefined
+  })
   return (
     <Show when={decl()} fallback={<NotFound />}>
       {(d) => (
         <DeclarationScope id={d().id}>
-          <Page route={props.route} decl={d()} />
+          <Page route={props.route as Types.RouteNode<'doc'>} decl={d()} />
         </DeclarationScope>
       )}
     </Show>

@@ -1,6 +1,4 @@
-import { v } from '@lickle/is'
-
-import type { RouteProvider } from '../core/project/routing.ts'
+import type { RouteProvider } from '../core/project/index.ts'
 
 /** Configuration used for generating the project json */
 export interface UserConfig {
@@ -44,7 +42,12 @@ export interface UserConfig {
   /** Languages used in example code blocks and markdown for syntax highlighting. Defaults to ['ts'] */
   languages?: string[]
 
-  /** Route provider */
+  /**
+   * Customise the route tree: naming, nav visibility, grouping, and child
+   * shape (filter / reorder / relocate / group). Build one with
+   * `createRouteProvider`, or compose the stock presets (`groupByKind`,
+   * `sortAlphabetically`, `hide`, …) with `compose`. Code config only.
+   */
   provider?: RouteProvider
 }
 
@@ -80,6 +83,8 @@ export interface Repo {
   fileUrl?: string
 }
 
+import { v, type Valid } from '@lickle/is'
+
 // ---------------- Validation ----------------
 const repo = v.struct.match<Repo>({
   url: v.string,
@@ -98,7 +103,7 @@ const entry = v.struct.match<Entry>({
   path: v.string,
 })
 
-const any = (v: any) => ({ ok: true, value: v }) as const
+const any: Valid<any, unknown> = (v) => ({ ok: true, value: v })
 
 export const schema = v.struct.match<UserConfig>({
   name: v.string,

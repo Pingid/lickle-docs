@@ -48,7 +48,11 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const routes = Core.project.flattenRoutes(opts.json.routes)
 
   for (const route of routes) {
-    const { body, head } = await renderPage(opts.json, prefixSlash(route.slug))
+    // Group nodes are sidebar-only headings — no page, no slug — so skip them.
+    const { page, slug } = route
+    if (!page || slug === undefined) continue
+
+    const { body, head } = await renderPage(opts.json, prefixSlash(slug))
 
     const bodyHtml = [`<div id="root">${body}</div>`, `<script type="module" src="${jsonHref}"></script>`]
     if (!opts.noJavascript) bodyHtml.push(`<script type="module" src="${clientSrc}"></script>`)
@@ -56,10 +60,10 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
     const html = htmlShell({
       body: bodyHtml.join('\n'),
       head: [`<link rel="stylesheet" href="${cssHref}" />`, head].join('\n'),
-      title: isRouteRoot(route) ? opts.json.name : route.page.kind === 'markdown' ? route.label : route.page.qualified,
+      title: isRouteRoot(route) ? opts.json.name : page.kind === 'markdown' ? route.label : page.qualified,
     })
 
-    const outPath = path.join(opts.outDir, isRouteRoot(route) ? 'index.html' : route.slug + '.html')
+    const outPath = path.join(opts.outDir, isRouteRoot(route) ? 'index.html' : slug + '.html')
 
     await Lib.fs.ensureDir(outPath)
     await Lib.fs.writeFile(outPath, html)
@@ -96,6 +100,6 @@ const serializeJson = (json: unknown): string =>
 const prefixSlash = (p: string) => (p.startsWith('/') ? p : `/${p}`)
 
 const isRouteRoot = (route: Core.project.RouteNode) => {
-  const s = route.slug.trim()
+  const s = (route.slug ?? '').trim()
   return s === '/' || s === ''
 }

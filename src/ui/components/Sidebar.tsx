@@ -48,25 +48,31 @@ type NodeProps = { node: Node; depth: number; onNavigate?: () => void }
  * A single route. Branches render as a native `<details>` so expand/collapse
  * works with zero JavaScript; the branch on the active path is open by default
  * (slugs are hierarchical, so the active page lives under the node's prefix).
+ *
+ * A *group* node (no page / no slug) is a label-only heading — its summary is
+ * plain text rather than a link, and it defaults open.
  */
 const NavNode = (props: NodeProps) => {
   const loc = useLocation()
   const kids = createMemo(() => props.node.children.filter((c) => c.sidebar))
-  const base = () => `/${props.node.slug}`
-  const isActive = () => loc.pathname === base()
-  const onPath = () => isActive() || loc.pathname.startsWith(`${base()}/`)
+  const group = () => props.node.page === undefined || props.node.slug === undefined
+  const base = () => (props.node.slug ? `/${props.node.slug}` : undefined)
+  const isActive = () => !!base() && loc.pathname === base()
+  const onPath = () => isActive() || (!!base() && loc.pathname.startsWith(`${base()}/`))
 
   return (
     <Show
       when={kids().length}
       fallback={
-        <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
-          <span class="w-5 shrink-0" />
-          <NodeLink {...props} active={isActive()} />
-        </div>
+        <Show when={!group()}>
+          <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
+            <span class="w-5 shrink-0" />
+            <NodeLink {...props} active={isActive()} />
+          </div>
+        </Show>
       }
     >
-      <details open={onPath()} class="group">
+      <details open={group() || onPath()} class="group">
         <summary
           class="flex items-center list-none cursor-pointer [&::-webkit-details-marker]:hidden"
           style={{ 'padding-left': indent(props.depth) }}
@@ -74,7 +80,9 @@ const NavNode = (props: NodeProps) => {
           <span class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors">
             <Chevron />
           </span>
-          <NodeLink {...props} active={isActive()} />
+          <Show when={!group()} fallback={<GroupSummary label={props.node.label} />}>
+            <NodeLink {...props} active={isActive()} />
+          </Show>
         </summary>
         <NavList nodes={kids()} depth={props.depth + 1} onNavigate={props.onNavigate} />
       </details>
@@ -82,9 +90,15 @@ const NavNode = (props: NodeProps) => {
   )
 }
 
+const GroupSummary = (props: { label: string }) => (
+  <span class="flex-1 flex items-center px-1.5 py-1 min-w-0">
+    <span class="font-mono truncate uppercase text-[0.7rem] tracking-wider font-semibold text-mute">{props.label}</span>
+  </span>
+)
+
 const NodeLink = (props: NodeProps & { active: boolean }) => (
   <A
-    href={`/${props.node.slug}`}
+    href={`/${props.node.slug ?? ''}`}
     class="flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors min-w-0"
     classList={{ '!text-fg !bg-hover font-medium': props.active }}
     onClick={() => props.onNavigate?.()}
@@ -100,7 +114,7 @@ const KindCue = (props: { node: Node }) => {
   const project = useProject()
   const kind = () => {
     const page = props.node.page
-    if (page.kind === 'markdown') return undefined
+    if (!page || page.kind === 'markdown') return undefined
     return project().byId(page.id)?.kind
   }
   return <Show when={kind()}>{(k) => <Type.KindBadge kind={k()} class="text-[0.7rem]! w-3.5 shrink-0" />}</Show>

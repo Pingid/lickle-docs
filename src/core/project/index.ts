@@ -9,6 +9,9 @@ import * as routing from './routing.ts'
 
 export * from './debug.ts'
 export * from './types.ts'
+export * from './routing.ts'
+export * from './builder.ts'
+export * from './presets.ts'
 
 export const buildJson = async (opts: PreparedConfig): Promise<ProjectJson> => {
   const graph = reflect.generate(opts.config.entrypoints ?? [], {
@@ -39,7 +42,8 @@ export const buildJson = async (opts: PreparedConfig): Promise<ProjectJson> => {
 }
 
 /** All slugs in a route subtree, so routing can avoid colliding with them. */
-const collectSlugs = (routes: RouteNode[]): string[] => routes.flatMap((r) => [r.slug, ...collectSlugs(r.children)])
+const collectSlugs = (routes: RouteNode[]): string[] =>
+  routes.flatMap((r) => [...(r.slug ? [r.slug] : []), ...collectSlugs(r.children)])
 
 const keepFile =
   (opts: PreparedConfig) =>

@@ -21,14 +21,19 @@ export interface ProjectJson {
   declarations: reflect.Declaration[]
 }
 
-/** Used to generate navigation, for now all declarations are pages */
+/**
+ * A navigation node. Most nodes carry a `page` (and therefore a `slug`) and are
+ * navigation targets; a *group* node omits both — it's a label-only heading
+ * with children, used to lay out a section in the sidebar without a backing
+ * declaration. Consumers should branch on `page` (see {@link PageRoute}).
+ */
 export type BaseRoute<P> = {
   /** Label used in the navigation */
   label: string
-  /** Slug of the page, used in the URL */
-  slug: string
-  /** Page type to display */
-  page: P
+  /** Slug of the page, used in the URL. Absent on label-only group nodes. */
+  slug?: string
+  /** Page type to display. Absent on label-only group nodes. */
+  page?: P
   /** sub pages */
   children: BaseRoute<P>[]
   /** Whether the page should be displayed in the navigation */
@@ -44,3 +49,9 @@ type PageTypeMap = t.MapKind<{
 
 export type PageType<K extends keyof PageTypeMap = keyof PageTypeMap> = PageTypeMap[K]
 export type RouteNode<K extends keyof PageTypeMap = keyof PageTypeMap> = BaseRoute<PageType<K>>
+
+/** A route that actually renders a page (i.e. not a label-only group). */
+export type PageRoute<K extends keyof PageTypeMap = keyof PageTypeMap> = RouteNode<K> & {
+  slug: string
+  page: PageType<K>
+}

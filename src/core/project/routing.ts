@@ -39,29 +39,46 @@ export type RouteContext = {
 }
 
 /**
- * Customisation seam for the route tree. The traversal, de-duplication and
- * page wiring stay in {@link buildRoutes}; a provider only decides per-route
- * presentation. Every hook is optional and receives the stock result as
- * `defaults`, so an override can build on the default instead of replacing it:
+ * What a route's child slot can hold after reshaping:
+ *   - `{ id, alias? }` — a real declaration child (built into a page).
+ *   - `{ group, children }` — a synthetic group wrapping nested children.
  *
- * ```ts
- * createRouteProvider({ name: (cx, defaults) => ({ ...defaults, label: defaults.label.toUpperCase() }) })
- * ```
+ * A synthetic group becomes a label-only navigation node: it has children but
+ * no `page` and no `slug`, so it's a collapsible heading in the sidebar that
+ * isn't itself a navigation target. Its children keep their own slugs nested
+ * under the *module* (the group doesn't appear in slugs or qualified names),
+ * so wrapping `Foo` in a `"Types"` group never turns it into `module/Types/Foo`.
+ * Use it to lay out a labelled section (`"Core API"`, `"Types"`) with no
+ * backing declaration.
+ */
+export type ChildSpec = { id: number; alias?: string } | { group: string; children: ChildSpec[] }
+
+/**
+ * Customisation seam for the route tree. The traversal, de-duplication and
+ * page wiring stay in {@link buildRoutes}; a provider decides per-route
+ * presentation and (optionally) per-route child shape. Build one with
+ * {@link createRouteProvider} and override the parts you care about.
  */
 export interface RouteProvider {
   /** Label, slug and qualified name for the route. */
-  name?(cx: RouteContext, defaults: naming.Parts): naming.Parts
-  /** Whether the route appears in navigation (the sidebar). */
-  nav?(cx: RouteContext, defaults: boolean): boolean
-  /** Optional group heading rendered above the route in navigation. */
-  group?(cx: RouteContext): string | undefined
-}
-
-/** A provider with every hook resolved — what {@link buildRoutes} consumes. */
-export type ResolvedRouteProvider = {
   name(cx: RouteContext): naming.Parts
+  /** Whether the route appears in navigation (the sidebar). */
   nav(cx: RouteContext): boolean
+  /** Optional group heading rendered above the route in navigation. */
   group(cx: RouteContext): string | undefined
+  /**
+   * Reshape the children of a route before they're built. Receives the
+   * children the default traversal would use — the exposure graph in
+   * `exposed` mode, the raw declaration tree (minus re-export clauses) in
+   * `full` mode — and returns the children to actually build, in order.
+   *
+   * Filter, reorder, relocate (pull a grandchild up by returning its id), or
+   * wrap runs in synthetic groups. Slug and ownership allocation still happen
+   * downstream, so a declaration relocated here is still owned by whichever
+   * route reaches it first in build order; later reaches become links. This
+   * hook only decides shape, never identity.
+   */
+  children?(cx: RouteContext, kids: ChildSpec[]): ChildSpec[]
 }
 
 /** Default naming: entry modules from their path/alias, everything else nested under its parent. */
@@ -71,17 +88,15 @@ const defaultName = (cx: RouteContext): naming.Parts =>
     : naming.childParts(cx.alias ?? cx.decl.name, cx.parent)
 
 /**
- * Resolve a (partial) provider: unset hooks fall back to the stock behaviour
- * (path-derived names, everything navigable, no groups), and each set hook
- * receives that stock result as its `defaults` argument.
+ * Compose a provider from optional overrides; unset hooks fall back to the
+ * stock behaviour (path-derived names, everything navigable, no groups, no
+ * child reshaping).
  */
-export const createRouteProvider = (provider: RouteProvider = {}): ResolvedRouteProvider => ({
-  name: (cx) => {
-    const def = defaultName(cx)
-    return provider.name?.(cx, def) ?? def
-  },
-  nav: (cx) => provider.nav?.(cx, true) ?? true,
-  group: (cx) => provider.group?.(cx),
+export const createRouteProvider = (overrides: Partial<RouteProvider> = {}): RouteProvider => ({
+  name: overrides.name ?? defaultName,
+  nav: overrides.nav ?? (() => true),
+  group: overrides.group ?? (() => undefined),
+  children: overrides.children,
 })
 
 // ----------------------------------------------------------------------------
@@ -101,7 +116,7 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
     aliases: new Map((opts.entrypoints ?? []).map((e) => [e.path, e.as.replace(/^\.\//, '')])),
     commonDir: index.commonDir(),
   }
-  const provider = createRouteProvider(opts.provider)
+  const provider = opts.provider ?? createRouteProvider()
   const full = opts.mode === 'full'
   const seen = new Set<number>()
 
@@ -118,9 +133,9 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
 
   // Children of a route: the exposure graph in `exposed` mode, the raw
   // declaration tree (minus re-export clauses) in `full` mode.
-  const childrenOf = (id: number): Iterable<{ id: number; alias?: string }> => {
-    if (!full) return index.exposed(id)
-    const out: { id: number }[] = []
+  const childrenOf = (id: number): ChildSpec[] => {
+    if (!full) return [...index.exposed(id)]
+    const out: ChildSpec[] = []
     for (const c of index.children(id)) if (c.kind !== 'export') out.push({ id: c.id })
     return out
   }
@@ -173,16 +188,11 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
     routed.set(id, parts)
 
     seen.add(id)
-    const children: RouteNode<Page>[] = []
-    for (const e of childrenOf(id)) {
-      if (e.id === id) continue
-      if (seen.has(e.id)) {
-        const canon = routed.get(e.id)
-        if (canon) children.push(linkNode(e.id, parts, e.alias, canon))
-        continue
-      }
-      children.push(buildRoute(e.id, parts, e.alias))
-    }
+
+    // Hand the default child set to the provider for reshaping, then build.
+    const raw = childrenOf(id)
+    const specs = provider.children ? provider.children(cx, raw) : raw
+    const children = buildChildSpecs(specs, parts, id)
 
     const group = provider.group(cx)
     return {
@@ -193,6 +203,31 @@ export const buildRoutes = (index: reflect.Index, opts: Options): RouteNode<Page
       sidebar: provider.nav(cx),
       ...(group ? { group } : {}),
     }
+  }
+
+  // Lower a (possibly reshaped) child-spec list into route nodes. Real ids run
+  // through the same seen/ownership logic as before — first reach owns the
+  // page, later reaches become links. A synthetic `{ group }` becomes a
+  // label-only node (no page, no slug) whose children are built normally; its
+  // children's slugs still nest under `parent`, so the group is purely
+  // presentational.
+  const buildChildSpecs = (specs: ChildSpec[], parent: naming.Parts, selfId: number): RouteNode<Page>[] => {
+    const out: RouteNode<Page>[] = []
+    for (const spec of specs) {
+      if ('group' in spec) {
+        const children = buildChildSpecs(spec.children, parent, selfId)
+        if (children.length) out.push({ label: spec.group, children, sidebar: true })
+        continue
+      }
+      if (spec.id === selfId) continue
+      if (seen.has(spec.id)) {
+        const canon = routed.get(spec.id)
+        if (canon) out.push(linkNode(spec.id, parent, spec.alias, canon))
+        continue
+      }
+      out.push(buildRoute(spec.id, parent, spec.alias))
+    }
+    return out
   }
 
   // `full` lists every module; `exposed` only the entrypoints. Name (and slug-
