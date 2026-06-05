@@ -2,6 +2,7 @@ import type { RouteNode, PageType } from './types.ts'
 import * as reflect from '../reflect/index.ts'
 import * as config from '../../config/load.ts'
 import * as naming from './naming.ts'
+import { kindLayout } from './builder.ts'
 
 type Page = 'doc'
 
@@ -108,14 +109,15 @@ const defaultName = (cx: RouteContext): naming.Parts => {
 
 /**
  * Compose a provider from optional overrides; unset hooks fall back to the
- * stock behaviour (path-derived names, everything navigable, no groups, no
- * child reshaping).
+ * stock behaviour: path-derived names, everything navigable, no `group`
+ * headings, and {@link kindLayout} grouping children by declaration kind (the
+ * same labels and order the page content listing uses).
  */
 export const createRouteProvider = (overrides: Partial<RouteProvider> = {}): RouteProvider => ({
   name: overrides.name ?? defaultName,
   nav: overrides.nav ?? (() => true),
   group: overrides.group ?? (() => undefined),
-  children: overrides.children,
+  children: overrides.children ?? kindLayout,
 })
 
 // ----------------------------------------------------------------------------

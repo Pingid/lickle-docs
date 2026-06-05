@@ -1,5 +1,6 @@
 import type * as reflect from '../reflect/index.ts'
 import type { ChildSpec, RouteContext } from './routing.ts'
+import { pluralLabel, groupOrder } from './kind.ts'
 
 // ----------------------------------------------------------------------------
 // Read-only facade over `reflect.Index`
@@ -119,26 +120,9 @@ export interface ReshapeTools {
 /** Comparator — alphabetical by declaration name. */
 export const compareByName = (a: Decl, b: Decl): number => a.name.localeCompare(b.name)
 
-/** Canonical declaration-kind ordering for layout. */
-const KIND_ORDER: (keyof reflect.DeclarationMap)[] = [
-  'module',
-  'namespace',
-  'function',
-  'variable',
-  'type-alias',
-  'interface',
-  'class',
-  'enum',
-  'export',
-]
-
-export const kindRank = (kind: string): number => {
-  const i = KIND_ORDER.indexOf(kind as keyof reflect.DeclarationMap)
-  return i < 0 ? KIND_ORDER.length : i
-}
-
-/** Comparator — canonical kind order, then alphabetical by name. */
-export const compareByKind = (a: Decl, b: Decl): number => kindRank(a.kind) - kindRank(b.kind) || compareByName(a, b)
+/** Comparator — canonical section order (functions → variables → types → …), then name. */
+export const compareByKind = (a: Decl, b: Decl): number =>
+  groupOrder(pluralLabel(a.kind)) - groupOrder(pluralLabel(b.kind)) || compareByName(a, b)
 
 /**
  * Reshape a route's children with a callback over wrapped declarations.
@@ -175,3 +159,22 @@ const lower = (built: Built[]): ChildSpec[] =>
       ? { id: b.id, ...(b.alias !== undefined ? { alias: b.alias } : {}) }
       : { group: b.group, children: lower(b.children) },
   )
+
+/**
+ * Default child layout: group a route's children by declaration kind under
+ * synthetic headings, using the same section titles ({@link pluralLabel}) and
+ * order ({@link groupOrder}) as the page content listing, names sorted within.
+ */
+export const kindLayout = (cx: RouteContext, kids: ChildSpec[]): ChildSpec[] =>
+  reshape(cx, kids, ({ all, group, byName }) => {
+    const buckets = new Map<string, Exposed[]>()
+    for (const d of all) {
+      const title = pluralLabel(d.kind)
+      const arr = buckets.get(title)
+      if (arr) arr.push(d)
+      else buckets.set(title, [d])
+    }
+    return [...buckets.entries()]
+      .sort(([a], [b]) => groupOrder(a) - groupOrder(b) || a.localeCompare(b))
+      .map(([title, items]) => group(title, [...items].sort(byName)))
+  })

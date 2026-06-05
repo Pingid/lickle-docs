@@ -25,7 +25,7 @@ const NavList = (props: { nodes: Node[]; depth: number; onNavigate?: () => void 
     {(node, i) => (
       <>
         <Show when={node.group && node.group !== props.nodes[i() - 1]?.group}>
-          <GroupHeader label={node.group!} depth={props.depth} />
+          <GroupLabel label={node.group!} depth={props.depth} />
         </Show>
         <NavNode node={node} depth={props.depth} onNavigate={props.onNavigate} />
       </>
@@ -33,10 +33,11 @@ const NavList = (props: { nodes: Node[]; depth: number; onNavigate?: () => void 
   </For>
 )
 
-const GroupHeader = (props: { label: string; depth: number }) => (
+/** A non-interactive section heading shown above a run of related routes. */
+const GroupLabel = (props: { label: string; depth: number }) => (
   <div
-    class="pt-4 pb-1 px-2 text-[0.7rem] uppercase tracking-wider font-semibold text-mute first:pt-1"
-    style={{ 'padding-left': indent(props.depth) }}
+    class="pr-2 pt-4 pb-1 text-[0.6875rem] font-medium text-mute/55 select-none first:pt-1"
+    style={{ 'padding-left': `calc(${indent(props.depth)} + 1.625rem)` }}
   >
     {props.label}
   </div>
@@ -45,34 +46,44 @@ const GroupHeader = (props: { label: string; depth: number }) => (
 type NodeProps = { node: Node; depth: number; onNavigate?: () => void }
 
 /**
- * A single route. Branches render as a native `<details>` so expand/collapse
- * works with zero JavaScript; the branch on the active path is open by default
- * (slugs are hierarchical, so the active page lives under the node's prefix).
+ * A single navigation node.
  *
- * A *group* node (no page / no slug) is a label-only heading — its summary is
- * plain text rather than a link, and it defaults open.
+ * - A *group* node (no page / no slug) is a non-collapsible section: a
+ *   {@link GroupLabel} heading with its children rendered flush beneath it.
+ * - A *route* with children renders as a native `<details>` so expand/collapse
+ *   works with zero JavaScript; the branch on the active path is open by
+ *   default (slugs are hierarchical, so the active page lives under its prefix).
+ * - A leaf route is a plain link.
  */
 const NavNode = (props: NodeProps) => {
   const loc = useLocation()
   const kids = createMemo(() => props.node.children.filter((c) => c.sidebar))
-  const group = () => props.node.page === undefined || props.node.slug === undefined
+  const isGroup = () => props.node.page === undefined || props.node.slug === undefined
   const base = () => (props.node.slug ? `/${props.node.slug}` : undefined)
   const isActive = () => !!base() && loc.pathname === base()
   const onPath = () => isActive() || (!!base() && loc.pathname.startsWith(`${base()}/`))
+
+  if (isGroup())
+    return (
+      <Show when={kids().length}>
+        <div>
+          <GroupLabel label={props.node.label} depth={props.depth} />
+          <NavList nodes={kids()} depth={props.depth} onNavigate={props.onNavigate} />
+        </div>
+      </Show>
+    )
 
   return (
     <Show
       when={kids().length}
       fallback={
-        <Show when={!group()}>
-          <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
-            <span class="w-5 shrink-0" />
-            <NodeLink {...props} active={isActive()} />
-          </div>
-        </Show>
+        <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
+          <span class="w-5 shrink-0" />
+          <NodeLink {...props} active={isActive()} />
+        </div>
       }
     >
-      <details open={group() || onPath()} class="group">
+      <details open={onPath()} class="group">
         <summary
           class="flex items-center list-none cursor-pointer [&::-webkit-details-marker]:hidden"
           style={{ 'padding-left': indent(props.depth) }}
@@ -80,21 +91,13 @@ const NavNode = (props: NodeProps) => {
           <span class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors">
             <Chevron />
           </span>
-          <Show when={!group()} fallback={<GroupSummary label={props.node.label} />}>
-            <NodeLink {...props} active={isActive()} />
-          </Show>
+          <NodeLink {...props} active={isActive()} />
         </summary>
         <NavList nodes={kids()} depth={props.depth + 1} onNavigate={props.onNavigate} />
       </details>
     </Show>
   )
 }
-
-const GroupSummary = (props: { label: string }) => (
-  <span class="flex-1 flex items-center px-1.5 py-1 min-w-0">
-    <span class="font-mono truncate uppercase text-[0.7rem] tracking-wider font-semibold text-mute">{props.label}</span>
-  </span>
-)
 
 const NodeLink = (props: NodeProps & { active: boolean }) => (
   <A
