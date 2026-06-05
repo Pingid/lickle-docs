@@ -66,10 +66,8 @@ const NavNode = (props: NodeProps) => {
   if (isGroup())
     return (
       <Show when={kids().length}>
-        <div>
-          <GroupLabel label={props.node.label} depth={props.depth} />
-          <NavList nodes={kids()} depth={props.depth} onNavigate={props.onNavigate} />
-        </div>
+        <GroupLabel label={props.node.label} depth={props.depth} />
+        <NavList nodes={kids()} depth={props.depth} onNavigate={props.onNavigate} />
       </Show>
     )
 
