@@ -1,6 +1,7 @@
 import { create, insert, search } from '@orama/orama'
 
 import { type Types } from '../context/index.tsx'
+import { docStatement } from './route.ts'
 import { type Kind } from './kind.ts'
 
 export type SearchHit = { name: string; qualified: string; kind: Kind; slug: string; file: string }
@@ -8,11 +9,11 @@ export type SearchHit = { name: string; qualified: string; kind: Kind; slug: str
 export type SearchEngine = { query: (term: string, limit?: number) => Promise<SearchHit[]> }
 
 /**
- * Build an in-browser Orama index over every routed page in `project`.
+ * Build an in-browser Orama index over every declaration route in `project`.
  * Names are boosted above qualified paths so exact-name hits rank first;
  * `tolerance: 1` allows one-character typos. Each declaration is indexed once
  * — re-export routes share a declaration id, so they're de-duplicated here.
- * Group nodes (no page) are skipped but their children are still walked.
+ * Markdown pages (no `doc:statement`) are skipped.
  */
 export const createSearchEngine = async (project: Types.Project): Promise<SearchEngine> => {
   const db = await create({
@@ -23,25 +24,21 @@ export const createSearchEngine = async (project: Types.Project): Promise<Search
   })
 
   const seen = new Set<number>()
-  const walk = async (routes: Types.RouteNode[]): Promise<void> => {
-    for (const r of routes) {
-      if (r.page?.kind === 'doc' && !seen.has(r.page.id)) {
-        seen.add(r.page.id)
-        const decl = project.byId(r.page.id)
-        const kind = (decl?.kind ?? 'module') as Kind
-        await insert(db, {
-          name: r.label,
-          qualified: r.page.qualified,
-          kind,
-          slug: r.slug ?? '',
-          file: decl?.sources?.[0]?.file ?? '',
-          terms: termsOf(r.label, r.page.qualified),
-        })
-      }
-      await walk(r.children)
-    }
+  for (const route of project.routes.items) {
+    const stmt = docStatement(route)
+    if (!stmt || seen.has(stmt.id)) continue
+    seen.add(stmt.id)
+    const decl = project.byId(stmt.id)
+    const kind = (decl?.kind ?? 'module') as Kind
+    await insert(db, {
+      name: route.title,
+      qualified: stmt.alias,
+      kind,
+      slug: route.slug,
+      file: decl?.sources?.[0]?.file ?? '',
+      terms: termsOf(route.title, stmt.alias),
+    })
   }
-  await walk(project.legacyRoutes)
 
   return {
     query: async (term, limit = 20) => {

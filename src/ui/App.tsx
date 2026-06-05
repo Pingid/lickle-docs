@@ -2,16 +2,9 @@ import { Show, createMemo, type Accessor, type Component } from 'solid-js'
 import { Route, useParams, Navigate, HashRouter } from './context/router.tsx'
 import type { JSX } from 'solid-js/jsx-runtime'
 
-import {
-  ComponentsProvider,
-  DeclarationScope,
-  ProjectProvider,
-  useProject,
-  type Components,
-  type Types,
-} from './context/index.tsx'
-import { Link, Page, MarkdownPage, Layout } from './components/index.ts'
-import type { ProjectJson } from '../core/project/types.ts'
+import { ComponentsProvider, ProjectProvider, useProject, type Components } from './context/index.tsx'
+import { Link, Page, Layout } from './components/index.ts'
+import type { ProjectJson } from '../core/client/index.ts'
 import { BASE_URL } from './util/base.ts'
 
 export interface AppProps {
@@ -39,53 +32,26 @@ export const App = (p: AppProps) => {
  */
 export const Routes = () => <Route path="/*slug" component={PathRoute} />
 
-/** First navigable route slug — the implicit home target. */
-const firstSlug = (routes: Types.RouteNode[]): string | undefined => (routes.find((r) => r.sidebar) ?? routes[0])?.slug
-
 /** Resolve the current `/*slug` path to a route and render its page. */
 const PathRoute = () => {
   const params = useParams()
   const project = useProject()
-  const route = createMemo(() => project().routeForSlug(params['slug'] ?? ''))
+  const route = createMemo(() => project().routes.get({ slug: params['slug'] ?? '' }))
+
   return (
     <Show when={route()} fallback={<Fallback slug={params['slug']} />}>
-      {(r) => <RouteView route={r()} />}
+      {(r) => <Page route={r()} />}
     </Show>
   )
 }
 
-/** Dispatch a route to the page renderer matching its `page.kind`. */
-const RouteView = (props: { route: Types.RouteNode }) => (
-  <Show when={props.route.page?.kind === 'markdown'} fallback={<DeclarationView route={props.route} />}>
-    <MarkdownPage route={props.route as Types.RouteNode<'markdown'>} />
-  </Show>
-)
-
-const DeclarationView = (props: { route: Types.RouteNode }) => {
-  const project = useProject()
-  const id = createMemo(() => (props.route.page?.kind === 'doc' ? props.route.page.id : undefined))
-  const decl = createMemo(() => {
-    const i = id()
-    return i != null ? project().byId(i) : undefined
-  })
-  return (
-    <Show when={decl()} fallback={<NotFound />}>
-      {(d) => (
-        <DeclarationScope id={d().id}>
-          <Page route={props.route as Types.RouteNode<'doc'>} decl={d()} />
-        </DeclarationScope>
-      )}
-    </Show>
-  )
-}
-
-/** Empty path redirects to the first route; anything else is a miss. */
+/** Empty path redirects to the first sidebar route; anything else is a miss. */
 const Fallback = (props: { slug?: string }) => {
   const project = useProject()
-  const first = createMemo(() => firstSlug(project()?.legacyRoutes ?? []))
+  const first = createMemo(() => project()?.routes.sidebar.roots()[0]?.slug)
   return (
-    <Show when={!props.slug && first} fallback={<NotFound />}>
-      {(slug) => <Navigate href={`/${slug()}`} />}
+    <Show when={!props.slug && first()} fallback={<NotFound />}>
+      {(slug) => <Navigate href={slug()} />}
     </Show>
   )
 }

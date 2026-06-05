@@ -1,8 +1,9 @@
 import { createMemo, type Accessor } from 'solid-js'
 
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
-import { useProject, type Types } from '../context/index.tsx'
+import { useDeclarationId, useMarkup, useProject, type Types } from '../context/index.tsx'
 import { commentSummaryText } from '../util/comment.ts'
+import { docReferenced } from '../util/route.ts'
 import { withBaseUrl } from '../util/base.ts'
 
 // ============================================================================
@@ -17,10 +18,15 @@ import { withBaseUrl } from '../util/base.ts'
  * names and qualified names both resolve via the project's name index).
  */
 export const useSlugFor = () => {
+  const id = useDeclarationId()
   const project = useProject()
   return {
-    byId: (id: number): string | undefined => project().routeForId(id)?.slug,
-    byName: (name: string): string | undefined => project().routeByName(name)?.slug,
+    byId: (id: number): string | undefined => project().routes.get({ id })?.slug,
+    byName: (name: string): string | undefined => {
+      const decl = project().byName(name, id())
+      if (!decl) return undefined
+      return project().routes.get({ id: decl.id })?.slug
+    },
   }
 }
 
@@ -45,22 +51,22 @@ export const useReferences = (id: () => number): Accessor<ReferenceRow[]> => {
 }
 
 const buildReferenceRows = (project: Types.Project, id: number): ReferenceRow[] => {
-  const route = project.routeForId(id)
-  if (!route || route.page?.kind !== 'doc') return []
+  const route = project.routes.get({ id })
+  const refs = route ? (docReferenced(route)?.referenced ?? []) : []
 
   const seen = new Set<number>()
   const out: ReferenceRow[] = []
-  for (const refId of route.page.referencedIn) {
-    if (refId === id || seen.has(refId)) continue
-    seen.add(refId)
-    const refRoute = project.routeForId(refId)
-    const decl = project.byId(refId)
-    if (!refRoute || refRoute.page?.kind !== 'doc' || !decl) continue
-    const qualified = refRoute.page.qualified
+  for (const ref of refs) {
+    if (ref.target === id || seen.has(ref.target)) continue
+    seen.add(ref.target)
+    const refRoute = project.routes.get({ id: ref.target })
+    const decl = project.byId(ref.target)
+    if (!refRoute || !decl) continue
+    const qualified = ref.alias || refRoute.title
     const dot = qualified.lastIndexOf('.')
     out.push({
       decl,
-      slug: refRoute.slug ?? '',
+      slug: refRoute.slug,
       module: dot < 0 ? '' : qualified.slice(0, dot),
       name: dot < 0 ? qualified : qualified.slice(dot + 1),
       qualified,
@@ -93,6 +99,12 @@ const buildSearch = (project: Types.Project): Promise<SearchEngine> => {
   const p = createSearchEngine(project)
   searchCache.set(project, p)
   return p
+}
+
+export const useRenderMarkdown = (text: string) => {
+  const markup = useMarkup()
+  const slugs = useSlugFor()
+  return createMemo(() => markup()?.markdown(text, (name) => slugs.byName(name) ?? name))
 }
 
 export const useCommentMarkdown = (comment: () => Types.Comment) => {

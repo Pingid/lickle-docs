@@ -5,8 +5,10 @@ import { A } from '../context/router.tsx'
 import { Syntax } from './Syntax.tsx'
 
 export const Link = (props: { href: string; children: string }) => {
+  const href = () => (props.href.startsWith('//') ? props.href.slice(1) : props.href === '' ? '/' : props.href)
+
   return (
-    <A href={props.href} class="underline decoration-line underline-offset-[3px] hover:opacity-70">
+    <A href={href()} class="underline decoration-line underline-offset-[3px] hover:opacity-70">
       {props.children}
     </A>
   )

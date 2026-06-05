@@ -1,7 +1,7 @@
 import { Show } from 'solid-js'
 import cn from '@lickle/cn'
 
-import { useRenderMarkdown } from '../context/index.tsx'
+import { useRenderMarkdown } from '../hooks/index.ts'
 
 export const Markdown = (props: { source: string; class?: string }) => {
   const html = useRenderMarkdown(props.source)

@@ -1,13 +1,10 @@
-import type { ProjectJson, RouteNode } from '../../../core/project/types.ts'
-import type { Declaration, Source } from '../../../core/reflect/types.ts'
+import { type ClientRouter, type ProjectJson, type Declaration, type Source } from '../../../core/client/index.ts'
 
-export interface Project extends ProjectJson {
+export interface Project extends Omit<ProjectJson, 'routes'> {
   byId(id: number): Declaration | undefined
-  routeByName(name: string): RouteNode | undefined
-  routeForId(id: number): RouteNode | undefined
-  routeForSlug(slug: string): RouteNode | undefined
+  byName(name: string, scope: number | undefined): Declaration | undefined
   sourceLink(src: Source): string | undefined
+  routes: ClientRouter
 }
 
-export type * from '../../../core/project/types.ts'
-export type * from '../../../core/reflect/types.ts'
+export type * from '../../../core/client/index.ts'

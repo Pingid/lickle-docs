@@ -42,12 +42,12 @@ export const Breadcrumb = (props: { id: number }) => {
  * the sidebar. Levels with no page render as plain text.
  */
 const buildCrumbs = (project: Types.Project, id: number): Crumb[] => {
-  const route = project.routeForId(id)
+  const route = project.routes.get({ id })
   if (!route?.slug) return []
   const segs = route.slug.split('/')
   return segs.map((seg, i) => {
     const prefix = segs.slice(0, i + 1).join('/')
-    const r = project.routeForSlug(prefix)
-    return { label: r?.label ?? seg, href: r ? `/${prefix}` : undefined }
+    const r = project.routes.get({ slug: prefix })
+    return { label: r?.title ?? seg, href: r ? `/${prefix}` : undefined }
   })
 }

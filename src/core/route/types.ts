@@ -5,7 +5,7 @@ export interface Route {
   body: Body[]
 }
 
-export type Body = DocStatement | DocReferenced | Markdown
+export type Body = DocStatement | DocReferenced | MarkdownBody
 
 export interface DocStatement {
   kind: 'doc:statement'
@@ -20,7 +20,7 @@ export interface DocReferenced {
   referenced: TypeRef[]
 }
 
-export interface Markdown {
+export interface MarkdownBody {
   kind: 'markdown'
   markdown: string
 }

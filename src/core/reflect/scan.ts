@@ -3,15 +3,15 @@ import ts from 'typescript'
 
 import type * as T from './types.ts'
 
-export const scan = (rootFiles: string[], options: ScanOptions) => {
-  const compilerOptions: ts.CompilerOptions = { jsx: ts.JsxEmit.ReactJSX, ...options.compilerOptions }
-  const program = ts.createProgram(rootFiles, compilerOptions)
+export const scan = (options: ScanOptions) => {
+  const program = ts.createProgram(options.cmd.fileNames, options.cmd.options)
   const checker = program.getTypeChecker()
   const s = makeScanState(checker, options)
 
   const files = new Array<ts.SourceFile>()
-  for (const file of rootFiles) {
-    const sf = program.getSourceFile(file)
+  for (const file of program.getSourceFiles()) {
+    if (!options.include(file)) continue
+    const sf = program.getSourceFile(file.fileName)
     if (!sf) continue
     files.push(sf)
   }

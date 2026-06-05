@@ -1,5 +1,5 @@
 import { type RouteContext, type Provider, type Adapter, provideAdapter } from './core.ts'
-import type { ModuleRef, Body, Route, Sidebar } from '../types.ts'
+import type { ModuleRef, Body, Route, Sidebar, TypeRef } from '../types.ts'
 import type { Exposure } from '../../reflect/indexed.ts'
 
 export const provide = (c: RouteContext, adapter: Adapter): Provider => provideAdapter(c, provider(c), adapter)
@@ -11,6 +11,7 @@ const provider = (cx: RouteContext): Provider => ({
   route: getRoute(cx),
   sidebar: getSidebar(cx),
   modules: getModules(cx),
+  referenced: getReferenced(cx),
 })
 
 const getRoute =
@@ -26,14 +27,9 @@ const getRoute =
     const modules = cx.provider.modules(id)
     const exported = isExported(cx, id)
 
-    const referencedIn = [...cx.docs.referencedIn(id)]
-
     const body: Body[] = [
       { kind: 'doc:statement', alias, id, exported, modules },
-      {
-        kind: 'doc:referenced',
-        referenced: referencedIn.map((id) => ({ target: id, alias: cx.provider.alias(id) })),
-      },
+      { kind: 'doc:referenced', referenced: cx.provider.referenced(id) },
     ]
 
     return { title, slug, sidebar, body }
@@ -45,6 +41,12 @@ const getModules =
     const mods = cx.docs.exposures(id).flat()
 
     return mods.map((m) => ({ target: m.exposer, alias: cx.provider.alias(id) }))
+  }
+
+const getReferenced =
+  (cx: RouteContext) =>
+  (id: number): TypeRef[] => {
+    return Array.from(cx.docs.referencedIn(id)).map((id) => ({ target: id, alias: cx.provider.alias(id) }))
   }
 
 const isExported = (cx: RouteContext, id: number): boolean => !!getExposedPath(cx, id)[0]
@@ -63,7 +65,6 @@ const getSidebar =
     const parents = getExposedPath(cx, id)
     const parent = parents[parents.length - 1]
     const decl = cx.docs.get(id)!
-    if (!parent) console.log('no parent', id, cx.docs.get(id))
 
     if ((!parent && decl.kind === 'module') || decl.kind === 'export') return undefined
 
@@ -128,12 +129,12 @@ const rank = (cx: RouteContext, pth: Exposure[]) => {
 }
 
 const pathSegments = (cx: RouteContext, path: string) => {
-  const segs = path
+  let segs = path
     .replace(/^\.\//, '')
     .replace(/\.\w+$/, '')
     .split('/')
   if (segs[segs.length - 1] === 'index') segs.pop()
-
+  if (segs[segs.length - 1] === '.') segs[segs.length - 1] = ''
   const com = cx.docs.commonDir().split('/')
   while (com.length > 0 && segs.length > 0 && com[0] === segs[0]) {
     com.shift()

@@ -63,9 +63,9 @@ export interface Components {
   sidebar?: WithDefault<{ onNavigate?: () => void; class?: string }>
 
   // Page slots
-  'page.doc'?: WithDefault<{ decl: Types.Declaration; route: Types.RouteNode<'doc'> }>
-  'page.doc.header'?: WithDefault<{ decl: Types.Declaration; route: Types.RouteNode<'doc'> }>
-  'page.markdown'?: WithDefault<{ route: Types.RouteNode<'markdown'> }>
+  page?: WithDefault<{ route: Types.Route }>
+  'page.header'?: WithDefault<{ decl: Types.Declaration; route: Types.Route }>
+  'page.content'?: WithDefault<{ route: Types.Route; body: Types.Body }>
 
   // Declaration page slots
   declaration?: WithDefault<{ decl: Types.Declaration }>

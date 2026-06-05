@@ -13,10 +13,10 @@
  * ```
  *
  */
-import type { UserConfig } from './types.ts'
-export type * from './types.ts'
+import type { UserConfig } from '../core/config/types.ts'
+export type * from '../core/config/types.ts'
 
-export { createRouteProvider } from '../core/project/routing.ts'
+export * as Adapter from '../core/route/adapter/index.ts'
 
 export const defineConfig = (config: UserConfig | (() => UserConfig) | (() => Promise<UserConfig>)) => {
   const c = typeof config === 'function' ? config() : config

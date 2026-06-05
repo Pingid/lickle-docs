@@ -2,7 +2,6 @@ import * as cmd from 'cmd-ts'
 import path from 'node:path'
 
 import * as Client from '../../client/index.ts'
-import * as Config from '../../config/load.ts'
 import * as Core from '../../core/index.ts'
 
 /** Flags and options shared across the `dev`, `build`, and `preview` commands. */
@@ -85,7 +84,7 @@ const resolveOptions = (args: {
   outDir?: string
   router?: 'hash' | 'browser'
   noScript?: boolean
-}) => {
+}): Client.ClientOptions => {
   const dir = process.cwd()
   return {
     dir,
@@ -98,9 +97,11 @@ const resolveOptions = (args: {
 }
 
 /** Lazily load config + reflection JSON for the project rooted at `dir`. */
-const configLoader = (dir: string) => async () => {
-  const c = await Config.load(dir)
-  const file = await Config.findFile(dir)
-  const json = await Core.project.buildJson(c)
-  return { json, config: c.config, file }
-}
+const configLoader =
+  (dir: string): Client.ClientOptions['config'] =>
+  async () => {
+    const file = await Core.Config.findFile(dir)
+    const load = await Core.Config.load(dir)
+    const project = await Core.buildDocs(dir, load.config)
+    return { json: project.json, config: load.config, file }
+  }

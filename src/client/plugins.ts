@@ -5,7 +5,7 @@ import path from 'node:path'
 import { Util } from '../_lib/index.ts'
 
 import { htmlShellGenerator, type ViteContext } from './contex.ts'
-import { clientFiles, clientRoot } from './env.ts'
+import { clientFiles, libRoot } from './env.ts'
 
 export const project = (config: ViteContext): vite.Plugin => {
   const PROJECT_JSON_ID = 'virtual:lickle/docs.json'
@@ -170,7 +170,7 @@ export const resolve = (opts: ViteContext): vite.Plugin => {
   return {
     name: '@lickle/docs:plugin-imports',
     enforce: 'pre',
-    config: () => ({ server: { fs: { allow: [...(opts.dir ? [path.resolve(opts.dir)] : []), clientRoot] } } }),
+    config: () => ({ server: { fs: { allow: [...(opts.dir ? [path.resolve(opts.dir)] : []), libRoot] } } }),
     async resolveId(id, importer, resolveOpts) {
       // When such a bare import can't be resolved from the consumer, fall back to resolving it from lickle-docs
       if (!importer || !isBareImport(id)) return undefined

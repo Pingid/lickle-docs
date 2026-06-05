@@ -2,36 +2,50 @@ import { For, Show, createMemo } from 'solid-js'
 import { A, useLocation } from '../context/router.tsx'
 
 import { createSlot, useProject, type Types } from '../context/index.tsx'
+import { docStatement } from '../util/route.ts'
 import { Type } from './Type.tsx'
 
-type Node = Types.RouteNode
+type Route = Types.Route
 
 export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
   const project = useProject()
-  const routes = createMemo(() => project().legacyRoutes.filter((r) => r.sidebar))
+  const roots = createMemo(() => project().routes.sidebar.roots())
 
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
       <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
-        <NavList nodes={routes()} depth={0} onNavigate={props.onNavigate} />
+        <NavList routes={roots()} depth={0} onNavigate={props.onNavigate} />
       </nav>
     </aside>
   )
 })
 
-/** A list of sibling routes, with a `group` header inserted whenever it changes. */
-const NavList = (props: { nodes: Node[]; depth: number; onNavigate?: () => void }) => (
-  <For each={props.nodes}>
-    {(node, i) => (
-      <>
-        <Show when={node.group && node.group !== props.nodes[i() - 1]?.group}>
-          <GroupLabel label={node.group!} depth={props.depth} />
-        </Show>
-        <NavNode node={node} depth={props.depth} onNavigate={props.onNavigate} />
-      </>
-    )}
+/** A flat run of sibling routes. */
+const NavList = (props: { routes: Route[]; depth: number; onNavigate?: () => void }) => (
+  <For each={props.routes}>
+    {(route) => <NavNode route={route} depth={props.depth} onNavigate={props.onNavigate} />}
   </For>
 )
+
+/** The grouped children of a route, each group preceded by a {@link GroupLabel}. */
+const NavChildren = (props: { slug: string; depth: number; onNavigate?: () => void }) => {
+  const project = useProject()
+  const groups = createMemo(() => project().routes.sidebar.children(props.slug))
+
+  if (props.depth > 10) return <div>Too deep</div>
+  return (
+    <For each={groups()}>
+      {(g) => (
+        <>
+          <Show when={g.group}>
+            <GroupLabel label={g.group} depth={props.depth} />
+          </Show>
+          <NavList routes={g.items} depth={props.depth} onNavigate={props.onNavigate} />
+        </>
+      )}
+    </For>
+  )
+}
 
 /** A non-interactive section heading shown above a run of related routes. */
 const GroupLabel = (props: { label: string; depth: number }) => (
@@ -43,46 +57,36 @@ const GroupLabel = (props: { label: string; depth: number }) => (
   </div>
 )
 
-type NodeProps = { node: Node; depth: number; onNavigate?: () => void }
+type NodeProps = { route: Route; depth: number; onNavigate?: () => void }
 
 /**
  * A single navigation node.
  *
- * - A *group* node (no page / no slug) is a non-collapsible section: a
- *   {@link GroupLabel} heading with its children rendered flush beneath it.
- * - A *route* with children renders as a native `<details>` so expand/collapse
+ * - A route with children renders as a native `<details>` so expand/collapse
  *   works with zero JavaScript; the branch on the active path is open by
  *   default (slugs are hierarchical, so the active page lives under its prefix).
  * - A leaf route is a plain link.
  */
 const NavNode = (props: NodeProps) => {
+  const project = useProject()
   const loc = useLocation()
-  const kids = createMemo(() => props.node.children.filter((c) => c.sidebar))
-  const isGroup = () => props.node.page === undefined || props.node.slug === undefined
-  const base = () => (props.node.slug ? `/${props.node.slug}` : undefined)
-  const isActive = () => !!base() && loc.pathname === base()
-  const onPath = () =>
-    (isActive() || (!!base() && loc.pathname.startsWith(`${base()}/`))) && kids().some((k) => k.sidebar)
-
-  if (isGroup())
-    return (
-      <Show when={kids().length}>
-        <GroupLabel label={props.node.label} depth={props.depth} />
-        <NavList nodes={kids()} depth={props.depth} onNavigate={props.onNavigate} />
-      </Show>
-    )
+  const groups = createMemo(() => project().routes.sidebar.children(props.route.slug))
+  const hasChildren = () => groups().some((g) => g.items.length)
+  const base = () => props.route.slug
+  const isActive = () => loc.pathname === base()
+  const onPath = () => isActive() || loc.pathname.startsWith(`${base()}/`)
 
   return (
     <Show
-      when={kids().length}
+      when={hasChildren()}
       fallback={
         <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
           <span class="w-5 shrink-0" />
-          <NodeLink {...props} active={isActive()} />
+          <NodeLink route={props.route} active={isActive()} onNavigate={props.onNavigate} />
         </div>
       }
     >
-      <details open={onPath()} class="">
+      <details open={onPath()}>
         <summary
           class="flex items-center list-none cursor-pointer [&::-webkit-details-marker]:hidden"
           style={{ 'padding-left': indent(props.depth) }}
@@ -90,36 +94,35 @@ const NavNode = (props: NodeProps) => {
           <span class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors">
             <Chevron />
           </span>
-          <NodeLink {...props} active={isActive()} />
+          <NodeLink route={props.route} active={isActive()} onNavigate={props.onNavigate} />
         </summary>
         <div class="pb-2">
-          <NavList nodes={kids()} depth={props.depth + 1} onNavigate={props.onNavigate} />
+          <NavChildren slug={props.route.slug} depth={props.depth + 1} onNavigate={props.onNavigate} />
         </div>
       </details>
     </Show>
   )
 }
 
-const NodeLink = (props: NodeProps & { active: boolean }) => (
+const NodeLink = (props: { route: Route; active: boolean; onNavigate?: () => void }) => (
   <A
-    href={`/${props.node.slug ?? ''}`}
+    href={props.route.slug}
     class="flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors min-w-0"
     classList={{ '!text-fg !bg-hover font-medium': props.active }}
     onClick={() => props.onNavigate?.()}
   >
-    <KindCue node={props.node} />
-    <span class="font-mono truncate">{props.node.label}</span>
+    <KindCue route={props.route} />
+    <span class="font-mono truncate">{props.route.title}</span>
   </A>
 )
 
 const indent = (depth: number): string => `${depth * 0.75}rem`
 
-const KindCue = (props: { node: Node }) => {
+const KindCue = (props: { route: Route }) => {
   const project = useProject()
   const kind = () => {
-    const page = props.node.page
-    if (!page || page.kind === 'markdown') return undefined
-    return project().byId(page.id)?.kind
+    const stmt = docStatement(props.route)
+    return stmt ? project().byId(stmt.id)?.kind : undefined
   }
   return <Show when={kind()}>{(k) => <Type.KindBadge kind={k()} class="text-[0.7rem]! w-3.5 shrink-0" />}</Show>
 }

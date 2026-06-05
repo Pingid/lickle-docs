@@ -6,7 +6,7 @@ import { clientFiles } from './env.ts'
 
 export type ViteContext = {
   dir: string
-  json: () => Promise<Core.project.ProjectJson>
+  json: () => Promise<Core.Config.ProjectJson>
   config: () => Promise<Config.UserConfig>
   file: () => Promise<string | undefined>
   rebuild: () => void
@@ -14,12 +14,12 @@ export type ViteContext = {
 }
 
 export type ViteContextOptions = {
-  config: () => Promise<{ json: Core.project.ProjectJson; config: Config.UserConfig; file?: string }>
+  config: () => Promise<{ json: Core.Config.ProjectJson; config: Config.UserConfig; file?: string }>
   dir: string
 }
 
 export const makeContext = (opts: {
-  config: () => Promise<{ json: Core.project.ProjectJson; config: Config.UserConfig; file?: string }>
+  config: () => Promise<{ json: Core.Config.ProjectJson; config: Config.UserConfig; file?: string }>
   dir: string
 }): ViteContext => {
   const subs = new Set<() => void>()

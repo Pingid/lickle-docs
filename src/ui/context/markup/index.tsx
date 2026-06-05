@@ -3,7 +3,7 @@ import { Show, useContext, type JSX } from 'solid-js'
 import { LazyMarkupProvider } from './lazy.tsx'
 import { MarkupContext } from './context.ts'
 
-export { useMarkup, useRenderMarkdown, type MarkupContext } from './context.ts'
+export { useMarkup, type MarkupContext } from './context.ts'
 export { EagerMarkupProvider } from './eager.tsx'
 export * from './util.ts'
 

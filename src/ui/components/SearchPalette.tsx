@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, on, 
 import { useNavigate } from '../context/router.tsx'
 
 import { useProject, type Types } from '../context/index.tsx'
-import { docRoutes, pageRoutes } from '../util/routes.ts'
+import { docStatement } from '../util/route.ts'
 import { type SearchHit } from '../util/search.ts'
 import { useSearch } from '../hooks/index.ts'
 import { type Kind } from '../util/kind.ts'
@@ -46,9 +46,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
 
   // Before the user types, suggest the first module's entries so the palette
   // opens with something to browse instead of an empty box.
-  const firstModule = createMemo(() =>
-    pageRoutes(project().legacyRoutes).find((r) => r.sidebar && r.page?.kind === 'doc'),
-  )
+  const firstModule = createMemo(() => project().routes.sidebar.roots()[0])
   const suggestions = createMemo<SearchHit[]>(() => {
     const mod = firstModule()
     return mod ? childHits(project(), mod).slice(0, DEFAULT_LIMIT) : []
@@ -119,7 +117,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
             <Show when={!hasTerm() && firstModule()}>
               {(mod) => (
                 <p class="px-5 pt-3 pb-1 text-[0.7rem] uppercase tracking-wider font-semibold text-mute">
-                  {mod().label}
+                  {mod().title}
                 </p>
               )}
             </Show>
@@ -188,19 +186,23 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
   )
 }
 
-/** Map a route's direct children into search-hit rows for the default listing. */
-const childHits = (project: Types.Project, route: Types.RouteNode): SearchHit[] => {
+/** Map a route's members into search-hit rows for the default listing. */
+const childHits = (project: Types.Project, route: Types.Route): SearchHit[] => {
+  const stmt = docStatement(route)
+  if (!stmt) return []
   const out: SearchHit[] = []
-  for (const child of docRoutes(route.children)) {
-    if (child.page?.kind !== 'doc') continue
-    const decl = project.byId(child.page.id)
-    out.push({
-      name: child.label,
-      qualified: child.page.qualified,
-      kind: (decl?.kind ?? 'module') as Kind,
-      slug: child.slug ?? '',
-      file: decl?.sources?.[0]?.file ?? '',
-    })
+  for (const group of project.routes.members(stmt.id)) {
+    for (const m of group.items) {
+      const memberStmt = docStatement(m.route)
+      const decl = memberStmt ? project.byId(memberStmt.id) : undefined
+      out.push({
+        name: m.route.title,
+        qualified: memberStmt?.alias ?? m.route.title,
+        kind: (decl?.kind ?? 'module') as Kind,
+        slug: m.route.slug,
+        file: decl?.sources?.[0]?.file ?? '',
+      })
+    }
   }
   return out
 }

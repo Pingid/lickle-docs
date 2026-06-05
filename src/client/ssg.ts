@@ -8,7 +8,7 @@ import { Node } from '../_lib/index.ts'
 import { htmlShellGenerator } from './contex.ts'
 
 type GenerateStaticOptions = {
-  json: Core.project.ProjectJson
+  json: Core.Config.ProjectJson
   outDir: string
   baseUrl: string
   assetsDir: string
@@ -19,7 +19,7 @@ type GenerateStaticOptions = {
   noJavascript?: boolean
 }
 
-type RenderPage = (json: Core.project.ProjectJson, url: string) => Promise<{ body: string; head: string }>
+type RenderPage = (json: Core.Config.ProjectJson, url: string) => Promise<{ body: string; head: string }>
 
 export const generateStatic = async (opts: GenerateStaticOptions) => {
   opts.logger.info(`\nGenerating static routes...\n`)
@@ -45,14 +45,9 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const { renderPage } = await Node.Jiti.importModule<{ renderPage: RenderPage }>(serverSrc)
   const htmlShell = await htmlShellGenerator()
 
-  const routes = Core.project.flattenRoutes(opts.json.legacyRoutes)
-
-  for (const route of routes) {
-    // Group nodes are sidebar-only headings — no page, no slug — so skip them.
-    const { page, slug } = route
-    if (!page || slug === undefined) continue
-
-    const { body, head } = await renderPage(opts.json, prefixSlash(slug))
+  for (const route of opts.json.routes) {
+    const isHome = route.slug.trim() === 'l'
+    const { body, head } = await renderPage(opts.json, prefixSlash(route.slug))
 
     const bodyHtml = [`<div id="root">${body}</div>`, `<script type="module" src="${jsonHref}"></script>`]
     if (!opts.noJavascript) bodyHtml.push(`<script type="module" src="${clientSrc}"></script>`)
@@ -60,10 +55,10 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
     const html = htmlShell({
       body: bodyHtml.join('\n'),
       head: [`<link rel="stylesheet" href="${cssHref}" />`, head].join('\n'),
-      title: isRouteRoot(route) ? opts.json.name : page.kind === 'markdown' ? route.label : page.qualified,
+      title: isHome ? opts.json.name : route.title,
     })
 
-    const outPath = path.join(opts.outDir, isRouteRoot(route) ? 'index.html' : slug + '.html')
+    const outPath = path.join(opts.outDir, isHome ? 'index.html' : route.slug + '.html')
 
     await Node.Fs.ensureDir(outPath)
     await Node.Fs.writeFile(outPath, html)
@@ -98,8 +93,3 @@ const serializeJson = (json: unknown): string =>
     .replace(/\u2029/g, '\\u2029')
 
 const prefixSlash = (p: string) => (p.startsWith('/') ? p : `/${p}`)
-
-const isRouteRoot = (route: Core.project.RouteNode) => {
-  const s = (route.slug ?? '').trim()
-  return s === '/' || s === ''
-}

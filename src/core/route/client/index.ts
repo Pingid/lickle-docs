@@ -1,114 +1,115 @@
-import type { ModuleRef, Route, Slug, TypeRef } from '../types.ts'
+import type { DocStatement, Group, ModuleRef, Route, Slug, TypeRef } from '../types.ts'
+export type * from '../types.ts'
 
-export { type RouteContext, type Adapter as RouteAdapter, compose } from '../provider/core.ts'
-export { groupByKind, groupBy } from '../provider/helpers.ts'
+type MemberItem = { route: Route } & ModuleRef
+type ReferencedItem = { route: Route } & TypeRef
 
-export interface ClientRoutes {
-  routes: Route[]
-  get(slug: Slug): Route | undefined
-  members(id: number): { group: string; items: ({ route: Route } & ModuleRef)[] }[]
-  referenced(id: number): { group: string; items: ({ route: Route } & TypeRef)[] }[]
+/** A list of items sharing a group name, emitted in resolved group order. */
+export type GroupedItems<T> = { group: string; items: T[] }
+
+export interface ClientRouter {
+  items: Route[]
+  get(match: { slug?: Slug; id?: number }): Route | undefined
+  members(id: number): GroupedItems<MemberItem>[]
+  referenced(id: number): GroupedItems<ReferencedItem>[]
   sidebar: {
     roots: () => Route[]
-    children: (slug?: Slug) => { group: string; items: Route[] }[]
+    children: (slug?: Slug) => GroupedItems<Route>[]
   }
 }
 
-export const createClientRoutes = (routes: Route[]): ClientRoutes => {
-  const _routes = new Map<Slug, Route>()
-  const _allmembers = new Map<number, ({ route: Route } & ModuleRef)[]>()
-  const _Allreferenced = new Map<number, ({ route: Route } & TypeRef)[]>()
+const ROOT = '/'
+
+export const createRouter = (p: { routes: Route[]; slugBase: string }): ClientRouter => {
+  const routes = p.routes.map((r) => ({ ...r, slug: normalizeSlug(r.slug) }))
+
+  const _bySlug = new Map<Slug, Route>()
+  const _byId = new Map<number, Route>()
+  const _allMembers = new Map<number, MemberItem[]>()
+  const _allReferenced = new Map<number, ReferencedItem[]>()
   const _allSidebar = new Map<Slug, Route[]>()
-  const ROOT = '/'
 
   for (const route of routes) {
-    _routes.set(route.slug, route)
-
-    if (route.sidebar)
-      _allSidebar.set(route.sidebar.parent ?? ROOT, [...(_allSidebar.get(route.sidebar.parent ?? ROOT) ?? []), route])
+    _bySlug.set(route.slug, route)
+    const stmt = route.body.find((b): b is DocStatement => b.kind === 'doc:statement')
+    if (stmt) _byId.set(stmt.id, route)
+    if (route.sidebar) push(_allSidebar, route.sidebar.parent ?? ROOT, route)
 
     for (const body of route.body) {
-      if (body.kind === 'doc:statement') {
-        for (const module of body.modules) {
-          if (!_allmembers.has(module.target)) _allmembers.set(module.target, [])
-          _allmembers.set(module.target, [...(_allmembers.get(module.target) ?? []), { ...module, route }])
-        }
-      }
-      if (body.kind === 'doc:referenced') {
-        for (const ref of body.referenced) {
-          if (!_Allreferenced.has(ref.target)) _Allreferenced.set(ref.target, [])
-          _Allreferenced.set(ref.target, [...(_Allreferenced.get(ref.target) ?? []), { ...ref, route }])
-        }
-      }
+      if (body.kind === 'doc:statement')
+        for (const module of body.modules) push(_allMembers, module.target, { ...module, route })
+
+      if (body.kind === 'doc:referenced')
+        for (const ref of body.referenced) push(_allReferenced, ref.target, { ...ref, route })
     }
   }
 
-  const _members = new Map<number, { group: string; items: ({ route: Route } & ModuleRef)[] }[]>()
-  for (const [id, members] of _allmembers.entries()) {
-    const groups = new Map<string, { order: number; items: ({ route: Route } & ModuleRef)[] }>()
-    for (const member of members) {
-      const name = member.group?.name ?? ''
-      if (!groups.has(name)) groups.set(name, { order: member.group?.order ?? 0, items: [] })
-      groups.get(name)!.items.push(member)
-    }
-
-    for (const [name, group] of groups.entries()) {
-      groups.set(name, { ...group, items: group.items.sort((a, b) => (a.group?.order ?? 0) - (b.group?.order ?? 0)) })
-    }
-    _members.set(
-      id,
-      [...groups.entries()].map(([name, group]) => ({ group: name, items: group.items })),
-    )
-  }
-
-  const _referenced = new Map<number, { group: string; items: ({ route: Route } & TypeRef)[] }[]>()
-  for (const [id, members] of _Allreferenced.entries()) {
-    const groups = new Map<string, { order: number; items: ({ route: Route } & TypeRef)[] }>()
-    for (const member of members) {
-      const name = member.group?.name ?? ''
-      if (!groups.has(name)) groups.set(name, { order: member.group?.order ?? 0, items: [] })
-      groups.get(name)!.items.push(member)
-    }
-
-    for (const [name, group] of groups.entries()) {
-      groups.set(name, { ...group, items: group.items.sort((a, b) => (a.group?.order ?? 0) - (b.group?.order ?? 0)) })
-    }
-    _referenced.set(
-      id,
-      [...groups.entries()].map(([name, group]) => ({ group: name, items: group.items })),
-    )
-  }
-
-  const _sidebar = new Map<Slug, { group: string; items: Route[] }[]>()
-  for (const [id, items] of _allSidebar.entries()) {
-    const groups = new Map<string, { order: number; items: Route[] }>()
-
-    for (const item of items) {
-      const name = item.sidebar?.group?.name ?? ''
-      if (!groups.has(name)) groups.set(name, { order: item.sidebar?.group?.order ?? 0, items: [] })
-      groups.get(name)!.items.push(item)
-    }
-
-    for (const [name, group] of groups.entries()) {
-      groups.set(name, {
-        ...group,
-        items: group.items.sort((a, b) => (a.sidebar?.group?.order ?? 0) - (b.sidebar?.group?.order ?? 0)),
-      })
-    }
-    _sidebar.set(
-      id,
-      [...groups.entries()].map(([name, group]) => ({ group: name, items: group.items })),
-    )
-  }
+  const _members = groupValues(_allMembers, (m) => m.group)
+  const _referenced = groupValues(_allReferenced, (r) => r.group)
+  const _sidebar = groupValues(_allSidebar, (r) => r.sidebar?.group)
 
   return {
-    routes: Array.from(_routes.values()),
-    get: (slug: Slug) => _routes.get(slug),
-    members: (id: number) => _members.get(id) ?? [],
-    referenced: (id: number) => _referenced.get(id) ?? [],
+    items: [..._bySlug.values()],
+    get: (match) => {
+      if (typeof match.slug === 'string') return _bySlug.get(normalizeSlug(match.slug))
+      if (typeof match.id === 'number') return _byId.get(match.id)
+      return undefined
+    },
+    members: (id) => _members.get(id) ?? [],
+    referenced: (id) => _referenced.get(id) ?? [],
     sidebar: {
-      children: (slug?: Slug) => _sidebar.get(slug ?? ROOT) ?? [],
+      children: (slug) => {
+        if (slug?.startsWith(p.slugBase)) {
+          return _sidebar.get(slug) ?? []
+        }
+        return []
+      },
       roots: () => _allSidebar.get(ROOT) ?? [],
     },
   }
+}
+
+/** Append `value` to the array at `key`, creating it on first use. */
+const push = <K, V>(map: Map<K, V[]>, key: K, value: V): void => {
+  const arr = map.get(key)
+  if (arr) arr.push(value)
+  else map.set(key, [value])
+}
+
+/**
+ * Bucket `items` by group name, then order the buckets by {@link Group.order}
+ * (ascending; ties keep first-seen order). Items without a group fall into the
+ * unnamed `''` bucket, which orders by its own `order` (0 by default) like any
+ * other — set an explicit `order` to pin it first or last. Item order within a
+ * bucket is preserved.
+ */
+const groupItems = <T>(items: T[], groupOf: (item: T) => Group | undefined): GroupedItems<T>[] => {
+  const groups = new Map<string, { order: number; items: T[] }>()
+  for (const item of items) {
+    const group = groupOf(item)
+    const name = group?.name ?? ''
+    let bucket = groups.get(name)
+    if (!bucket) {
+      bucket = { order: group?.order ?? 0, items: [] }
+      groups.set(name, bucket)
+    }
+    bucket.items.push(item)
+  }
+  return [...groups.entries()]
+    .sort(([, a], [, b]) => a.order - b.order)
+    .map(([group, bucket]) => ({ group, items: bucket.items }))
+}
+
+/** Apply {@link groupItems} to every value list in a map, preserving keys. */
+const groupValues = <K, T>(src: Map<K, T[]>, groupOf: (item: T) => Group | undefined): Map<K, GroupedItems<T>[]> => {
+  const out = new Map<K, GroupedItems<T>[]>()
+  for (const [key, items] of src) out.set(key, groupItems(items, groupOf))
+  return out
+}
+
+export const normalizeSlug = (slug?: string): string => {
+  if (!slug) return '/'
+  if (!slug.startsWith('/')) return `/${slug}`
+  if (/^\/\//.test(slug)) return slug.slice(1)
+  return slug
 }

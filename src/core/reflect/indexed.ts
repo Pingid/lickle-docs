@@ -1,9 +1,12 @@
+import path from 'node:path'
 import { Path, type t } from '../../_lib/index.ts'
 import type { ScanState } from './state.ts'
 import * as T from './types.ts'
 
-export const create = (s: ScanState, entries: { as: string; path: string }[]) =>
-  index(s, [roots(entries), treeIndex(s.root), referenceIndex, exposerIndex, sourceCode(s)])
+type State = Pick<ScanState, 'root' | 'srcDir' | 'references' | 'declarations' | 'symbolsById'>
+
+export const create = (s: State, entrypoints: { as: string; path: string }[]) =>
+  index(s, [roots(s, entrypoints), treeIndex(s.root), referenceIndex(s), exposerIndex, sourceCode(s)])
 
 export type Index = Roots & TreeIndex & ReferenceIndex & ExposerIndex & SourceCode
 
@@ -11,27 +14,29 @@ export type Index = Roots & TreeIndex & ReferenceIndex & ExposerIndex & SourceCo
 export type Roots = {
   roots(): Iterable<T.Declaration<'module'>>
   isRoot(id: number): boolean
-
   rootAlias(id: number): { as: string; index: number } | undefined
   commonDir: () => string
-  modules: () => T.Declaration<'module'>[]
 }
+
 export const roots =
-  (entries: { as: string; path: string }[]): Indexer<Roots> =>
+  (s: State, entrypoints: { as: string; path: string }[]): Indexer<Roots> =>
   (b): Roots => {
     const rootIds = new Set<number>()
     const roots = new Map<string, T.Declaration<'module'>>()
     const alias = new Map<number, { as: string; index: number }>()
-    const modules: T.Declaration<'module'>[] = []
+
     const byPath = new Map<string, number>()
     let commonDir = ''
     b.init((d) => {
       if (d.kind === 'module' && d.path) {
-        modules.push(d)
         byPath.set(d.path, d.id)
-        for (let i = 0; i < entries.length; i++) {
-          const entry = entries[i]!
-          if (d.path === entry.path) {
+
+        for (let i = 0; i < entrypoints.length; i++) {
+          const entry = entrypoints[i]!
+
+          const rel = path.relative(s.srcDir, entry.path)
+
+          if (rel === d.path) {
             roots.set(entry.as, d)
             alias.set(d.id, { as: entry.as, index: i })
             rootIds.add(d.id)
@@ -49,7 +54,6 @@ export const roots =
       rootAlias: (id) => alias.get(id),
       roots: () => roots.values(),
       commonDir: () => commonDir,
-      modules: () => modules,
     }
   }
 
@@ -59,7 +63,7 @@ export type SourceCode = {
   sourceFileText: (id: number) => { file: string; text: string }
 }
 export const sourceCode =
-  (s: ScanState): Indexer<SourceCode> =>
+  (s: State): Indexer<SourceCode> =>
   (): SourceCode => {
     const getText = (id: number): string => {
       const node = s?.symbolsById?.get?.(id)
@@ -126,24 +130,26 @@ export type ReferenceIndex = {
   referencedIn: (id: number) => Iterable<number>
   references: (id: number) => Iterable<number>
 }
-export const referenceIndex: Indexer<ReferenceIndex> = (s): ReferenceIndex => {
-  const referencedIn = new Map<number, Set<number>>()
-  const references = new Map<number, Set<number>>()
+export const referenceIndex =
+  (s: State): Indexer<ReferenceIndex> =>
+  () => {
+    const referencedIn = new Map<number, Set<number>>()
+    const references = new Map<number, Set<number>>()
 
-  for (const ref of s.references) {
-    if (ref.type === 'internal') {
-      let refs = referencedIn.get(ref.targetId)
-      if (!refs) referencedIn.set(ref.targetId, (refs = new Set()))
-      refs.add(ref.owner)
+    for (const ref of s.references) {
+      if (ref.type === 'internal') {
+        let refs = referencedIn.get(ref.targetId)
+        if (!refs) referencedIn.set(ref.targetId, (refs = new Set()))
+        refs.add(ref.owner)
 
-      let refss = references.get(ref.owner)
-      if (!refss) references.set(ref.owner, (refss = new Set()))
-      refss.add(ref.targetId)
+        let refss = references.get(ref.owner)
+        if (!refss) references.set(ref.owner, (refss = new Set()))
+        refss.add(ref.targetId)
+      }
     }
+    const EMPTY = new Set<number>()
+    return { referencedIn: (id) => referencedIn.get(id) ?? EMPTY, references: (id) => references.get(id) ?? EMPTY }
   }
-  const EMPTY = new Set<number>()
-  return { referencedIn: (id) => referencedIn.get(id) ?? EMPTY, references: (id) => references.get(id) ?? EMPTY }
-}
 
 /** Depends on Roots + TreeIndex. */
 export type Exposure = { exposer: number; alias?: string }
@@ -299,8 +305,6 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
 // -- Little abstraction ----------------
 // -------------------------------------------
 interface IndexBuilder {
-  references: T.Type<'reference'>[]
-
   init: (cb: (d: T.Declaration) => void) => void
   after: (cb: () => void) => void
 }
@@ -309,7 +313,7 @@ interface IndexBuilder {
 type Indexer<Out extends {} = {}, Deps extends {} = {}> = (b: IndexBuilder, deps: Deps) => Out
 
 export const index = <const T extends Indexer<any, any>[]>(
-  s: ScanState,
+  s: State,
   indexers: T,
 ): t.Compute<t.UnionToIntersection<ReturnType<T[number]>>> => {
   const inits: ((d: T.Declaration) => void)[] = []

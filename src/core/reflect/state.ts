@@ -7,10 +7,9 @@ import type * as T from './types.ts'
 export type ExportsForm = 'named-local' | 'named-from' | 'star' | 'namespace-from' | 'assignment'
 
 export interface ScanOptions {
-  rootDir: string
-  /** The compiler options for the project. */
-  compilerOptions: ts.CompilerOptions
-  /** Whether to include a file in the scan. */
+  cmd: ts.ParsedCommandLine
+  dir: string
+  srcDir: string
   include: (sf: ts.SourceFile) => boolean
 }
 
@@ -21,6 +20,8 @@ export interface ScanState extends ScanOptions {
   root: number
   parent: number
   currentStmt: number
+  srcDir: string
+  compilerOptions: ts.CompilerOptions
 
   checker: ts.TypeChecker
   references: T.Type<'reference'>[]
@@ -50,9 +51,14 @@ export interface ScanState extends ScanOptions {
 export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): ScanState => {
   const relPath = new WeakMap<ts.SourceFile, string>()
   let id = 0
-  const getPath = (sf: ts.SourceFile) => relPath.get(sf) ?? path.relative(options.rootDir, sf.fileName)
+  const getPath = (sf: ts.SourceFile) => relPath.get(sf) ?? path.relative(options.srcDir, sf.fileName)
+
   return {
     ...options,
+    include: (sf: ts.SourceFile) => {
+      return options.include(sf)
+    },
+    compilerOptions: options.cmd.options,
     root: 0,
     parent: 0,
     currentStmt: 0,

@@ -21,6 +21,8 @@ interface Options {
   require?: boolean
   /** Extra user conditions to match (e.g. "development"). */
   conditions?: readonly string[]
+
+  tsconfig?: string
 }
 
 /**
@@ -54,7 +56,7 @@ export const resolveExportedSources = async (
   }
 
   // --- 2. tsconfig fallback paths ----------------------------------------
-  const { outDir, rootDir } = tsconfig.resolve(projectDir)
+  const { outDir, rootDir } = tsconfig.resolve(projectDir, options.tsconfig)
 
   // --- 3. dist -> source --------------------------------------------------
   const results: ExportedSource[] = []

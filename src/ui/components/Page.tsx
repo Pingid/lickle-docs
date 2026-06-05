@@ -1,9 +1,11 @@
-import { For, Show } from 'solid-js'
+import { For, Show, createMemo, type Component } from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 
-import { createSlot, useProject, type Types } from '../context/index.tsx'
+import { createSlot, DeclarationScope, useProject, type Types } from '../context/index.tsx'
 import { type ReferenceRow, useReferences } from '../hooks/index.ts'
 import { labelOf } from '../util/kind.ts'
 import { commentSummaryText } from '../util/comment.ts'
+import { docStatement } from '../util/route.ts'
 import { A } from '../context/router.tsx'
 
 import { Declaration } from './Declaration.tsx'
@@ -11,29 +13,48 @@ import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
 
-type PageProps = { decl: Types.Declaration; route: Types.RouteNode<'doc'> }
-
-export const Page = createSlot('page.doc', (props) => (
+/** A page renders its route's `body` parts in order, each by its kind. */
+export const Page = createSlot('page', (props) => (
   <article>
-    <PageHeader {...props} />
-    <Declaration decl={props.decl} />
-    <Children route={props.route} />
-    <References id={props.decl.id} />
+    <For each={props.route.body}>{(body) => <PageContent route={props.route} body={body} />}</For>
   </article>
 ))
 
-/** Renders a markdown page — its `content` parsed inline. */
-export const MarkdownPage = createSlot('page.markdown', (props) => (
-  <article>
-    <Markdown source={props.route.page?.content ?? ''} />
-  </article>
+/** Dispatch a single `body` part to the renderer for its kind. */
+export const PageContent = createSlot('page.content', (props) => (
+  <Dynamic component={RENDERERS[props.body.kind] as Component<BodyProps>} route={props.route} body={props.body} />
 ))
 
-export const PageHeader = createSlot('page.doc.header', (props: PageProps) => (
+type BodyProps<B extends Types.Body = Types.Body> = { route: Types.Route; body: B }
+
+const RENDERERS: { [K in Types.Body['kind']]: Component<BodyProps<Extract<Types.Body, { kind: K }>>> } = {
+  'doc:statement': (props) => <DocStatementView body={props.body} route={props.route} />,
+  'doc:referenced': (props) => <References route={props.route} />,
+  markdown: (props) => <Markdown source={props.body.markdown} />,
+}
+
+/** A declaration body: header, the declaration itself, and its members. */
+const DocStatementView = (props: BodyProps<Types.DocStatement>) => {
+  const project = useProject()
+  const decl = createMemo(() => project().byId(props.body.id))
+  return (
+    <Show when={decl()}>
+      {(d) => (
+        <DeclarationScope id={d().id}>
+          <PageHeader decl={d()} route={props.route} />
+          <Declaration decl={d()} />
+          <Children id={props.body.id} />
+        </DeclarationScope>
+      )}
+    </Show>
+  )
+}
+
+export const PageHeader = createSlot('page.header', (props: { decl: Types.Declaration; route: Types.Route }) => (
   <header class="mb-5">
     <Breadcrumb id={props.decl.id} />
     <div class="flex items-baseline gap-3 flex-wrap">
-      <h1 class="text-2xl font-semibold tracking-tight font-mono">{props.route.label}</h1>
+      <h1 class="text-2xl font-semibold tracking-tight font-mono">{props.route.title}</h1>
       <Type.KindLabel kind={props.decl.kind} />
       <Show when={props.decl.comment?.tags?.some((t: { tag: string }) => t.tag === '@deprecated')}>
         <span class="text-xs uppercase tracking-wider text-mute">· deprecated</span>
@@ -64,45 +85,42 @@ export const Source = (props: { sources?: Types.Source[] }) => {
   )
 }
 
-type ChildRoute = Types.RouteNode<'doc'>
-
 /**
- * Render a route's children exactly as the provider laid them out: synthetic
- * group nodes (no page) become titled sections, ungrouped doc routes render
- * inline. No re-grouping — the route tree already carries labels and order.
+ * Member listing for a declaration page: the route's children grouped by kind,
+ * exactly as the router lays them out. Each group becomes a titled section.
  */
-const Children = (props: { route: ChildRoute }) => (
-  <For each={props.route.children}>
-    {(child) => (
-      <Show
-        when={child.page === undefined}
-        fallback={
-          <ul class="space-y-3 mt-8">
-            <ChildRow route={child as ChildRoute} />
-          </ul>
-        }
-      >
+const Children = (props: { id: number }) => {
+  const project = useProject()
+  const groups = createMemo(() => project().routes.members(props.id))
+  return (
+    <For each={groups()}>
+      {(group) => (
         <section class="mt-8">
-          <h2 class="text-sm font-semibold mb-3 pb-1.5 border-b border-line capitalize">{child.label}</h2>
+          <Show when={group.group}>
+            <h2 class="text-sm font-semibold mb-3 pb-1.5 border-b border-line capitalize">{group.group}</h2>
+          </Show>
           <ul class="space-y-3">
-            <For each={child.children}>{(c) => <ChildRow route={c as ChildRoute} />}</For>
+            <For each={group.items}>{(m) => <ChildRow route={m.route} />}</For>
           </ul>
         </section>
-      </Show>
-    )}
-  </For>
-)
+      )}
+    </For>
+  )
+}
 
-const ChildRow = (props: { route: ChildRoute }) => {
+const ChildRow = (props: { route: Types.Route }) => {
   const project = useProject()
-  const decl = () => (props.route.page ? project().byId(props.route.page.id) : undefined)
+  const decl = () => {
+    const stmt = docStatement(props.route)
+    return stmt ? project().byId(stmt.id) : undefined
+  }
   const summary = () => commentSummaryText(decl()?.comment)
   return (
     <li>
       <div class="flex items-baseline gap-2.5 min-w-0">
         <Type.KindBadge kind={decl()?.kind ?? 'module'} class="w-3.5 shrink-0" />
-        <A href={`/${props.route.slug ?? ''}`} class="font-mono font-semibold text-sm hover:opacity-70">
-          {props.route.label}
+        <A href={props.route.slug} class="font-mono font-semibold text-sm hover:opacity-70">
+          {props.route.title}
         </A>
         <Show when={decl()}>{(d) => <Signature decl={d()} />}</Show>
       </div>
@@ -131,13 +149,14 @@ const Signature = (props: { decl: Types.Declaration }) => {
   return null
 }
 
-export const References = (props: { id: number }) => {
-  const rows = useReferences(() => props.id)
-
+/** "Used in" backlinks for the route's declaration. */
+export const References = (props: { route: Types.Route }) => {
+  const id = createMemo(() => docStatement(props.route)?.id ?? -1)
+  const rows = useReferences(id)
   return (
     <Show when={rows().length}>
       <section class="mt-10 lk-references">
-        <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Used in</h2>
+        <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Referenced In</h2>
         <ul class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 items-baseline">
           <For each={rows()}>{(r) => <ReferenceRowView row={r} />}</For>
         </ul>
@@ -149,7 +168,7 @@ export const References = (props: { id: number }) => {
 const ReferenceRowView = (props: { row: ReferenceRow }) => (
   <li class="contents">
     <span class="text-xs uppercase tracking-wider text-mute">{labelOf(props.row.decl.kind)}</span>
-    <A href={`/${props.row.slug}`} class="font-mono hover:opacity-70 min-w-0 wrap-break-word">
+    <A href={props.row.slug} class="font-mono hover:opacity-70 min-w-0 wrap-break-word">
       <Show when={props.row.module}>
         <span class="text-mute">{props.row.module}.</span>
       </Show>

@@ -1,9 +1,10 @@
-import type { ModuleRef, Route, Sidebar } from '../types.ts'
+import type { ModuleRef, Route, Sidebar, TypeRef } from '../types.ts'
 import type * as reflect from '../../reflect/index.ts'
+import { createFacade, type DeclarationFacade } from './facade.ts'
 import { memo1 } from '../../../_lib/util/index.ts'
 
 /** A hook that can be used to customize page route generation. */
-export type Hook<V> = (value: V, id: number, cx: RouteContext) => V
+export type Hook<V> = (value: V, id: DeclarationFacade, cx: RouteContext) => V
 
 /** Customize page route generation. */
 export type Adapter = {
@@ -13,6 +14,7 @@ export type Adapter = {
   route?: Hook<Route | undefined>
   sidebar?: Hook<Sidebar | undefined>
   modules?: Hook<ModuleRef[]>
+  referenced?: Hook<TypeRef[]>
 }
 
 export type RouteContext = { docs: reflect.Index; provider: Provider }
@@ -33,11 +35,12 @@ export type Provider = {
   route: (id: number) => Route | undefined
   sidebar: (id: number) => Sidebar | undefined
   modules: (id: number) => ModuleRef[]
+  referenced: (id: number) => TypeRef[]
 }
 
 export const compose = (...adapters: (Adapter | undefined)[]): Adapter => adapters.reduce<Adapter>(merge, {})
 
-const hooks = ['alias', 'title', 'slug', 'route', 'sidebar', 'modules'] as const
+const hooks = ['alias', 'title', 'slug', 'route', 'sidebar', 'modules', 'referenced'] as const
 const merge = (a: Adapter | undefined, b: Adapter | undefined): Adapter => {
   if (!a) return b ?? {}
   if (!b) return a ?? {}
@@ -58,13 +61,13 @@ const mergeHook = <V>(a?: Hook<V>, b?: Hook<V>): Hook<V> | undefined => {
 export const provideAdapter = (cx: RouteContext, base: Provider, adapter?: Adapter): Provider => {
   if (!adapter) return base
   return Object.fromEntries(
-    hooks.map((hook) => [hook, applyHook(adapter?.[hook] as Hook<any>, base[hook], cx)]),
+    hooks.map((hook) => [hook, applyHook(cx, adapter?.[hook] as Hook<any>, base[hook])]),
   ) as Provider
 }
 
-const applyHook = <V>(hook: Hook<V> | undefined, def: (id: number) => V, cx: RouteContext): ((id: number) => V) => {
+const applyHook = <V>(cx: RouteContext, hook: Hook<V> | undefined, def: (id: number) => V): ((id: number) => V) => {
   if (!hook) return def
-  return (id) => hook(def(id), id, cx)
+  return (id) => hook(def(id), createFacade(cx.docs, id), cx)
 }
 
 export const withMemo = (ad: Provider): Provider =>

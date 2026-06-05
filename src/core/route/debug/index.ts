@@ -1,28 +1,28 @@
 import pc from 'picocolors'
 
-import { createClientRoutes } from '../client/index.ts'
+import { createRouter, type ClientRouter } from '../client/index.ts'
 import * as reflect from '../../reflect/index.ts'
 import type { Route, TypeRef } from '../types.ts'
 
 export const printRoutes = (opts: {
   index: reflect.Index
   routes: Route[]
+  slugBase: string
   sidebar?: boolean
   content?: boolean
   write?: (str: string) => void
 }) => {
   const s = printer(opts.index, opts.routes, opts.write)
-  if (opts.sidebar !== false) printSidebar(s, opts.routes)
-  if (opts.content !== false) printContent(s, opts.routes)
+  const router = createRouter({ routes: opts.routes, slugBase: opts.slugBase })
+  if (opts.sidebar !== false) printSidebar(s, router)
+  if (opts.content !== false) printContent(s, router)
 }
 
-const printContent = (s: Styler, routes: Route[]) => {
-  const router = createClientRoutes(routes)
-
+const printContent = (s: Styler, router: ClientRouter) => {
   s.l('-'.repeat(40))
   s.l(pc.bold('Routes'))
   s.l('-'.repeat(40))
-  for (const route of routes) {
+  for (const route of router.items) {
     if (route.title === 'unknown') s.l(pc.red('unknown'), pc.gray(route.slug))
 
     for (const content of route.body) {
@@ -45,9 +45,7 @@ const printContent = (s: Styler, routes: Route[]) => {
   }
 }
 
-const printSidebar = (s: Styler, routes: Route[]) => {
-  const router = createClientRoutes(routes)
-
+const printSidebar = (s: Styler, router: ClientRouter) => {
   const printSidebar = (s: Styler, route: Route) => {
     const id = route.body.map((b) => (b.kind === 'doc:statement' ? b.id : undefined))[0]!
     s.page(id, route.title, route.slug)
@@ -87,7 +85,7 @@ const printer = (index: reflect.Index, routes: Route[], write?: (value: string) 
     const decl = index.get(id)!
     return pc.bold(SHORTS[decl.kind]!)
   }
-  const padName = (name: string) => (d: number) => pc.cyan(name.padEnd(40 - d * tabSize))
+  const padName = (name?: string) => (d: number) => pc.cyan((name ?? '').padEnd(40 - d * tabSize))
 
   const page = (id: number, alias: string, slug: string) => l(kind(id), padName(alias), pc.gray(slug))
   const group = (group: string) => l(3, pc.yellow(group))
@@ -105,6 +103,7 @@ const printer = (index: reflect.Index, routes: Route[], write?: (value: string) 
   }
   const tabSize = 1
   return {
+    index,
     l,
     page,
     group,
