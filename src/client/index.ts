@@ -3,7 +3,7 @@ import solid from 'vite-plugin-solid'
 import * as vite from 'vite'
 import path from 'node:path'
 
-import * as Lib from '../_lib/index.ts'
+import { Node, Util } from '../_lib/index.ts'
 
 import { clientFiles, libRoot } from './env.ts'
 import * as Plugin from './plugins.ts'
@@ -23,14 +23,14 @@ export const dev = async (options: ClientOptions) => {
   const server = await vite.createServer(client(options))
   await server.listen()
   server.printUrls()
-  Lib.util.registerNodeCleanup(() => server.close())
+  Node.onExit(() => server.close())
   return server
 }
 
 export const preview = async (options: ClientOptions) => {
   const server = await vite.preview(client(options))
   server.printUrls()
-  Lib.util.registerNodeCleanup(() => server.close())
+  Node.onExit(() => server.close())
   return server
 }
 
@@ -65,7 +65,7 @@ export const client = (opts: ClientOptions) => {
   const config = shared(opts, context)
   config.plugins!.push(Plugin.html(context), solid(), ...tailwindcss())
 
-  return Lib.util.deepMerge(config, {
+  return Util.deepMerge(config, {
     resolve: { alias: devAlias() },
     define: { 'import.meta.env.VITE_ROUTER_TYPE': JSON.stringify(opts.router) },
     build: {
@@ -78,13 +78,13 @@ export const client = (opts: ClientOptions) => {
 export const ssgClient = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
   config.plugins.push(Plugin.html(context), solid({ solid: { hydratable: !opts.noJavascript } }), ...tailwindcss())
-  return Lib.util.deepMerge(config, { build: { manifest: true, rolldownOptions: { input: clientFiles.entry.client } } })
+  return Util.deepMerge(config, { build: { manifest: true, rolldownOptions: { input: clientFiles.entry.client } } })
 }
 
 export const ssgServer = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
   config.plugins.push(solid({ ssr: true, solid: { hydratable: !opts.noJavascript } }), Plugin.ignoreCss())
-  return Lib.util.deepMerge(config, {
+  return Util.deepMerge(config, {
     build: {
       manifest: true,
       ssr: clientFiles.entry.server,

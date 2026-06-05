@@ -4,7 +4,7 @@ import ts from 'typescript'
 import fg from 'fast-glob'
 
 import type * as project from '../core/project/index.ts'
-import * as lib from '../_lib/index.ts'
+import { Node, TsConfig } from '../_lib/index.ts'
 
 import { type Entry, type Link, type UserConfig } from './types.ts'
 import * as defaults from './defaults.ts'
@@ -25,20 +25,23 @@ export type PreparedConfig = {
 }
 
 export const load = async (dir: string = process.cwd(), opts?: Partial<types.UserConfig>): Promise<PreparedConfig> => {
-  const c = lib.tsconfig.resolve(dir)
+  const c = TsConfig.resolve(dir)
   if (!c.config) throw new Error('No tsconfig.json found')
   const loaded = await loadFile(dir)
   const info = await defaults.apply(dir, { ...loaded, ...opts })
   const parsed = ts.parseJsonConfigFileContent(c.config, ts.sys, path.dirname(c.config.path))
 
   const routes: project.RouteNode[] = []
-  if (info.readme) {
-    const page: project.PageType<'markdown'> = {
-      kind: 'markdown',
-      content: await lib.fs.readFile(info.readme, 'utf-8'),
+  if (info.pages?.length) {
+    for (const p of info.pages) {
+      const page: project.PageType<'markdown'> = {
+        kind: 'markdown',
+        content: await Node.Fs.readFile(p.content, 'utf-8'),
+      }
+      routes.push({ label: p.title, slug: p.slug, page, children: [], sidebar: true })
     }
-    routes.push({ label: 'README', slug: '', page, children: [], sidebar: true })
   }
+
   return {
     links: info.links ?? [],
     config: info,
@@ -64,7 +67,7 @@ export const findFile = async (dir: string): Promise<string | undefined> => {
 }
 
 const readCode = async (file: string): Promise<UserConfig> => {
-  const mod = await lib.jiti.importModule<{ default: any }>(file)
+  const mod = await Node.Jiti.importModule<{ default: any }>(file)
   return types.validate(await mod.default)
 }
 

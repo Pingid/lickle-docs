@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import type { PreparedConfig } from '../../config/load.ts'
 import type { ProjectJson, RouteNode } from './types.ts'
+// import * as router from '../routing/index.ts'
 import * as reflect from '../reflect/index.ts'
 import * as routing from './routing.ts'
 
@@ -14,11 +15,12 @@ export * from './builder.ts'
 export * from './presets.ts'
 
 export const buildJson = async (opts: PreparedConfig): Promise<ProjectJson> => {
-  const graph = reflect.generate(opts.config.entrypoints ?? [], {
+  const raw = reflect.generate(opts.config.entrypoints ?? [], {
     compilerOptions: opts.compilerOptions,
     rootDir: opts.rootDir,
     include: keepFile(opts),
   })
+  const graph = reflect.index(raw, opts.config.entrypoints ?? [])
 
   const routes = Array.from(
     routing.buildRoutes(graph, {
@@ -30,6 +32,9 @@ export const buildJson = async (opts: PreparedConfig): Promise<ProjectJson> => {
     }),
   )
 
+  // const route = Array.from(router.buildRoutes({ docs: graph }))
+  // router.printRoutes({ index: graph, routes: route, sidebar: false, content: true })
+
   return {
     name: opts.config.name,
     version: opts.config.version,
@@ -37,14 +42,17 @@ export const buildJson = async (opts: PreparedConfig): Promise<ProjectJson> => {
     links: opts.links,
     entrypoints: opts.entrypoints,
     declarations: [...graph.declarations()],
-    routes: [...opts.routes, ...routes],
+    legacyRoutes: [...opts.routes, ...routes],
   }
 }
 
 /** All slugs in a route subtree, so routing can avoid colliding with them.
  * Includes the empty slug (a README owning `/`); group-only nodes omit it. */
 const collectSlugs = (routes: RouteNode[]): string[] =>
-  routes.flatMap((r) => [...(r.slug !== undefined ? [r.slug] : []), ...collectSlugs(r.children)])
+  routes.flatMap((r) => [
+    ...(r.slug !== undefined ? (r.slug === '' ? ['', '/'] : [r.slug]) : []),
+    ...collectSlugs(r.children),
+  ])
 
 const keepFile =
   (opts: PreparedConfig) =>

@@ -56,10 +56,7 @@ const PathRoute = () => {
 
 /** Dispatch a route to the page renderer matching its `page.kind`. */
 const RouteView = (props: { route: Types.RouteNode }) => (
-  <Show
-    when={props.route.page?.kind === 'markdown'}
-    fallback={<DeclarationView route={props.route} />}
-  >
+  <Show when={props.route.page?.kind === 'markdown'} fallback={<DeclarationView route={props.route} />}>
     <MarkdownPage route={props.route as Types.RouteNode<'markdown'>} />
   </Show>
 )
@@ -85,7 +82,7 @@ const DeclarationView = (props: { route: Types.RouteNode }) => {
 /** Empty path redirects to the first route; anything else is a miss. */
 const Fallback = (props: { slug?: string }) => {
   const project = useProject()
-  const first = createMemo(() => firstSlug(project()?.routes ?? []))
+  const first = createMemo(() => firstSlug(project()?.legacyRoutes ?? []))
   return (
     <Show when={!props.slug && first} fallback={<NotFound />}>
       {(slug) => <Navigate href={`/${slug()}`} />}

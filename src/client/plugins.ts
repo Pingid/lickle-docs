@@ -2,7 +2,7 @@ import * as vite from 'vite'
 
 import path from 'node:path'
 
-import * as Lib from '../_lib/index.ts'
+import { Util } from '../_lib/index.ts'
 
 import { htmlShellGenerator, type ViteContext } from './contex.ts'
 import { clientFiles, clientRoot } from './env.ts'
@@ -50,7 +50,7 @@ export const project = (config: ViteContext): vite.Plugin => {
         return false
       }
 
-      const rebuild = Lib.util.serial(() => handleJson())
+      const rebuild = Util.serial(() => handleJson())
       s.watcher.on('change', (changedPath) => isProjectFile(changedPath) && rebuild())
       rebuild()
     },

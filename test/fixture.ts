@@ -15,15 +15,18 @@ export const scanFixture = (code: string): reflect.Index => {
   const file = path.join(dir, 'fixture.ts')
   fs.writeFileSync(file, code)
   try {
-    return reflect.generate([{ as: 'fixture', path: file }], {
-      rootDir: dir,
-      compilerOptions: {
-        strict: true,
-        target: ts.ScriptTarget.Latest,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-      },
-      include: (sf) => sf.fileName === file,
-    })
+    return reflect.index(
+      reflect.generate([{ as: 'fixture', path: file }], {
+        rootDir: dir,
+        compilerOptions: {
+          strict: true,
+          target: ts.ScriptTarget.Latest,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+        },
+        include: (sf) => sf.fileName === file,
+      }),
+      [{ as: 'fixture', path: file }],
+    )
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }

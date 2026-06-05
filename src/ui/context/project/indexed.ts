@@ -33,17 +33,15 @@ export const createProject = (json: ProjectJson): Types.Project => {
     for (const child of r.children) indexRoute(child)
   }
 
-  for (const route of json.routes) indexRoute(route)
+  for (const route of json.legacyRoutes) indexRoute(route)
 
   const byId = (id: number): Types.Declaration | undefined => _byId.get(id)
-  const bySlug = (slug: string): Types.Declaration | undefined => _bySlug.get(slug)
   const routeForId = (id: number): RouteNode | undefined => _routesById.get(id)
   const routeForSlug = (slug: string): RouteNode | undefined => _routesBySlug.get(slug)
   const routeByName = (name: string): RouteNode | undefined => _slugByName.get(name)
   const p: Types.Project = json as Types.Project
 
   hide(p, 'byId', byId)
-  hide(p, 'bySlug', bySlug)
   hide(p, 'routeForId', routeForId)
   hide(p, 'routeForSlug', routeForSlug)
   hide(p, 'routeByName', routeByName)

@@ -6,24 +6,23 @@ export interface UserConfig {
   name: string
   /** The version of the project. default is the package version from package.json */
   version?: string
-  /** README file path, default is README.md in the project root shown as home page */
-  readme?: string
-  /** Links for the project. defaults to package.json repository url */
-  links?: Link[]
   /** tsconfig.json file path, default is tsconfig.json in the project root */
   tsconfig?: string
-  /** Repository information */
-  repository?: Repo
   /** Source directory, default to tsconfig.json `rootDir` or src */
   srcDir?: string
   /** Entrypoints — relative source paths reachable from `main` / `exports`. */
   entrypoints?: Entry[]
-  /** Pages to include in the project. Default is the README file. */
-  pages?: Page[]
   /** Files to exclude from the project (micromatch glob patterns) */
   exclude?: string[]
   /** Document every declaration, not just the exported public API. Default false. */
   full?: boolean
+
+  /** Pages to include in the project. Default is the README file. */
+  pages?: Page[]
+  /** Links for the project. defaults to package.json repository url */
+  links?: Link[]
+  /** Repository information */
+  repository?: Repo
 
   /**
    * Path to custom components file
@@ -108,7 +107,6 @@ const any: Valid<any, unknown> = (v) => ({ ok: true, value: v })
 export const schema = v.struct.match<UserConfig>({
   name: v.string,
   version: v.or(v.string, v.undefined),
-  readme: v.or(v.string, v.undefined),
   links: v.or(v.array(v.struct({ label: v.string, href: v.string })), v.undefined),
   tsconfig: v.or(v.string, v.undefined),
   repository: v.or(repo, v.undefined),

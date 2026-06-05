@@ -16,7 +16,7 @@ export interface ProjectJson {
   /** Entrypoints — relative source paths reachable from `main` / `exports`. */
   entrypoints: config.Entry[]
   /** Routes of the project. */
-  routes: RouteNode[]
+  legacyRoutes: RouteNode[]
   /** Flat list of every declaration in the project, source order. */
   declarations: reflect.Declaration[]
 }

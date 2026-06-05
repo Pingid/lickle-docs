@@ -1,4 +1,4 @@
-import type { ScanOptions } from './state.ts'
+import type { ScanOptions, ScanState } from './state.ts'
 
 import * as indexed from './indexed.ts'
 import { resolve } from './resolve.ts'
@@ -8,11 +8,12 @@ export type { ScanOptions } from './state.ts'
 export { type Index } from './indexed.ts'
 export type * from './types.ts'
 
-export const generate = (rootFiles: { as: string; path: string }[], options: ScanOptions) => {
-  const s = scan(
-    rootFiles.map((r) => r.path),
-    options,
+export const generate = (rootFiles: { as: string; path: string }[], options: ScanOptions) =>
+  resolve(
+    scan(
+      rootFiles.map((r) => r.path),
+      options,
+    ),
   )
-  const r = resolve(s)
-  return indexed.create(r, rootFiles)
-}
+
+export const index = (s: ScanState, rootFiles: { as: string; path: string }[]) => indexed.create(s, rootFiles)

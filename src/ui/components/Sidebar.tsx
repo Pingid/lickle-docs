@@ -8,7 +8,7 @@ type Node = Types.RouteNode
 
 export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
   const project = useProject()
-  const routes = createMemo(() => project().routes.filter((r) => r.sidebar))
+  const routes = createMemo(() => project().legacyRoutes.filter((r) => r.sidebar))
 
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>

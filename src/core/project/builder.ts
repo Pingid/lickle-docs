@@ -90,7 +90,7 @@ export class EntryPoint extends Decl<'module'> {
 
   /** Entry alias (`as`), defaulting to `.` for the main entry. */
   get alias(): string {
-    return this.index.alias(this.decl.id) ?? '.'
+    return this.index.rootAlias(this.decl.id)?.as ?? '.'
   }
 }
 

@@ -3,7 +3,7 @@ import path from 'node:path'
 import pc from 'picocolors'
 
 import * as Core from '../core/index.ts'
-import * as Lib from '../_lib/index.ts'
+import { Node } from '../_lib/index.ts'
 
 import { htmlShellGenerator } from './contex.ts'
 
@@ -31,10 +31,10 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
 
   // Project Json script
   const serializedJson = serializeJson(opts.json)
-  const hash = Lib.util.hash(serializedJson).slice(0, 8)
-  const name = Lib.fs.sanitizeFilename(`project-${opts.json.version ?? ''}-${hash}.js`)
+  const hash = Node.hash(serializedJson).slice(0, 8)
+  const name = Node.Fs.sanitizeFilename(`project-${opts.json.version ?? ''}-${hash}.js`)
   const outPath = path.resolve(opts.assetsDir, name)
-  await Lib.fs.writeFile(outPath, `window.__LICKLE_JSON__ = ${serializedJson}`)
+  await Node.Fs.writeFile(outPath, `window.__LICKLE_JSON__ = ${serializedJson}`)
   const jsonHref = prefixSlash(path.relative(opts.outDir, outPath))
 
   // Server script
@@ -42,10 +42,10 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const serverEntry = serverManifest[path.basename(opts.serverEntry)]?.file
   const serverSrc = path.resolve(opts.serverOutDir, serverEntry ?? '')
 
-  const { renderPage } = await Lib.jiti.importModule<{ renderPage: RenderPage }>(serverSrc)
+  const { renderPage } = await Node.Jiti.importModule<{ renderPage: RenderPage }>(serverSrc)
   const htmlShell = await htmlShellGenerator()
 
-  const routes = Core.project.flattenRoutes(opts.json.routes)
+  const routes = Core.project.flattenRoutes(opts.json.legacyRoutes)
 
   for (const route of routes) {
     // Group nodes are sidebar-only headings — no page, no slug — so skip them.
@@ -65,15 +65,15 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
 
     const outPath = path.join(opts.outDir, isRouteRoot(route) ? 'index.html' : slug + '.html')
 
-    await Lib.fs.ensureDir(outPath)
-    await Lib.fs.writeFile(outPath, html)
+    await Node.Fs.ensureDir(outPath)
+    await Node.Fs.writeFile(outPath, html)
     opts.logger.info(
       `${pc.gray(path.relative(process.cwd(), opts.outDir) + '/')}${pc.green(path.relative(opts.outDir, outPath))}`,
     )
   }
 
-  await Lib.fs.rm(opts.serverOutDir, { recursive: true })
-  await Lib.fs.rm(path.join(opts.outDir, '.vite'), { recursive: true })
+  await Node.Fs.rm(opts.serverOutDir, { recursive: true })
+  await Node.Fs.rm(path.join(opts.outDir, '.vite'), { recursive: true })
 }
 
 type ManifestChunk = {
@@ -88,7 +88,7 @@ type ManifestChunk = {
 type Manifest = Record<string, ManifestChunk>
 
 const readManifest = async (manifestPath: string): Promise<Manifest> =>
-  JSON.parse(await Lib.fs.readFile(manifestPath, 'utf8')) as Manifest
+  JSON.parse(await Node.Fs.readFile(manifestPath, 'utf8')) as Manifest
 
 // Guard against </script> in string content breaking the inline script, and XSS.
 const serializeJson = (json: unknown): string =>

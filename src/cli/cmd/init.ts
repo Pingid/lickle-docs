@@ -1,7 +1,7 @@
 import * as cmd from 'cmd-ts'
 import path from 'node:path'
 
-import * as lib from '../../_lib/index.ts'
+import { Node } from '../../_lib/index.ts'
 
 export const init = cmd.command({
   name: 'init',
@@ -30,10 +30,10 @@ export const init = cmd.command({
     const file = args.file ?? path.join(process.cwd(), 'lickle.ts')
     const dir = args.dir ?? path.join(process.cwd(), 'docs')
 
-    await lib.fs.ensureDir(file)
-    await lib.fs.writeFile(file, configTemplate)
+    await Node.Fs.ensureDir(file)
+    await Node.Fs.writeFile(file, configTemplate)
 
-    await lib.fs.ensureDir(dir)
+    await Node.Fs.ensureDir(dir)
     await writeInitFiles(dir, args.force)
   },
 })
@@ -68,13 +68,13 @@ const initFiles = {
 const writeInitFiles = async (dir: string, force: boolean = false) => {
   for (const [file, content] of Object.entries(initFiles)) {
     if (force) {
-      await lib.fs.writeFile(path.join(dir, file), content.join('\n'))
+      await Node.Fs.writeFile(path.join(dir, file), content.join('\n'))
       continue
     }
-    if (await lib.fs.exists(path.join(dir, file))) {
+    if (await Node.Fs.exists(path.join(dir, file))) {
       console.log(`skipping ${file} as it already exists`)
       continue
     }
-    await lib.fs.writeFile(path.join(dir, file), content.join('\n'))
+    await Node.Fs.writeFile(path.join(dir, file), content.join('\n'))
   }
 }

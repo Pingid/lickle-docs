@@ -1,9 +1,10 @@
 import * as cmd from 'cmd-ts'
 
+import { Node } from '../../_lib/index.ts'
+
 import * as project from '../../core/project/index.ts'
 import * as config from '../../config/load.ts'
 import * as core from '../../core/index.ts'
-import * as lib from '../../_lib/index.ts'
 
 export const json = cmd.command({
   name: 'json',
@@ -20,9 +21,9 @@ export const json = cmd.command({
     }),
   },
   handler: async (args) => {
-    await lib.fs.ensureDir('docs')
+    await Node.Fs.ensureDir('docs')
     const p = await core.project.buildJson(await config.load(process.cwd(), { full: args.full }))
-    if (args.print) project.displayRoutes(p.routes)
-    await lib.fs.writeFile('docs/project.json', JSON.stringify(p, null, 2))
+    if (args.print) project.displayRoutes(p.legacyRoutes)
+    await Node.Fs.writeFile('docs/project.json', JSON.stringify(p, null, 2))
   },
 })

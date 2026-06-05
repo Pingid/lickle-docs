@@ -41,7 +41,7 @@ export const createSearchEngine = async (project: Types.Project): Promise<Search
       await walk(r.children)
     }
   }
-  await walk(project.routes)
+  await walk(project.legacyRoutes)
 
   return {
     query: async (term, limit = 20) => {

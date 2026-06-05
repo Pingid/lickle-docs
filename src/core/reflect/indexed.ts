@@ -1,17 +1,18 @@
-import { path, type t } from '../../_lib/index.ts'
+import { Path, type t } from '../../_lib/index.ts'
 import type { ScanState } from './state.ts'
 import * as T from './types.ts'
 
 export const create = (s: ScanState, entries: { as: string; path: string }[]) =>
-  index(s, [roots(entries), treeIndex, referenceIndex, exposerIndex])
+  index(s, [roots(entries), treeIndex(s.root), referenceIndex, exposerIndex, sourceCode(s)])
 
-export type Index = Roots & TreeIndex & ReferenceIndex & ExposerIndex
+export type Index = Roots & TreeIndex & ReferenceIndex & ExposerIndex & SourceCode
 
 /** */
 export type Roots = {
   roots(): Iterable<T.Declaration<'module'>>
   isRoot(id: number): boolean
-  alias(id: number): string | undefined
+
+  rootAlias(id: number): { as: string; index: number } | undefined
   commonDir: () => string
   modules: () => T.Declaration<'module'>[]
 }
@@ -20,7 +21,7 @@ export const roots =
   (b): Roots => {
     const rootIds = new Set<number>()
     const roots = new Map<string, T.Declaration<'module'>>()
-    const alias = new Map<number, string>()
+    const alias = new Map<number, { as: string; index: number }>()
     const modules: T.Declaration<'module'>[] = []
     const byPath = new Map<string, number>()
     let commonDir = ''
@@ -28,10 +29,11 @@ export const roots =
       if (d.kind === 'module' && d.path) {
         modules.push(d)
         byPath.set(d.path, d.id)
-        for (const entry of entries) {
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i]!
           if (d.path === entry.path) {
             roots.set(entry.as, d)
-            alias.set(d.id, entry.as)
+            alias.set(d.id, { as: entry.as, index: i })
             rootIds.add(d.id)
             break
           }
@@ -39,56 +41,108 @@ export const roots =
       }
     })
     b.after(() => {
-      commonDir = path.common(Array.from(byPath.keys()))
+      commonDir = Path.common(Array.from(byPath.keys()))
     })
-    const isRoot = (id: number): boolean => rootIds.has(id)
+
     return {
-      isRoot,
-      alias: (id) => alias.get(id),
+      isRoot: (id: number): boolean => rootIds.has(id),
+      rootAlias: (id) => alias.get(id),
       roots: () => roots.values(),
       commonDir: () => commonDir,
       modules: () => modules,
     }
   }
 
+/** */
+export type SourceCode = {
+  getText: (id: number) => string
+  sourceFileText: (id: number) => { file: string; text: string }
+}
+export const sourceCode =
+  (s: ScanState): Indexer<SourceCode> =>
+  (): SourceCode => {
+    const getText = (id: number): string => {
+      const node = s?.symbolsById?.get?.(id)
+      if (!node) return ''
+      return (node?.declarations ?? [])
+        .map((d) => d?.getText())
+        .filter((t) => t !== undefined)
+        .join('\n')
+    }
+
+    const sourceFileText = (id: number) => {
+      const node = s?.symbolsById?.get?.(id)
+      return {
+        get file() {
+          return node?.declarations?.[0]?.getSourceFile()?.fileName ?? ''
+        },
+        get text() {
+          return node?.declarations?.[0]?.getSourceFile()?.text ?? ''
+        },
+      }
+    }
+
+    return { getText, sourceFileText }
+  }
+
 export type TreeIndex = {
-  get: (id: number) => T.Declaration | undefined
+  get: <K extends keyof T.DeclarationMap = keyof T.DeclarationMap>(id: number) => T.Declaration<K> | undefined
+  parents: (id: number) => number[]
   children: (id: number) => Iterable<T.Declaration>
   declarations: () => Iterable<T.Declaration>
 }
-export const treeIndex: Indexer<TreeIndex> = (s): TreeIndex => {
-  const byId = new Map<number, T.Declaration>()
-  const byParent = new Map<number, Set<number>>()
-  s.init((d) => {
-    byId.set(d.id, d)
-    const parent = d.parent
-    let children = byParent.get(parent)
-    if (!children) byParent.set(parent, (children = new Set()))
-    children.add(d.id)
-  })
-  const EMPTY = new Set<number>()
-  return {
-    get: (id) => byId.get(id),
-    *children(id) {
-      for (const child of byParent.get(id) ?? EMPTY) yield byId.get(child)!
-    },
-    declarations: () => byId.values(),
+export const treeIndex =
+  (rootId: number): Indexer<TreeIndex> =>
+  (s): TreeIndex => {
+    const byId = new Map<number, T.Declaration>()
+    const byParent = new Map<number, Set<number>>()
+    s.init((d) => {
+      byId.set(d.id, d)
+      const parent = d.parent
+      let children = byParent.get(parent)
+      if (!children) byParent.set(parent, (children = new Set()))
+      children.add(d.id)
+    })
+    const EMPTY = new Set<number>()
+
+    const parents = (id: number): number[] => {
+      const decl = byId.get(id)
+      if (!decl) return []
+      if (decl.parent === rootId) return [id]
+      return [...parents(decl.parent), id]
+    }
+    return {
+      parents: parents,
+      get: (id) => byId.get(id) as any,
+      *children(id) {
+        for (const child of byParent.get(id) ?? EMPTY) yield byId.get(child)!
+      },
+      declarations: () => byId.values(),
+    }
   }
-}
 
 /** */
-export type ReferenceIndex = { referencedIn: (id: number) => Iterable<number> }
+export type ReferenceIndex = {
+  referencedIn: (id: number) => Iterable<number>
+  references: (id: number) => Iterable<number>
+}
 export const referenceIndex: Indexer<ReferenceIndex> = (s): ReferenceIndex => {
   const referencedIn = new Map<number, Set<number>>()
+  const references = new Map<number, Set<number>>()
+
   for (const ref of s.references) {
     if (ref.type === 'internal') {
       let refs = referencedIn.get(ref.targetId)
       if (!refs) referencedIn.set(ref.targetId, (refs = new Set()))
       refs.add(ref.owner)
+
+      let refss = references.get(ref.owner)
+      if (!refss) references.set(ref.owner, (refss = new Set()))
+      refss.add(ref.targetId)
     }
   }
   const EMPTY = new Set<number>()
-  return { referencedIn: (id) => referencedIn.get(id) ?? EMPTY }
+  return { referencedIn: (id) => referencedIn.get(id) ?? EMPTY, references: (id) => references.get(id) ?? EMPTY }
 }
 
 /** Depends on Roots + TreeIndex. */
@@ -100,10 +154,12 @@ export type ExposedModule =
   | { id: number; kind: 'named'; names: {}[] }
 
 export type ExposerIndex = {
+  isExposed: (id: number) => boolean
+  exposures: (id: number) => Exposure[][]
   exposedBy: (id: number) => Iterable<Exposure>
   exposes: (id: number) => Iterable<Exposed>
   /** Declarations exposed directly (one level) by `exposer`, in exposure order. */
-  exposed: (exposer: number) => Iterable<Exposed>
+  exposed: (exposer: number) => Exposed[]
   /**
    * Exposed modules / namespaces. With no argument, every one (deduped by id);
    * with an exposer id, only those exposed directly by that module/namespace.
@@ -215,7 +271,22 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     }
   }
   const EMPTY_MODULES = new Map<number, ExposedModule>()
+
+  const exposures = (id: number, pth: Exposure[] = []): Exposure[][] => {
+    const d = exposedBy.get(id)
+    if (!d) return []
+    return d.flatMap((e) => (deps.isRoot(e.exposer) ? [[e, ...pth]] : exposures(e.exposer, [e, ...pth])))
+  }
+
+  const isExposed = (id: number): boolean => {
+    const d = exposedBy.get(id)
+    if (!d) return false
+    return d.length > 0
+  }
+
   return {
+    isExposed,
+    exposures,
     exposedBy: (id) => exposedBy.get(id) ?? EMPTY_BY,
     exposes: (id) => exposes(id),
     exposed: (id) => direct.get(id) ?? EMPTY_EXP,

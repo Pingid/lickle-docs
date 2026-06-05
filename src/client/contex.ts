@@ -1,6 +1,7 @@
 import * as Config from '../config/index.ts'
 import * as Core from '../core/index.ts'
-import * as Lib from '../_lib/index.ts'
+
+import { Node, Util } from '../_lib/index.ts'
 import { clientFiles } from './env.ts'
 
 export type ViteContext = {
@@ -23,7 +24,7 @@ export const makeContext = (opts: {
 }): ViteContext => {
   const subs = new Set<() => void>()
   let options = opts.config()
-  const rebuild = Lib.util.serial(() => {
+  const rebuild = Util.serial(() => {
     options = opts.config()
     subs.forEach((cb) => cb())
     return options
@@ -42,7 +43,7 @@ export const makeContext = (opts: {
 }
 
 export const htmlShellGenerator = async () => {
-  const template = await Lib.fs.readFile(clientFiles.htmlTemplate, 'utf8')
+  const template = await Node.Fs.readFile(clientFiles.htmlTemplate, 'utf8')
   return (opts: { body: string; head: string; title: string }) =>
     template.replace('{{TITLE}}', opts.title).replace('{{BODY}}', opts.body).replace('{{HEAD}}', opts.head)
 }

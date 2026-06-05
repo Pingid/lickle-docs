@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import type { UserConfig } from './types.ts'
 
-import * as lib from '../_lib/index.ts'
+import { Node, Pkg, Repo, TsConfig } from '../_lib/index.ts'
 
 /**
  * Resolve a partial `UserConfig` into a fully-defaulted `NewProjectConfig`.
@@ -12,12 +12,12 @@ import * as lib from '../_lib/index.ts'
  * empty here — the reflection pass fills them once scanning is wired up.
  */
 export const apply = async (dir: string, c?: Partial<UserConfig>): Promise<UserConfig> => {
-  const pkg = await lib.pkg.read(process.cwd())
-  const info = await lib.repo.info(dir)
-  const readme = await lib.fs.existingPath(path.join(dir, 'README.md'))
+  const pkg = await Pkg.read(process.cwd())
+  const info = await Repo.info(dir)
+  const readme = await Node.Fs.existingPath(path.join(dir, 'README.md'))
   const defualtLinks = info ? [{ label: 'Repository', href: info.url }] : []
-  const entrypoints = c?.entrypoints ?? (await lib.pkg.resolveExportedSources(dir, pkg))
-  const tsconfig = lib.tsconfig.resolve(dir)
+  const entrypoints = c?.entrypoints ?? (await Pkg.resolveExportedSources(dir, pkg))
+  const tsconfig = TsConfig.resolve(dir)
 
   const name = c?.name ?? pkg?.name
   if (!name) throw new Error('No project name found')
@@ -26,7 +26,7 @@ export const apply = async (dir: string, c?: Partial<UserConfig>): Promise<UserC
     ...c,
     name,
     version: c?.version ?? pkg?.version ?? info?.tag,
-    readme,
+    pages: c?.pages ?? (readme ? [{ title: 'README', slug: '', content: readme }] : undefined),
     entrypoints,
     links: c?.links ?? defualtLinks,
     repository: info ? { url: info.url, rev: info.commit, fileUrl: info.fileUrl } : undefined,
