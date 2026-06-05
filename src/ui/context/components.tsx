@@ -74,3 +74,5 @@ export interface Components {
 }
 
 type WithDefault<P extends Record<string, any>> = Component<P & { Default: Component<P> }>
+
+export const defineComponents = <C extends Components>(components: C) => components

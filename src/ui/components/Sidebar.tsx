@@ -36,7 +36,7 @@ const NavList = (props: { nodes: Node[]; depth: number; onNavigate?: () => void 
 /** A non-interactive section heading shown above a run of related routes. */
 const GroupLabel = (props: { label: string; depth: number }) => (
   <div
-    class="pr-2 pt-4 pb-1 text-[0.6875rem] font-medium text-mute/55 select-none first:pt-1"
+    class="pr-2 pt-2 pb-1 text-[0.6875rem] font-medium text-mute/55 select-none first:pt-1"
     style={{ 'padding-left': `calc(${indent(props.depth)} + 1.625rem)` }}
   >
     {props.label}
@@ -61,7 +61,8 @@ const NavNode = (props: NodeProps) => {
   const isGroup = () => props.node.page === undefined || props.node.slug === undefined
   const base = () => (props.node.slug ? `/${props.node.slug}` : undefined)
   const isActive = () => !!base() && loc.pathname === base()
-  const onPath = () => isActive() || (!!base() && loc.pathname.startsWith(`${base()}/`))
+  const onPath = () =>
+    (isActive() || (!!base() && loc.pathname.startsWith(`${base()}/`))) && kids().some((k) => k.sidebar)
 
   if (isGroup())
     return (
@@ -81,7 +82,7 @@ const NavNode = (props: NodeProps) => {
         </div>
       }
     >
-      <details open={onPath()} class="group">
+      <details open={onPath()} class="">
         <summary
           class="flex items-center list-none cursor-pointer [&::-webkit-details-marker]:hidden"
           style={{ 'padding-left': indent(props.depth) }}
@@ -91,7 +92,9 @@ const NavNode = (props: NodeProps) => {
           </span>
           <NodeLink {...props} active={isActive()} />
         </summary>
-        <NavList nodes={kids()} depth={props.depth + 1} onNavigate={props.onNavigate} />
+        <div class="pb-2">
+          <NavList nodes={kids()} depth={props.depth + 1} onNavigate={props.onNavigate} />
+        </div>
       </details>
     </Show>
   )
@@ -126,7 +129,7 @@ const Chevron = () => (
     width="10"
     height="10"
     viewBox="0 0 12 12"
-    class="shrink-0 text-mute transition-transform group-open:rotate-90"
+    class="shrink-0 text-mute transition-transform [details[open]>summary_&]:rotate-90"
     aria-hidden="true"
   >
     <path d="M4 2.5 7.5 6 4 9.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" />

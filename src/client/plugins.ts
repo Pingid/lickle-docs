@@ -32,9 +32,13 @@ export const project = (config: ViteContext): vite.Plugin => {
 
       s.watcher.add([config.dir])
 
+      let last = '0'
       const handleJson = async () => {
         await config.rebuild()
         const json = await config.json()
+        const hash = JSON.stringify(json)
+        if (hash === last) return
+        last = hash
         s.ws.send({ type: 'custom', event: 'docs-update', data: json })
         logger?.info('Docs built successfully', { timestamp: true })
       }
