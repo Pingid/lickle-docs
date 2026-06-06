@@ -2,7 +2,7 @@ import type { ScanOptions, ScanState } from './state.ts'
 
 import * as indexed from './indexed.ts'
 import * as Resolve from './resolve.ts'
-import * as Scan from './scan.ts'
+import * as Scan from './scan/index.ts'
 
 export type { ScanOptions } from './state.ts'
 export { type Index } from './indexed.ts'

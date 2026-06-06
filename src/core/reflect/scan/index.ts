@@ -1,7 +1,7 @@
-import { makeScanState, type ScanOptions, type ScanState as State } from './state.ts'
+import { makeScanState, type ScanOptions, type ScanState as State } from '../state.ts'
 import ts from 'typescript'
 
-import type * as T from './types.ts'
+import type * as T from '../types.ts'
 
 export const scan = (options: ScanOptions) => {
   const program = ts.createProgram(options.cmd.fileNames, options.cmd.options)

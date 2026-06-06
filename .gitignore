@@ -7,7 +7,6 @@ lib-ui
 lib-core
 lib-cli
 tsconfig.base.json
-lickle.*
 docs
 temp
 demo
