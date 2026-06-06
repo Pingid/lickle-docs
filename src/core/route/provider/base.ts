@@ -85,11 +85,7 @@ const getSidebar =
 const getAlias =
   (cx: RouteContext) =>
   (id: number): string => {
-    if (cx.docs.isRoot(id)) {
-      const segments = rootAliasSegments(cx, id)
-      return segments[segments.length - 1]!
-    }
-    const decl = cx.docs.get(id)!
+    if (cx.docs.isRoot(id)) cx.docs.rootAlias(id)!.as.replace(/^\.\//, '')
 
     if (cx.docs.isExposed(id)) {
       return getExposedPath(cx, id)
@@ -97,6 +93,7 @@ const getAlias =
         .join('.')
     }
 
+    const decl = cx.docs.get(id)!
     if (decl.kind === 'module') {
       const segments = getSegments(cx, id)
       return segments.join('/')

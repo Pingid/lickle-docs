@@ -2,6 +2,7 @@ import type { Types } from '../context/index.tsx'
 import { docStatement } from './route.ts'
 import { withBaseUrl } from './base.ts'
 import { labelOf } from './kind.ts'
+import { firstCodeBlock } from '../context/markup/util.ts'
 
 /** Resolve a `{@link Name}` reference to its slug, for inline comment links. */
 export type SlugOf = (name: string) => string | undefined
@@ -86,12 +87,10 @@ export const declarationToMarkdown = (decl: Types.Declaration, slugOf: SlugOf): 
 }
 
 const DECL: { [K in Types.Declaration['kind']]?: (d: Types.Declaration<K>, slugOf: SlugOf) => string } = {
-  function: (d, s) => fence(d.signatures.map((sig) => sigLine(sig, d.name)).join('\n')) + commentBlock(d.comment, s),
+  function: (d, s) => signature(d.signatures.map((sig) => sigLine(sig, d.name)).join('\n'), d.comment, s),
   variable: (d, s) =>
-    fence(`const ${d.name}: ${typeStr(d.type)}${d.defaultValue ? ` = ${d.defaultValue}` : ''}`) +
-    commentBlock(d.comment, s),
-  'type-alias': (d, s) =>
-    fence(`type ${d.name}${generics(d.generics)} = ${typeStr(d.type)}`) + commentBlock(d.comment, s),
+    signature(`const ${d.name}: ${typeStr(d.type)}${d.defaultValue ? ` = ${d.defaultValue}` : ''}`, d.comment, s),
+  'type-alias': (d, s) => signature(`type ${d.name}${generics(d.generics)} = ${typeStr(d.type)}`, d.comment, s),
   class: (d, s) =>
     heritage('extends', d.extends) + heritage('implements', d.implements) + commentBlock(d.comment, s) + members(d, s),
   interface: (d, s) => heritage('extends', d.extends) + commentBlock(d.comment, s) + members(d, s),
@@ -204,14 +203,19 @@ const tagMd = (t: Types.CommentTag, slugOf: SlugOf): string => {
       return `\n**Returns**${t.type ? ` \`${typeStr(t.type)}\`` : ''}${desc(t.text)}\n`
     case '@throws':
       return `\n**Throws**${t.type ? ` \`${typeStr(t.type)}\`` : ''}${desc(t.text)}\n`
-    case '@example':
-      return `\n**Example**${t.caption ? ` ${t.caption}` : ''}\n\n${fence(t.code, t.lang || 'ts')}`
+    case '@example': {
+      // Defensive: if `code` still carries a fence, unwrap it so we never nest.
+      const block = firstCodeBlock(t.code)
+      return `\n**Example**${t.caption ? ` ${t.caption}` : ''}\n\n${fence(block.code, t.lang || block.lang || 'ts')}`
+    }
     case '@see':
       return `\n**See**${t.text ? ` ${commentText(t.text, t.target, slugOf)}` : ''}\n`
     default: {
       const label = t.tag.replace(/^@/, '')
-      const text = (t as { text?: string }).text
-      return `\n**${label}**${desc(text)}\n`
+      const caption = (t as { caption?: string }).caption
+      const body = (t as { text?: string }).text?.trim()
+      const head = `\n**${label}**${caption ? ` ${caption}` : ''}`
+      return body ? `${head}\n\n${body}\n` : `${head}\n`
     }
   }
 }
@@ -322,6 +326,13 @@ const sigLine = (sig: Types.Part<'signature'>, name?: string, kind?: 'constructo
 // HELPERS
 // ============================================================================
 
-const fence = (code: string, lang = 'ts'): string => `\`\`\`${lang}\n${code}\n\`\`\`\n`
+/** Fenced code block. Empty code yields nothing (no stray empty fences). */
+const fence = (code: string, lang = 'ts'): string => (code.trim() ? `\`\`\`${lang}\n${code}\n\`\`\`\n` : '')
+
+/** A signature fence followed by its comment, with a blank line between them. */
+const signature = (code: string, comment: Types.Comment | undefined, s: SlugOf): string => {
+  const c = commentBlock(comment, s).replace(/^\n+/, '')
+  return fence(code) + (c ? `\n${c}` : '')
+}
 
 const subsection = (title: string, body: string): string => (body.trim() ? `\n### ${title}\n\n${body}` : '')

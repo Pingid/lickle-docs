@@ -42,9 +42,10 @@ export const Header = createSlot('header', (props: { onSearch?: () => void }) =>
           </Show>
         </A>
 
-        <SearchButton onSearch={props.onSearch} />
-
-        <nav class="ml-auto flex items-center gap-1">
+        <nav class="ml-auto flex items-center">
+          <div class="pr-4">
+            <SearchButton onSearch={props.onSearch} />
+          </div>
           <For each={project().links}>{(link) => <LinkButton link={link} class="px-2 py-1 text-xs" />}</For>
           <div class="ml-2">
             <ThemeToggle />
@@ -63,11 +64,11 @@ const SearchButton = clientOnly(() => (props: { onSearch?: () => void }) => {
       type="button"
       onClick={() => props.onSearch?.()}
       aria-label="Search"
-      class="ml-4 flex items-center gap-2 px-2.5 py-1 text-xs text-mute border border-line rounded-md hover:text-fg hover:bg-hover transition-colors cursor-pointer"
+      class="ml-4 flex items-center gap-2 mt-0.5 px-2.5 py-1.5 text-xs text-mute border border-line rounded-md hover:text-fg hover:bg-hover transition-colors cursor-pointer"
     >
       <SearchIcon size={13} />
-      <span class="hidden sm:inline">Search</span>
-      <kbd class="font-mono text-[0.65rem] text-mute">{searchHint()}</kbd>
+      <span class="hidden sm:inline pr-3">Search</span>
+      <kbd class="font-mono text-[0.65rem] text-mute mr-1">{searchHint()}</kbd>
     </button>
   )
 })

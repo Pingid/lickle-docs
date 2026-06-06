@@ -143,7 +143,7 @@ const buildTag = (s: State, tag: ts.JSDocTag): T.CommentTag => {
   // `@example` carries semantic indentation; re-extract from source so the
   // leader-strip never eats author tabs (see `rawTagBody`).
   if (name === '@example') return parseExample(rawTagBody(tag))
-  return { kind: '*', tag: name, text }
+  return parseCustom(name, rawTagBody(tag))
 }
 
 /**
@@ -164,26 +164,41 @@ const rawTagBody = (tag: ts.JSDocTag): string => {
 }
 
 /**
- * Pull an optional caption out of an `@example` body. Two forms are recognised:
+ * Split a leading caption from a tag body. Two forms are recognised:
  *   1. Legacy JSDoc: `<caption>…</caption>` prefix.
- *   2. TypeDoc-style: any text on the line(s) before the first fenced code
- *      block becomes the caption; the fence and its body become the code.
- * When neither pattern matches, the entire body is treated as `code`.
+ *   2. TypeDoc-style: any text on the line(s) before the first fenced code block.
+ * When neither matches, the whole input is the body and there is no caption.
  */
-const parseExample = (raw: string): T.CommentTagMap['@example'] => {
+const splitCaption = (raw: string): { caption?: string; body: string } => {
   const html = raw.match(/^<caption>([\s\S]*?)<\/caption>\s*([\s\S]*)$/)
-  if (html) return { ...exampleBody(html[2]!.trim()), caption: html[1]!.trim() }
+  if (html) return { caption: html[1]!.trim(), body: html[2]!.trim() }
   const fence = raw.search(/^```/m)
   if (fence > 0) {
     const caption = raw.slice(0, fence).trim()
-    if (caption) return { ...exampleBody(raw.slice(fence).trim()), caption }
+    if (caption) return { caption, body: raw.slice(fence).trim() }
   }
-  return exampleBody(raw.trim())
+  return { body: raw.trim() }
 }
-/** Strip one surrounding ``` fence, capturing its language info string. */
+
+const parseExample = (raw: string): T.CommentTagMap['@example'] => {
+  const { caption, body } = splitCaption(raw)
+  return { ...exampleBody(body), ...(caption ? { caption } : {}) }
+}
+
+/** Custom tag: leading caption split off; the block/body stays in `text`. */
+const parseCustom = (tag: string, raw: string): T.CommentTagMap['*'] => {
+  const { caption, body } = splitCaption(raw)
+  return { kind: '*', tag, ...(caption ? { caption } : {}), text: body }
+}
+/**
+ * Pull the first fenced code block out of an example body, capturing its
+ * language info string. Tolerant of caption/prose around the fence (anything
+ * outside the block is dropped, matching how examples render — code only).
+ * Bodies with no fence are treated as raw code.
+ */
 const exampleBody = (body: string): T.CommentTagMap['@example'] => {
-  const m = body.match(/^```([^\n]*)\n([\s\S]*?)\n?```\s*$/)
+  const m = body.match(/```([^\n]*)\r?\n([\s\S]*?)```/)
   const base = { kind: '@example', tag: '@example' } as const
-  if (m) return { ...base, lang: m[1]!.trim(), code: m[2]! }
+  if (m) return { ...base, lang: m[1]!.trim(), code: m[2]!.replace(/\r?\n$/, '') }
   return { ...base, lang: '', code: body }
 }

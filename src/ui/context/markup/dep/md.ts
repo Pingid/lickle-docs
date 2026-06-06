@@ -1,11 +1,13 @@
 import { Marked, type RendererObject } from 'marked'
 
 import { withBaseUrl } from '../../../util/base.ts'
+import { languages } from './languages.ts'
 
 export const buildMarkdown = (highlight: (p: { text: string; lang: string }) => string) => {
   const m = new Marked({ gfm: true, breaks: false })
-  return (x: string, lookup: (raw: string) => string | undefined) =>
-    m.use({ renderer: createRenderer(highlight, lookup) }).parse(x, { async: false })
+  return (x: string, lookup: (raw: string) => string | undefined) => {
+    return m.use({ renderer: createRenderer(highlight, lookup) }).parse(x, { async: false })
+  }
 }
 
 const createRenderer = (
@@ -13,7 +15,7 @@ const createRenderer = (
   lookup: (raw: string) => string | undefined,
 ): RendererObject => ({
   code({ text, lang }) {
-    if (lang && lang !== 'text') {
+    if (lang && languages.some((l) => l.name === lang)) {
       try {
         return highlight({ text, lang: lang })
       } catch {

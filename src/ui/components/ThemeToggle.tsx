@@ -21,7 +21,7 @@ export const ThemeToggle = () => {
       title={`Theme: ${LABELS[mode()]}`}
       aria-label={`Theme: ${LABELS[mode()]}. Switch to ${LABELS[next(mode())]}`}
       onClick={() => setMode(next(mode()))}
-      class="flex items-center justify-center w-8 h-8 rounded-md border border-line text-mute hover:text-fg hover:bg-hover transition-colors cursor-pointer"
+      class="flex items-center justify-center w-8 h-8 rounded-md text-mute hover:text-fg transition-colors cursor-pointer"
     >
       <svg
         width="15"

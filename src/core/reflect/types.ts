@@ -145,7 +145,7 @@ export interface CommentTagDefinitions {
   '@satisfies': { type: Type; text: string }
   '@template': { generics: Part<'generic'>[]; text: string }
   '@see': { target?: string; text: string }
-  '@example': { caption?: string; lang: string; code: string; text?: string }
+  '@example': { caption?: string; lang?: string; code: string; text?: string }
   '@augments': { class: Type; text: string }
   '@implements': { class: Type; text: string }
 }
@@ -158,7 +158,7 @@ export interface Comment {
 
 export type CommentTagMap = t.Compute<
   { [K in keyof CommentTagDefinitions]: t.Compute<CommentTagDefinitions[K] & { tag: K; kind: K }> } & {
-    '*': { tag: string; kind: '*'; name?: string; text: string }
+    '*': { tag: string; kind: '*'; name?: string; caption?: string; text: string }
   }
 >
 export type CommentTag<K extends keyof CommentTagMap = keyof CommentTagMap> = CommentTagMap[K]
