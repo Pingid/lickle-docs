@@ -6,41 +6,71 @@ import { labelOf } from './kind.ts'
 /** Resolve a `{@link Name}` reference to its slug, for inline comment links. */
 export type SlugOf = (name: string) => string | undefined
 
+export interface MarkdownOptions {
+  /** Inline every module/namespace member's full documentation, recursively. */
+  inlineMembers?: boolean
+}
+
+type Ctx = { project: Types.Project; slugOf: SlugOf; inline: boolean; seen: Set<number> }
+
 /**
  * Serialize a route's main content to markdown: the title, declaration body
  * (signatures, type, JSDoc) and member listings. "Referenced In" backlinks are
  * intentionally dropped. Mirrors the JSX renderers in `components/` as strings.
+ *
+ * With `inlineMembers`, module/namespace exports are expanded in place (their
+ * full docs, recursively) instead of listed as links.
  */
-export const routeToMarkdown = (route: Types.Route, project: Types.Project, slugOf: SlugOf): string => {
+export const routeToMarkdown = (
+  route: Types.Route,
+  project: Types.Project,
+  slugOf: SlugOf,
+  opts: MarkdownOptions = {},
+): string => renderRoute(route, { project, slugOf, inline: !!opts.inlineMembers, seen: new Set() }, 1)
+
+const renderRoute = (route: Types.Route, ctx: Ctx, depth: number): string => {
   const parts: string[] = []
   for (const body of route.body) {
     if (body.kind === 'markdown') parts.push(body.markdown.trim())
-    else if (body.kind === 'doc:statement') parts.push(statementMd(route, body, project, slugOf))
+    else if (body.kind === 'doc:statement') parts.push(statementMd(route, body, ctx, depth))
     // doc:referenced is skipped — main article only.
   }
   return parts.filter(Boolean).join('\n\n').trimEnd() + '\n'
 }
 
-const statementMd = (route: Types.Route, body: Types.DocStatement, project: Types.Project, slugOf: SlugOf): string => {
-  const decl = project.byId(body.id)
-  if (!decl) return `# ${route.title}\n`
-  let out = `# ${route.title}\n\n*${labelOf(decl.kind)}*\n\n`
+const statementMd = (route: Types.Route, body: Types.DocStatement, ctx: Ctx, depth: number): string => {
+  const decl = ctx.project.byId(body.id)
+  const h = '#'.repeat(Math.min(depth, 6))
+  if (!decl) return `${h} ${route.title}\n`
+  if (ctx.inline && ctx.seen.has(decl.id)) return ''
+  ctx.seen.add(decl.id)
+  let out = `${h} ${route.title}\n\n*${labelOf(decl.kind)}*\n\n`
   const src = decl.sources?.[0]
   if (src) out += `\`${src.file}:${src.line}\`\n\n`
-  out += declarationToMarkdown(decl, slugOf)
-  out += childrenMd(project, body.id, slugOf)
+  out += declarationToMarkdown(decl, ctx.slugOf)
+  out += childrenMd(body.id, ctx, depth)
   return out.trimEnd() + '\n'
 }
 
-/** Module/namespace export list: the route's children grouped as the UI groups them. */
-const childrenMd = (project: Types.Project, id: number, slugOf: SlugOf): string => {
+/**
+ * Module/namespace exports. Listed as links by default, or — when
+ * `ctx.inline` — expanded in place with each member's full documentation.
+ */
+const childrenMd = (id: number, ctx: Ctx, depth: number): string => {
   let out = ''
-  for (const g of project.routes.members(id)) {
-    out += `\n## ${g.group || 'Members'}\n\n`
-    for (const item of g.items) {
-      const stmt = docStatement(item.route)
-      const d = stmt ? project.byId(stmt.id) : undefined
-      out += `- \`${item.route.title}\`${inlineComment(d?.comment, slugOf)}\n`
+  for (const g of ctx.project.routes.members(id)) {
+    if (ctx.inline) {
+      for (const item of g.items) {
+        const md = renderRoute(item.route, ctx, depth + 1)
+        if (md.trim()) out += `\n${md}`
+      }
+    } else {
+      out += `\n${'#'.repeat(Math.min(depth + 1, 6))} ${g.group || 'Members'}\n\n`
+      for (const item of g.items) {
+        const stmt = docStatement(item.route)
+        const d = stmt ? ctx.project.byId(stmt.id) : undefined
+        out += `- \`${item.route.title}\`${inlineComment(d?.comment, ctx.slugOf)}\n`
+      }
     }
   }
   return out

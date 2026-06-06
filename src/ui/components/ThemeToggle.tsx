@@ -9,42 +9,33 @@ const ICONS: Record<ThemeMode, string> = {
 }
 
 const LABELS: Record<ThemeMode, string> = { light: 'Light', dark: 'Dark', system: 'System' }
+const ORDER: ThemeMode[] = ['system', 'light', 'dark']
+
+const next = (m: ThemeMode): ThemeMode => ORDER[(ORDER.indexOf(m) + 1) % ORDER.length]!
 
 export const ThemeToggle = () => {
   const { mode, setMode } = useTheme()
-  const order: ThemeMode[] = ['system', 'light', 'dark']
 
   return (
-    <div role="radiogroup" aria-label="Theme" class="inline-flex items-center gap-0.5">
-
-      <For each={order}>
-        {(m) => (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={mode() === m}
-            title={LABELS[m]}
-            onClick={() => setMode(m)}
-            class="px-2 py-1 rounded-[5px] transition-colors duration-150 text-mute hover:text-fg cursor-pointer"
-            classList={{
-              'bg-hover text-fg': mode() === m,
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d={ICONS[m]} />
-            </svg>
-          </button>
-        )}
-      </For>
-    </div>
+    <button
+      type="button"
+      title={`Theme: ${LABELS[mode()]}`}
+      aria-label={`Theme: ${LABELS[mode()]}. Switch to ${LABELS[next(mode())]}`}
+      onClick={() => setMode(next(mode()))}
+      class="flex items-center justify-center w-8 h-8 rounded-md border border-line text-mute hover:text-fg hover:bg-hover transition-colors cursor-pointer"
+    >
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d={ICONS[mode()]} />
+      </svg>
+    </button>
   )
 }
