@@ -5,7 +5,6 @@ import type { Types } from '../../context/index.tsx'
 
 import { Sandbox, type SandboxIsolate } from './Sandbox.tsx'
 
-import { firstCodeBlock } from '../../context/index.tsx'
 import { TagSection } from '../Comment/index.tsx'
 import { CodeEditor } from '../Code/index.tsx'
 
@@ -59,10 +58,8 @@ export const LiveExample = (props: LiveExampleProps) => {
 }
 
 const useWithPreview = (props: LiveExampleProps) => {
-  const block = firstCodeBlock(props.tag.code)
-
   const [host, setHost] = createSignal<HTMLElement | null>(null)
-  const [code, setCode] = createSignal(block.code)
+  const [code, setCode] = createSignal(props.tag.code)
   const [error, setError] = createSignal<string>()
 
   let dispose: void | (() => void)
@@ -99,7 +96,7 @@ const useWithPreview = (props: LiveExampleProps) => {
   const value = () => code()
   const onBind = (h: HTMLElement | null) => setHost(h)
 
-  return { onBind, onChange, value, error, lang: block.lang }
+  return { onBind, onChange, value, error, lang: props.tag.lang }
 }
 
 const messageOf = (err: unknown): string => {

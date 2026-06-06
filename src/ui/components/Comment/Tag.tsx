@@ -59,7 +59,7 @@ const TagSatisfies = (props: { tag: Types.CommentTagMap['@satisfies'] }) => (
 
 const TagExample = (props: { tag: Types.CommentTagMap['@example'] }) => (
   <TagSection tag={props.tag}>
-    <CodeBlock code={props.tag.code} />
+    <CodeBlock code={props.tag.code} lang={props.tag.lang} />
   </TagSection>
 )
 

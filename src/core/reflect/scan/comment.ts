@@ -172,11 +172,18 @@ const rawTagBody = (tag: ts.JSDocTag): string => {
  */
 const parseExample = (raw: string): T.CommentTagMap['@example'] => {
   const html = raw.match(/^<caption>([\s\S]*?)<\/caption>\s*([\s\S]*)$/)
-  if (html) return { kind: '@example', tag: '@example', caption: html[1]!.trim(), code: html[2]!.trim() }
+  if (html) return { ...exampleBody(html[2]!.trim()), caption: html[1]!.trim() }
   const fence = raw.search(/^```/m)
   if (fence > 0) {
     const caption = raw.slice(0, fence).trim()
-    if (caption) return { kind: '@example', tag: '@example', caption, code: raw.slice(fence).trim() }
+    if (caption) return { ...exampleBody(raw.slice(fence).trim()), caption }
   }
-  return { kind: '@example', tag: '@example', code: raw.trim() }
+  return exampleBody(raw.trim())
+}
+/** Strip one surrounding ``` fence, capturing its language info string. */
+const exampleBody = (body: string): T.CommentTagMap['@example'] => {
+  const m = body.match(/^```([^\n]*)\n([\s\S]*?)\n?```\s*$/)
+  const base = { kind: '@example', tag: '@example' } as const
+  if (m) return { ...base, lang: m[1]!.trim(), code: m[2]! }
+  return { ...base, lang: '', code: body }
 }

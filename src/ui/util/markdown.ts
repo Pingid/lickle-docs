@@ -205,7 +205,7 @@ const tagMd = (t: Types.CommentTag, slugOf: SlugOf): string => {
     case '@throws':
       return `\n**Throws**${t.type ? ` \`${typeStr(t.type)}\`` : ''}${desc(t.text)}\n`
     case '@example':
-      return `\n**Example**${t.caption ? ` ${t.caption}` : ''}\n\n${fence(t.code)}`
+      return `\n**Example**${t.caption ? ` ${t.caption}` : ''}\n\n${fence(t.code, t.lang || 'ts')}`
     case '@see':
       return `\n**See**${t.text ? ` ${commentText(t.text, t.target, slugOf)}` : ''}\n`
     default: {
@@ -322,6 +322,6 @@ const sigLine = (sig: Types.Part<'signature'>, name?: string, kind?: 'constructo
 // HELPERS
 // ============================================================================
 
-const fence = (code: string): string => `\`\`\`ts\n${code}\n\`\`\`\n`
+const fence = (code: string, lang = 'ts'): string => `\`\`\`${lang}\n${code}\n\`\`\`\n`
 
 const subsection = (title: string, body: string): string => (body.trim() ? `\n### ${title}\n\n${body}` : '')
