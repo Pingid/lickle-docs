@@ -1,7 +1,8 @@
-import type { ModuleRef, Route, Sidebar, TypeRef } from '../types.ts'
-import type * as reflect from '../../reflect/index.ts'
-import { createFacade, type DeclarationFacade } from './facade.ts'
+import type * as Reflect from '../../reflect/index.ts'
 import { memo1 } from '../../../_lib/util/index.ts'
+
+import type { ModuleRef, Route, Sidebar, TypeRef } from '../types.ts'
+import { createFacade, type DeclarationFacade } from './facade.ts'
 
 /** A hook that can be used to customize page route generation. */
 export type Hook<V> = (value: V, id: DeclarationFacade, cx: RouteContext) => V
@@ -17,9 +18,9 @@ export type Adapter = {
   referenced?: Hook<TypeRef[]>
 }
 
-export type RouteContext = { docs: reflect.Index; provider: Provider }
+export type RouteContext = { docs: Reflect.Index; provider: Provider }
 
-export type ContextOptions = { docs: reflect.Index; adapter?: Adapter }
+export type ContextOptions = { docs: Reflect.Index; adapter?: Adapter }
 
 export const makeContext = (opts: ContextOptions, provider: (cx: RouteContext) => Provider): RouteContext => {
   let id = 0

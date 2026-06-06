@@ -27,6 +27,8 @@ export const buildDocs = async (
 
   const docroutes = Router.docRoutes({ docs: indexed, adapter: config.provider })
 
+  const declarations = Router.compact({ docs: indexed, routes: docroutes.routes })
+
   return {
     json: {
       name: config.name,
@@ -34,7 +36,7 @@ export const buildDocs = async (
       repository: config.repository,
       links: config.links,
       entrypoints: config.entrypoints,
-      declarations: [...indexed.declarations()],
+      declarations,
       routes: [...config.routes, ...docroutes.routes],
       slugBase: docroutes.slugBase,
     },

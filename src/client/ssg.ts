@@ -46,7 +46,10 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const htmlShell = await htmlShellGenerator()
 
   for (const route of opts.json.routes) {
-    const isHome = route.slug.trim() === 'l'
+    // The base route (`/` or empty) owns `index.html`; others map their slug to
+    // a `<slug>.html` file (a leading slash would break the filename).
+    const rel = route.slug.replace(/^\/+/, '')
+    const isHome = rel === ''
     const { body, head } = await renderPage(opts.json, prefixSlash(route.slug))
 
     const bodyHtml = [`<div id="root">${body}</div>`, `<script type="module" src="${jsonHref}"></script>`]
@@ -58,7 +61,7 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
       title: isHome ? opts.json.name : route.title,
     })
 
-    const outPath = path.join(opts.outDir, isHome ? 'index.html' : route.slug + '.html')
+    const outPath = path.join(opts.outDir, isHome ? 'index.html' : rel + '.html')
 
     await Node.Fs.ensureDir(outPath)
     await Node.Fs.writeFile(outPath, html)

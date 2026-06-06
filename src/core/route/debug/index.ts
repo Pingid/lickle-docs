@@ -48,6 +48,8 @@ const printContent = (s: Styler, router: ClientRouter) => {
 const printSidebar = (s: Styler, router: ClientRouter) => {
   const printSidebar = (s: Styler, route: Route) => {
     const id = route.body.map((b) => (b.kind === 'doc:statement' ? b.id : undefined))[0]!
+    if (!id) return
+
     s.page(id, route.title, route.slug)
 
     for (const group of router.sidebar.children(route.slug)) {
@@ -95,9 +97,10 @@ const printer = (index: reflect.Index, routes: Route[], write?: (value: string) 
   const parentId = (id: number) => index.get(id)!.parent
   const referenced = (id: TypeRef[]) => {
     const line = id
-      .map((id) =>
-        [kind(id.target), [pc.green(route(parentId(id.target)).title), pc.green(id.alias)].join('.')].join(': '),
-      )
+      .map((id) => {
+        const r = route(parentId(id.target))
+        return [kind(id.target), [pc.green(r?.title ?? ''), pc.green(id.alias)].join('.')].join(': ')
+      })
       .join(', ')
     l(4, pc.gray(`referenced in: [${line}]`))
   }

@@ -2,9 +2,10 @@ import { For, Show, createMemo, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
 import { createSlot, DeclarationScope, useProject, type Types } from '../context/index.tsx'
-import { labelOf } from '../util/kind.ts'
+import { groupItems } from '../../core/client/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
 import { docStatement } from '../util/route.ts'
+import { labelOf } from '../util/kind.ts'
 import { A } from '../context/router.tsx'
 
 import { Declaration } from './Declaration.tsx'
@@ -148,34 +149,61 @@ const Signature = (props: { decl: Types.Declaration }) => {
   return null
 }
 
-/** "Referenced In" backlinks, rendered straight from the route's `doc:referenced` refs. */
-export const References = (props: { body: Types.DocReferenced }) => (
-  <Show when={props.body.referenced.length}>
-    <section class="mt-10 lk-references">
-      <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Referenced In</h2>
-      <ul class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 items-baseline">
-        <For each={props.body.referenced}>{(ref) => <ReferenceRow ref={ref} />}</For>
-      </ul>
-    </section>
-  </Show>
-)
+/**
+ * "Referenced In" backlinks from the route's `doc:referenced` refs, grouped and
+ * ordered with the same {@link groupItems} the sidebar and member lists use.
+ */
+export const References = (props: { body: Types.DocReferenced }) => {
+  const groups = createMemo(() => groupItems(props.body.referenced, (r) => r.group))
+  return (
+    <Show when={props.body.referenced.length}>
+      <section class="mt-10 lk-references">
+        <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Referenced In</h2>
+        <For each={groups()}>
+          {(group) => (
+            <div class="mb-5">
+              <Show when={group.group}>
+                <h3 class="text-sm font-semibold mb-2 capitalize text-mute">{group.group}</h3>
+              </Show>
+              <ul class="grid grid-cols-[max-content_1fr_max-content] gap-x-4 gap-y-1.5 items-baseline">
+                <For each={group.items}>{(typeRef) => <ReferenceRow typeRef={typeRef} />}</For>
+              </ul>
+            </div>
+          )}
+        </For>
+      </section>
+    </Show>
+  )
+}
 
-const ReferenceRow = (props: { ref: Types.TypeRef }) => {
+const ReferenceRow = (props: { typeRef: Types.TypeRef }) => {
   const project = useProject()
-  const route = () => project().routes.get({ id: props.ref.target })
-  const decl = () => project().byId(props.ref.target)
-  const qualified = () => props.ref.alias || route()?.title || ''
+  const route = () => project().routes.get({ id: props.typeRef.target })
+  const decl = () => project().byId(props.typeRef.target)
+  const qualified = () => props.typeRef.alias || route()?.title || ''
   const dot = () => qualified().lastIndexOf('.')
+  const source = () => decl()?.sources?.[0]
   return (
     <Show when={route() && decl()}>
       <li class="contents">
-        <span class="text-xs uppercase tracking-wider text-mute">{labelOf(decl()!.kind)}</span>
+        <span class="text-xs tracking-wider text-mute">{labelOf(decl()!.kind)}</span>
         <A href={route()!.slug} class="font-mono hover:opacity-70 min-w-0 wrap-break-word">
           <Show when={dot() >= 0}>
             <span class="text-mute">{qualified().slice(0, dot())}.</span>
           </Show>
           <span class="font-medium">{dot() < 0 ? qualified() : qualified().slice(dot() + 1)}</span>
         </A>
+        {/* Like the header's source line, but clicking navigates to the reference's page. */}
+        <Show when={source()} fallback={<span />}>
+          {(s) => (
+            <A
+              href={route()!.slug}
+              class="font-mono text-[0.7rem] text-mute hover:text-fg whitespace-nowrap text-right"
+            >
+              {s().file}:{s().line}
+            </A>
+          )}
+        </Show>
       </li>
     </Show>
   )

@@ -10,6 +10,28 @@ import { Type } from './Type.tsx'
 
 const DEBOUNCE_MS = 80
 const DEFAULT_LIMIT = 12
+const RECENTS_KEY = 'lickle:recent-search'
+const RECENTS_MAX = 8
+
+/** Read the persisted recent selections, tolerating SSR and corrupt storage. */
+const loadRecents = (): SearchHit[] => {
+  if (typeof localStorage === 'undefined') return []
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')
+    return Array.isArray(parsed) ? (parsed as SearchHit[]) : []
+  } catch {
+    return []
+  }
+}
+
+const saveRecents = (hits: SearchHit[]): void => {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(hits))
+  } catch {
+    // storage unavailable or over quota — recents are best-effort
+  }
+}
 
 export const SearchPalette = (props: { open: () => boolean; onClose: () => void }) => {
   const navigate = useNavigate()
@@ -44,8 +66,13 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
     async ([e, t]) => (e ? await e.query(t) : []),
   )
 
-  // Before the user types, suggest the first module's entries so the palette
-  // opens with something to browse instead of an empty box.
+  // Recently selected items, persisted across sessions. Stale entries (routes
+  // that no longer exist after a rebuild) are filtered out.
+  const [recents, setRecents] = createSignal<SearchHit[]>(loadRecents())
+  const validRecents = createMemo(() => recents().filter((h) => project().routes.get({ slug: h.slug })))
+
+  // Before the user types, show recent selections; otherwise the first module's
+  // entries so the palette opens with something to browse instead of empty.
   const firstModule = createMemo(() => project().routes.sidebar.roots()[0])
   const suggestions = createMemo<SearchHit[]>(() => {
     const mod = firstModule()
@@ -53,7 +80,10 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
   })
 
   const hasTerm = () => debounced().trim().length > 0
-  const list = createMemo<SearchHit[]>(() => (hasTerm() ? (hits() ?? []) : suggestions()))
+  const sectionLabel = () => (validRecents().length ? 'Recent' : firstModule()?.title)
+  const list = createMemo<SearchHit[]>(() =>
+    hasTerm() ? (hits() ?? []) : validRecents().length ? validRecents() : suggestions(),
+  )
 
   createEffect(
     on(list, (l) => {
@@ -62,7 +92,10 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
   )
 
   const choose = (hit: SearchHit) => {
-    navigate(`/${hit.slug}`)
+    const next = [hit, ...recents().filter((h) => h.slug !== hit.slug)].slice(0, RECENTS_MAX)
+    setRecents(next)
+    saveRecents(next)
+    navigate(hit.slug)
     props.onClose()
   }
 
@@ -114,12 +147,10 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
           </div>
 
           <Show when={list().length} fallback={<EmptyState loading={engine.loading} term={debounced()} />}>
-            <Show when={!hasTerm() && firstModule()}>
-              {(mod) => (
-                <p class="px-5 pt-3 pb-1 text-[0.7rem] uppercase tracking-wider font-semibold text-mute">
-                  {mod().title}
-                </p>
-              )}
+            <Show when={!hasTerm() && sectionLabel()}>
+              <p class="px-5 pt-3 pb-1 text-[0.7rem] uppercase tracking-wider font-semibold text-mute">
+                {sectionLabel()}
+              </p>
             </Show>
             <ul class="flex-1 overflow-y-auto p-2" role="listbox">
               <For each={list()}>

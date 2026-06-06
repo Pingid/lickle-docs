@@ -9,6 +9,7 @@ export type GroupedItems<T> = { group: string; items: T[] }
 
 export interface ClientRouter {
   items: Route[]
+  slugBase: string
   get(match: { slug?: Slug; id?: number }): Route | undefined
   members(id: number): GroupedItems<MemberItem>[]
   referenced(id: number): GroupedItems<ReferencedItem>[]
@@ -33,7 +34,9 @@ export const createRouter = (p: { routes: Route[]; slugBase: string }): ClientRo
     _bySlug.set(route.slug, route)
     const stmt = route.body.find((b): b is DocStatement => b.kind === 'doc:statement')
     if (stmt) _byId.set(stmt.id, route)
-    if (route.sidebar) push(_allSidebar, route.sidebar.parent ?? ROOT, route)
+    // `sidebar.parent` is a raw provider slug; normalize it to match the
+    // normalized `route.slug` keys so child lookups resolve.
+    if (route.sidebar) push(_allSidebar, route.sidebar.parent ? normalizeSlug(route.sidebar.parent) : ROOT, route)
 
     for (const body of route.body) {
       if (body.kind === 'doc:statement')
@@ -49,6 +52,7 @@ export const createRouter = (p: { routes: Route[]; slugBase: string }): ClientRo
   const _sidebar = groupValues(_allSidebar, (r) => r.sidebar?.group)
 
   return {
+    slugBase: p.slugBase,
     items: [..._bySlug.values()],
     get: (match) => {
       if (typeof match.slug === 'string') return _bySlug.get(normalizeSlug(match.slug))
@@ -59,10 +63,9 @@ export const createRouter = (p: { routes: Route[]; slugBase: string }): ClientRo
     referenced: (id) => _referenced.get(id) ?? [],
     sidebar: {
       children: (slug) => {
-        if (slug?.startsWith(p.slugBase)) {
-          return _sidebar.get(slug) ?? []
-        }
-        return []
+        const s = normalizeSlug(slug)
+        if (!s.startsWith(`/${p.slugBase}`)) return []
+        return _sidebar.get(s) ?? []
       },
       roots: () => _allSidebar.get(ROOT) ?? [],
     },
@@ -83,7 +86,7 @@ const push = <K, V>(map: Map<K, V[]>, key: K, value: V): void => {
  * other — set an explicit `order` to pin it first or last. Item order within a
  * bucket is preserved.
  */
-const groupItems = <T>(items: T[], groupOf: (item: T) => Group | undefined): GroupedItems<T>[] => {
+export const groupItems = <T>(items: T[], groupOf: (item: T) => Group | undefined): GroupedItems<T>[] => {
   const groups = new Map<string, { order: number; items: T[] }>()
   for (const item of items) {
     const group = groupOf(item)

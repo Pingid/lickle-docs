@@ -153,37 +153,13 @@ export const referenceIndex =
 
 /** Depends on Roots + TreeIndex. */
 export type Exposure = { exposer: number; alias?: string }
-export type Exposed = { id: number; alias?: string }
-export type ExposedModule =
-  | { id: number; kind: 'star' }
-  | { id: number; kind: 'namespace'; alias: string }
-  | { id: number; kind: 'named'; names: {}[] }
 
 export type ExposerIndex = {
   isExposed: (id: number) => boolean
   exposures: (id: number) => Exposure[][]
-  exposedBy: (id: number) => Iterable<Exposure>
-  exposes: (id: number) => Iterable<Exposed>
-  /** Declarations exposed directly (one level) by `exposer`, in exposure order. */
-  exposed: (exposer: number) => Exposed[]
-  /**
-   * Exposed modules / namespaces. With no argument, every one (deduped by id);
-   * with an exposer id, only those exposed directly by that module/namespace.
-   */
-  exposedModules: (exposer?: number) => Iterable<ExposedModule>
 }
 export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) => {
   const exposedBy = new Map<number, Exposure[]>()
-  const direct = new Map<number, Exposed[]>()
-  const exposedModules = new Map<number, ExposedModule>()
-  const modulesByExposer = new Map<number, Map<number, ExposedModule>>()
-
-  const setModule = (exposer: number, m: ExposedModule): void => {
-    exposedModules.set(m.id, m)
-    let g = modulesByExposer.get(exposer)
-    if (!g) modulesByExposer.set(exposer, (g = new Map()))
-    g.set(m.id, m)
-  }
 
   // Records id under exposer/alias. Returns whether this (exposer → id) edge
   // is new — used to stop infinite recursion on cycles, NOT to globally
@@ -197,10 +173,6 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     let by = exposedBy.get(id)
     if (!by) exposedBy.set(id, (by = []))
     by.push({ exposer, alias })
-
-    let list = direct.get(exposer)
-    if (!list) direct.set(exposer, (list = []))
-    list.push({ id, alias })
     return true
   }
 
@@ -217,25 +189,18 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     if (d.kind === 'export') {
       for (const name of d.names) {
         if (d.star && name.name) {
-          const target = deps.get(name.ref)
-          if (target?.kind === 'module' || target?.kind === 'namespace') {
-            setModule(exposer, { id: name.ref, kind: 'namespace', alias: name.name })
-          }
           if (record(name.ref, exposer, name.name)) {
             for (const child of members(name.ref)) expose(child.id, name.ref)
           }
         } else if (d.star) {
-          if (deps.get(name.ref)?.kind === 'module') setModule(exposer, { id: name.ref, kind: 'star' })
           for (const child of members(name.ref)) expose(child.id, exposer)
         } else {
-          if (deps.get(name.ref)?.kind === 'module') addNamed(exposer, name.ref, name.name)
           expose(name.ref, exposer, name.name)
         }
       }
       return
     }
     if (d.kind === 'namespace') {
-      setModule(exposer, { id, kind: 'namespace', alias: alias ?? d.name })
       if (record(id, exposer, alias ?? d.name)) {
         for (const child of members(id)) expose(child.id, id)
       }
@@ -251,32 +216,11 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     record(id, exposer, alias ?? d.name)
   }
 
-  // A module pulled in by a plain `export { … }` accumulates its named members.
-  const addNamed = (exposer: number, id: number, name: string): void => {
-    const m = exposedModules.get(id)
-    if (m?.kind === 'named') {
-      m.names.push({ name })
-      setModule(exposer, m)
-    } else {
-      setModule(exposer, { id, kind: 'named', names: [{ name }] })
-    }
-  }
-
   b.after(() => {
     for (const root of deps.roots()) {
       for (const child of members(root.id)) expose(child.id, root.id)
     }
   })
-
-  const EMPTY_BY: Exposure[] = []
-  const EMPTY_EXP: Exposed[] = []
-  const exposes = function* (id: number): Iterable<Exposed> {
-    for (const e of direct.get(id) ?? EMPTY_EXP) {
-      yield e
-      yield* exposes(e.id)
-    }
-  }
-  const EMPTY_MODULES = new Map<number, ExposedModule>()
 
   const exposures = (id: number, pth: Exposure[] = []): Exposure[][] => {
     const d = exposedBy.get(id)
@@ -284,21 +228,9 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     return d.flatMap((e) => (deps.isRoot(e.exposer) ? [[e, ...pth]] : exposures(e.exposer, [e, ...pth])))
   }
 
-  const isExposed = (id: number): boolean => {
-    const d = exposedBy.get(id)
-    if (!d) return false
-    return d.length > 0
-  }
+  const isExposed = (id: number): boolean => (exposedBy.get(id)?.length ?? 0) > 0
 
-  return {
-    isExposed,
-    exposures,
-    exposedBy: (id) => exposedBy.get(id) ?? EMPTY_BY,
-    exposes: (id) => exposes(id),
-    exposed: (id) => direct.get(id) ?? EMPTY_EXP,
-    exposedModules: (exposer) =>
-      exposer === undefined ? exposedModules.values() : (modulesByExposer.get(exposer) ?? EMPTY_MODULES).values(),
-  }
+  return { isExposed, exposures }
 }
 
 // -------------------------------------------

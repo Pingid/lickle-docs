@@ -44,10 +44,11 @@ export const Breadcrumb = (props: { id: number }) => {
 const buildCrumbs = (project: Types.Project, id: number): Crumb[] => {
   const route = project.routes.get({ id })
   if (!route?.slug) return []
-  const segs = route.slug.split('/')
+
+  const segs = route.slug.replace(`/${project.routes.slugBase}`, '').split('/').filter(Boolean)
   return segs.map((seg, i) => {
     const prefix = segs.slice(0, i + 1).join('/')
     const r = project.routes.get({ slug: prefix })
-    return { label: r?.title ?? seg, href: r ? `/${prefix}` : undefined }
+    return { label: r?.title ?? seg, href: r ? prefix : undefined }
   })
 }
