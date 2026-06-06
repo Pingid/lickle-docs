@@ -145,7 +145,7 @@ export interface CommentTagDefinitions {
   '@satisfies': { type: Type; text: string }
   '@template': { generics: Part<'generic'>[]; text: string }
   '@see': { target?: string; text: string }
-  '@example': { caption?: string; code: string; text?: string }
+  '@example': { caption?: string; lang: string; code: string; text?: string }
   '@augments': { class: Type; text: string }
   '@implements': { class: Type; text: string }
 }
