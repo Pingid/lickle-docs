@@ -1,8 +1,8 @@
 import { createMemo } from 'solid-js'
 
-import { createSearchEngine, type SearchEngine } from '../util/search.ts'
 import { useDeclarationId, useMarkup, useProject, type Types } from '../context/index.tsx'
-import { withBaseUrl } from '../util/base.ts'
+import { createSearchEngine, type SearchEngine } from '../util/search.ts'
+import { commentToMarkdown } from '../util/markdown.ts'
 
 // ============================================================================
 // SELECTOR HOOKS
@@ -63,19 +63,4 @@ export const useCommentMarkdown = (comment: () => Types.Comment) => {
   const slugs = useSlugFor()
   const slugOf = (name: string) => slugs.byName(name)
   return createMemo(() => commentToMarkdown(comment(), slugOf))
-}
-
-const commentToMarkdown = (comment: Types.Comment, slugOf: (name: string) => string | undefined): string => {
-  let out = ''
-  for (const p of comment.parts) {
-    if (p.kind === 'text') {
-      out += p.text
-      continue
-    }
-    const label = p.text ?? p.target
-    const slug = slugOf(p.target)
-    const display = p.style === 'code' ? `\`${label}\`` : label
-    out += slug ? `[${display}](${withBaseUrl(slug)})` : display
-  }
-  return out
 }

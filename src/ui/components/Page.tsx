@@ -8,6 +8,7 @@ import { docStatement } from '../util/route.ts'
 import { labelOf } from '../util/kind.ts'
 import { A } from '../context/router.tsx'
 
+import { CopyPageButton } from './CopyPage.tsx'
 import { Declaration } from './Declaration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
@@ -15,7 +16,8 @@ import { Type } from './Type.tsx'
 
 /** A page renders its route's `body` parts in order, each by its kind. */
 export const Page = createSlot('page', (props) => (
-  <article>
+  <article class="relative">
+    <CopyPageButton route={props.route} class="absolute -top-1 right-0" />
     <For each={props.route.body}>{(body) => <PageContent route={props.route} body={body} />}</For>
   </article>
 ))
