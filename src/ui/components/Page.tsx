@@ -2,7 +2,6 @@ import { For, Show, createMemo, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
 import { createSlot, DeclarationScope, useProject, type Types } from '../context/index.tsx'
-import { type ReferenceRow, useReferences } from '../hooks/index.ts'
 import { labelOf } from '../util/kind.ts'
 import { commentSummaryText } from '../util/comment.ts'
 import { docStatement } from '../util/route.ts'
@@ -29,7 +28,7 @@ type BodyProps<B extends Types.Body = Types.Body> = { route: Types.Route; body: 
 
 const RENDERERS: { [K in Types.Body['kind']]: Component<BodyProps<Extract<Types.Body, { kind: K }>>> } = {
   'doc:statement': (props) => <DocStatementView body={props.body} route={props.route} />,
-  'doc:referenced': (props) => <References route={props.route} />,
+  'doc:referenced': (props) => <References body={props.body} />,
   markdown: (props) => <Markdown source={props.body.markdown} />,
 }
 
@@ -149,30 +148,35 @@ const Signature = (props: { decl: Types.Declaration }) => {
   return null
 }
 
-/** "Used in" backlinks for the route's declaration. */
-export const References = (props: { route: Types.Route }) => {
-  const id = createMemo(() => docStatement(props.route)?.id ?? -1)
-  const rows = useReferences(id)
+/** "Referenced In" backlinks, rendered straight from the route's `doc:referenced` refs. */
+export const References = (props: { body: Types.DocReferenced }) => (
+  <Show when={props.body.referenced.length}>
+    <section class="mt-10 lk-references">
+      <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Referenced In</h2>
+      <ul class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 items-baseline">
+        <For each={props.body.referenced}>{(ref) => <ReferenceRow ref={ref} />}</For>
+      </ul>
+    </section>
+  </Show>
+)
+
+const ReferenceRow = (props: { ref: Types.TypeRef }) => {
+  const project = useProject()
+  const route = () => project().routes.get({ id: props.ref.target })
+  const decl = () => project().byId(props.ref.target)
+  const qualified = () => props.ref.alias || route()?.title || ''
+  const dot = () => qualified().lastIndexOf('.')
   return (
-    <Show when={rows().length}>
-      <section class="mt-10 lk-references">
-        <h2 class="font-semibold text-xl mb-4 pb-2 border-b border-line">Referenced In</h2>
-        <ul class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 items-baseline">
-          <For each={rows()}>{(r) => <ReferenceRowView row={r} />}</For>
-        </ul>
-      </section>
+    <Show when={route() && decl()}>
+      <li class="contents">
+        <span class="text-xs uppercase tracking-wider text-mute">{labelOf(decl()!.kind)}</span>
+        <A href={route()!.slug} class="font-mono hover:opacity-70 min-w-0 wrap-break-word">
+          <Show when={dot() >= 0}>
+            <span class="text-mute">{qualified().slice(0, dot())}.</span>
+          </Show>
+          <span class="font-medium">{dot() < 0 ? qualified() : qualified().slice(dot() + 1)}</span>
+        </A>
+      </li>
     </Show>
   )
 }
-
-const ReferenceRowView = (props: { row: ReferenceRow }) => (
-  <li class="contents">
-    <span class="text-xs uppercase tracking-wider text-mute">{labelOf(props.row.decl.kind)}</span>
-    <A href={props.row.slug} class="font-mono hover:opacity-70 min-w-0 wrap-break-word">
-      <Show when={props.row.module}>
-        <span class="text-mute">{props.row.module}.</span>
-      </Show>
-      <span class="font-medium">{props.row.name}</span>
-    </A>
-  </li>
-)
