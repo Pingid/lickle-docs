@@ -54,6 +54,10 @@ scan.Statement = (s: State, node: ts.Statement) => {
 }
 
 scan.VariableDeclaration = (s: State, node: ts.VariableDeclaration) => {
+  const annotated = node.type && callSignaturesOf(node.type)
+  if (annotated?.length) {
+    return statement(s, node, 'function', () => ({ signatures: annotated.map((d) => signature(s, d)) }))
+  }
   const init = node.initializer
   if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
     return statement(s, node, 'function', () => functionBody(s, init))
@@ -64,8 +68,24 @@ scan.VariableDeclaration = (s: State, node: ts.VariableDeclaration) => {
   }))
 }
 
+/** Signature declarations of a function-type or a pure call-signature object type. */
+const callSignaturesOf = (node: ts.TypeNode): ts.SignatureDeclarationBase[] | undefined => {
+  const t = ts.isParenthesizedTypeNode(node) ? node.type : node
+  if (ts.isFunctionTypeNode(t)) return [t]
+  if (ts.isTypeLiteralNode(t)) {
+    const calls = t.members.filter(ts.isCallSignatureDeclaration)
+    if (calls.length && calls.length === t.members.length) return calls
+  }
+  return undefined
+}
+
 scan.FunctionDeclaration = (s: State, decl: ts.FunctionDeclaration) => {
-  return statement(s, decl, 'function', () => functionBody(s, decl))
+  const sym = decl.name ? s.checker.getSymbolAtLocation(decl.name) : undefined
+  const overloads = sym?.declarations?.filter(ts.isFunctionDeclaration) ?? [decl]
+  if (overloads.length > 1 && overloads[0] !== decl) return
+  const sigs = overloads.filter((d) => !d.body)
+  const chosen = sigs.length ? sigs : overloads
+  return statement(s, decl, 'function', () => ({ signatures: chosen.map((d) => signature(s, d)) }))
 }
 
 scan.ClassDeclaration = (s: State, node: ts.ClassDeclaration) => {
@@ -669,4 +689,12 @@ const TYPE_OPERATORS: Partial<Record<ts.SyntaxKind, 'keyof' | 'readonly' | 'uniq
   [ts.SyntaxKind.KeyOfKeyword]: 'keyof',
   [ts.SyntaxKind.ReadonlyKeyword]: 'readonly',
   [ts.SyntaxKind.UniqueKeyword]: 'unique',
+}
+
+// @ts-ignore
+const debugName = (node: ts.Node): string => {
+  const kindName = ts.SyntaxKind[node.kind]
+  if ('name' in node && node.name && ts.isIdentifier(node.name as ts.Node))
+    return `${kindName} (${(node.name as ts.Identifier).text})`
+  return `${kindName} (anonymous)`
 }

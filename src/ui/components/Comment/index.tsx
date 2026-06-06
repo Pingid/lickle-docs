@@ -5,7 +5,7 @@ import { useCommentMarkdown } from '../../hooks/index.ts'
 
 import { Markdown } from '../Markdown.tsx'
 import { Type } from '../Type.tsx'
-import { Tag } from './Tag.tsx'
+import { Tag, TagKind } from './Tag.tsx'
 
 export * from './Tag.tsx'
 
@@ -30,7 +30,6 @@ export const Comment = createSlot('comment', (props) => {
           {(g) => {
             if (g.kind === '@param') return <NamedTable title="Parameters" tags={g.items} />
             if (g.kind === '@property') return <NamedTable title="Properties" tags={g.items} />
-            if (g.tag.tag === '@module') return null
             return <Tag tag={g.tag} />
           }}
         </For>
@@ -46,7 +45,7 @@ const NamedTable = (props: {
   return (
     <section class="mt-6">
       <div class="flex items-baseline gap-2 mb-2">
-        <h4 class="text-mute uppercase text-[0.7rem] font-semibold tracking-wider">{props.title}</h4>
+        <TagKind kind={props.title} />
       </div>
       <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
         <For each={props.tags}>{(it) => <NamedRow item={it} />}</For>

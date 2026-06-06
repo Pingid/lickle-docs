@@ -1,5 +1,4 @@
 /**
- * @module @lickle/docs/config
  * @description Configuration for the documentation site.
  *
  * @example

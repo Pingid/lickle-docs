@@ -143,7 +143,7 @@ export const shiki = (opts: ViteContext): vite.Plugin => {
     },
     async load(id) {
       if (id === RESOLVED_SHIKI_ID) {
-        const c = await opts.config().then((c) => c.languages ?? ['ts'])
+        const c = await opts.config().then((c) => Array.from(new Set(c.languages ?? ['ts'])))
         return `
           ${c.map((l) => `import ${l} from 'shiki/langs/${l}';`).join('\n')}
           export const languages = [${c.map((c) => `{ name: "${c}", import: ${c} }`).join(',\n')}];

@@ -5,7 +5,7 @@ import type * as T from '../types.ts'
 
 import { scan } from './index.ts'
 
-/** JSDoc attached to a declaration. Bails on `@module` blocks (those belong to the module). */
+/** JSDoc attached to a declaration. */
 export const commentForNode = (s: State, node: ts.Node): T.Comment | undefined => {
   const parts: T.CommentPart[] = []
   const tags: T.CommentTag[] = []
@@ -13,7 +13,7 @@ export const commentForNode = (s: State, node: ts.Node): T.Comment | undefined =
   for (const doc of ts.getJSDocCommentsAndTags(node)) {
     if (!ts.isJSDoc(doc)) continue
     seen = true
-    if (collectDoc(s, doc, parts, tags)) return undefined // `@module` belongs to the module
+    collectDoc(s, doc, parts, tags)
   }
   return finish(parts, tags, seen)
 }
@@ -34,7 +34,7 @@ export const commentForModule = (s: State, sf: ts.SourceFile): T.Comment | undef
   let seen = false
   ranges.forEach((range, i) => {
     const raw = text.slice(range.pos, range.end)
-    if (i < ranges.length - 1 || raw.includes('@module')) {
+    if (range.pos === 0 || i < ranges.length - 1) {
       const doc = reparseJsDoc(raw)
       if (doc) {
         seen = true
@@ -45,16 +45,13 @@ export const commentForModule = (s: State, sf: ts.SourceFile): T.Comment | undef
   return finish(parts, tags, seen)
 }
 
-/** Walk a JSDoc block into `parts`/`tags`. Returns true if a `@module` tag was seen. */
-const collectDoc = (s: State, doc: ts.JSDoc, parts: T.CommentPart[], tags: T.CommentTag[]): boolean => {
+/** Walk a JSDoc block into `parts`/`tags` */
+const collectDoc = (s: State, doc: ts.JSDoc, parts: T.CommentPart[], tags: T.CommentTag[]): void => {
   appendCommentBody(doc.comment, parts)
-  let hasModule = false
   for (const t of doc.tags ?? []) {
     const tag = buildTag(s, t)
-    if (tag.tag === '@module') hasModule = true
     tags.push(tag)
   }
-  return hasModule
 }
 
 const finish = (parts: T.CommentPart[], tags: T.CommentTag[], seen: boolean): T.Comment | undefined =>

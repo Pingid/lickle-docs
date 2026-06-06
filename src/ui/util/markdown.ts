@@ -185,7 +185,6 @@ const commentBlock = (comment: Types.Comment | undefined, slugOf: SlugOf): strin
   if (out) out += '\n'
   let inNamed: '@param' | '@property' | null = null
   for (const t of comment.tags ?? []) {
-    if (t.tag === '@module') continue
     const named = t.tag === '@param' || t.tag === '@property' ? t.tag : null
     if (named && named !== inNamed) out += `\n**${named === '@param' ? 'Parameters' : 'Properties'}**\n\n`
     inNamed = named

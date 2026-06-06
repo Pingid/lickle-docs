@@ -452,7 +452,7 @@ Type.Generics = (props: { generics?: Types.Part<'generic'>[] }) => (
           <Show when={i() > 0}>
             <Syntax.Punct>{', '}</Syntax.Punct>
           </Show>
-          <Syntax.Name>{tp.name}</Syntax.Name>
+          <Syntax.TypeArg>{tp.name}</Syntax.TypeArg>
           <Show when={tp.constraint}>
             <>
               <Syntax.Kw> extends </Syntax.Kw>
@@ -534,9 +534,6 @@ Type.NameLink = (props: { id?: number; name: string; class?: string }) => {
   )
 }
 
-const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>
-const Kw = (p: { children: string }) => <span class="text-accent">{p.children}</span>
-
 const isOptional = (p: Types.Part<'parameter'>): boolean => p.optional || p.default != null
 
 Type.SignatureLine = (props: {
@@ -548,33 +545,33 @@ Type.SignatureLine = (props: {
 }) => (
   <div class="font-mono text-sm leading-relaxed py-2">
     <Show when={props.kind === 'constructor'}>
-      <Kw>new </Kw>
+      <Syntax.Kw>new </Syntax.Kw>
     </Show>
     <Show when={props.name}>
       <Type.NameLink id={props.id} name={props.name!} class="font-semibold" />
     </Show>
     <Type.Generics generics={props.sig.generics} />
-    <Punct>(</Punct>
+    <Syntax.Punct>(</Syntax.Punct>
     <For each={props.sig.params}>
       {(p, i) => (
         <>
           <Show when={i() > 0}>
-            <Punct>{', '}</Punct>
+            <Syntax.Punct>{', '}</Syntax.Punct>
           </Show>
           <Show when={p.rest}>
-            <Punct>...</Punct>
+            <Syntax.Punct>...</Syntax.Punct>
           </Show>
           <span>{p.name}</span>
           <Show when={isOptional(p)}>
-            <Punct>?</Punct>
+            <Syntax.Punct>?</Syntax.Punct>
           </Show>
-          <Punct>: </Punct>
+          <Syntax.Punct>: </Syntax.Punct>
           <Type type={p.type} />
         </>
       )}
     </For>
-    <Punct>)</Punct>
-    <Punct>: </Punct>
+    <Syntax.Punct>)</Syntax.Punct>
+    <Syntax.Punct>: </Syntax.Punct>
     <Type type={props.sig.return} />
   </div>
 )

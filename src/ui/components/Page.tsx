@@ -17,7 +17,7 @@ import { Type } from './Type.tsx'
 /** A page renders its route's `body` parts in order, each by its kind. */
 export const Page = createSlot('page', (props) => (
   <article class="relative">
-    <div class="absolute -top-1 right-0 z-10">
+    <div class="w-full flex justify-end">
       <CopyPageButton route={props.route} />
     </div>
     <For each={props.route.body}>{(body) => <PageContent route={props.route} body={body} />}</For>

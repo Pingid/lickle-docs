@@ -7,4 +7,7 @@ export namespace Syntax {
 
   /** Default-styled identifier. */
   export const Name = (p: { children: string }) => <span>{p.children}</span>
+
+  /** Type argument — `T`. */
+  export const TypeArg = (p: { children: string }) => <span>{p.children}</span>
 }

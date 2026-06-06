@@ -15,11 +15,10 @@ export const Tag = createSlot('tag', (props: { tag: Types.CommentTag }) => {
 
 /** Section frame shared across tag renderers. */
 export const TagSection = (props: { tag: Types.CommentTag; description?: string; children: JSX.Element }) => {
-  const title = props.tag.tag.replace(/^@/, '')
   return (
-    <section class="mt-6">
-      <div class="flex items-baseline gap-2 mb-2">
-        <h4 class="text-mute uppercase text-[0.7rem] font-semibold tracking-wider">{title}</h4>
+    <section class="mt-6 [&>*:not(:first-child)>p]:mt-0">
+      <div class="flex items-baseline gap-2">
+        <TagKind kind={props.tag.tag} />
         <Show when={props.description}>
           {(description) => (
             <div class="text-xs text-mute min-w-0">
@@ -32,6 +31,10 @@ export const TagSection = (props: { tag: Types.CommentTag; description?: string;
     </section>
   )
 }
+
+export const TagKind = (p: { kind: string }) => (
+  <h4 class="text-mute text-[0.7rem] font-semibold tracking-wider mb-1">{p.kind.replace(/^@/, '')}</h4>
+)
 
 const TagReturns = (props: { tag: Types.CommentTagMap['@returns'] }) => (
   <TagSection tag={props.tag}>
