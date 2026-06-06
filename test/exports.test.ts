@@ -1,5 +1,4 @@
-import { test } from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'vitest'
 
 import { scanFixture, byName } from './fixture.ts'
 import type * as T from '../src/core/reflect/types.ts'
@@ -14,16 +13,16 @@ test('export default <identifier> points at its target', () => {
     export default value
   `)
   const exp = exportsOf(idx).find((e) => e.names.some((n) => n.name === 'default'))
-  assert.ok(exp, 'expected a default export')
+  expect(exp, 'expected a default export').toBeTruthy()
   const entry = exp!.names.find((n) => n.name === 'default')!
-  assert.equal(entry.ref, byName(idx, 'value').id)
+  expect(entry.ref).toBe(byName(idx, 'value').id)
 })
 
 test('export default function keeps its declaration', () => {
   const idx = scanFixture(`export default function greet() { return 'hi' }`)
   const fn = byName<'function'>(idx, 'greet')
-  assert.equal(fn.kind, 'function')
-  assert.equal(fn.exported, true)
+  expect(fn.kind).toBe('function')
+  expect(fn.exported).toBe(true)
 })
 
 test('export = <identifier> resolves to the target', () => {
@@ -32,6 +31,6 @@ test('export = <identifier> resolves to the target', () => {
     export = Lib
   `)
   const exp = exportsOf(idx).find((e) => e.names.some((n) => n.name === 'export='))
-  assert.ok(exp, 'expected an export= assignment')
-  assert.equal(exp!.names[0]!.ref, byName(idx, 'Lib').id)
+  expect(exp, 'expected an export= assignment').toBeTruthy()
+  expect(exp!.names[0]!.ref).toBe(byName(idx, 'Lib').id)
 })

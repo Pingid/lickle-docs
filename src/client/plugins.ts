@@ -28,8 +28,6 @@ export const project = (config: ViteContext): vite.Plugin => {
     },
 
     configureServer(s) {
-      if (!config.config) return
-
       s.watcher.add([config.dir])
 
       let last = '0'
@@ -112,13 +110,16 @@ export const html = (opts: ViteContext): vite.Plugin => {
     async configureServer(s) {
       s.middlewares.use(async (req, res, next) => {
         const url = req.url?.split('?')[0]
-        if (!(url?.includes('.') || url?.includes('@') || url?.includes('virtual:')) || url?.endsWith('.html')) {
+        if ((url?.includes('.') || url?.includes('@') || url?.includes('virtual:')) && !url?.endsWith('.html')) {
+          return next()
+        }
+        try {
+          const html = await s.transformIndexHtml(req.url!, await load())
           res.statusCode = 200
           res.setHeader('Content-Type', 'text/html')
-          const html = await load()
-          s.transformIndexHtml(req.url!, html).then((html) => res.end(html))
-        } else {
-          next()
+          res.end(html)
+        } catch (err) {
+          next(err as Error)
         }
       })
     },

@@ -59,8 +59,11 @@ export const useRenderMarkdown = (text: string) => {
   return createMemo(() => markup()?.markdown(text, (name) => slugs.byName(name) ?? name))
 }
 
-export const useCommentMarkdown = (comment: () => Types.Comment) => {
+export const useCommentMarkdown = (comment: () => Types.Comment | undefined) => {
   const slugs = useSlugFor()
   const slugOf = (name: string) => slugs.byName(name)
-  return createMemo(() => commentToMarkdown(comment(), slugOf))
+  return createMemo(() => {
+    const c = comment()
+    return c ? commentToMarkdown(c, slugOf) : ''
+  })
 }

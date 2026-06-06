@@ -9,8 +9,8 @@ export type ViteContext = {
   json: () => Promise<Core.Config.ProjectJson>
   config: () => Promise<Config.UserConfig>
   file: () => Promise<string | undefined>
-  rebuild: () => void
-  on: (cb: () => void) => void
+  rebuild: () => Promise<unknown>
+  on: (cb: () => void) => () => void
 }
 
 export type ViteContextOptions = {
@@ -34,7 +34,7 @@ export const makeContext = (opts: {
     json: () => options.then((c) => c.json),
     config: () => options.then((c) => c.config),
     file: () => options.then((c) => c.file),
-    rebuild: () => rebuild(),
+    rebuild,
     on: (cb: () => void) => {
       subs.add(cb)
       return () => subs.delete(cb)

@@ -1,5 +1,4 @@
-import { test } from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'vitest'
 
 import { scanFixture, byName, typeOf } from './fixture.ts'
 import type * as T from '../src/core/reflect/types.ts'
@@ -11,10 +10,10 @@ test('infers primitive and literal variable types', () => {
     export const b = true
     export const big = 10n
   `)
-  assert.equal((typeOf(idx, 'n') as T.Type<'literal'>).value, 42)
-  assert.equal((typeOf(idx, 's') as T.Type<'literal'>).value, 'hi')
-  assert.equal((typeOf(idx, 'b') as T.Type<'literal'>).value, true)
-  assert.equal((typeOf(idx, 'big') as T.Type<'literal'>).value, 10n)
+  expect((typeOf(idx, 'n') as T.Type<'literal'>).value).toBe(42)
+  expect((typeOf(idx, 's') as T.Type<'literal'>).value).toBe('hi')
+  expect((typeOf(idx, 'b') as T.Type<'literal'>).value).toBe(true)
+  expect((typeOf(idx, 'big') as T.Type<'literal'>).value).toBe(10n)
 })
 
 test('infers arrays, unions, and nested object literals', () => {
@@ -24,27 +23,24 @@ test('infers arrays, unions, and nested object literals', () => {
     export const obj = { x: 1, nested: { z: true } }
   `)
   const arr = typeOf(idx, 'arr') as T.Type<'array'>
-  assert.equal(arr.kind, 'array')
-  assert.equal((arr.elementType as T.Type<'intrinsic'>).name, 'number')
+  expect(arr.kind).toBe('array')
+  expect((arr.elementType as T.Type<'intrinsic'>).name).toBe('number')
 
   const u = typeOf(idx, 'u') as T.Type<'union'>
-  assert.equal(u.kind, 'union')
-  assert.equal(u.types.length, 2)
+  expect(u.kind).toBe('union')
+  expect(u.types.length).toBe(2)
 
   const obj = typeOf(idx, 'obj') as T.Type<'record'>
-  assert.equal(obj.kind, 'record')
-  assert.deepEqual(
-    obj.properties.map((p) => p.name),
-    ['x', 'nested'],
-  )
+  expect(obj.kind).toBe('record')
+  expect(obj.properties.map((p) => p.name)).toEqual(['x', 'nested'])
   const nested = obj.properties.find((p) => p.name === 'nested')!.type as T.Type<'record'>
-  assert.equal(nested.kind, 'record')
+  expect(nested.kind).toBe('record')
 })
 
 test('infers function return types', () => {
   const idx = scanFixture(`export function add(a: number, b: number) { return a + b }`)
   const fn = byName<'function'>(idx, 'add')
-  assert.equal((fn.signatures[0]!.return as T.Type<'intrinsic'>).name, 'number')
+  expect((fn.signatures[0]!.return as T.Type<'intrinsic'>).name).toBe('number')
 })
 
 test('inferred references resolve to internal ids and stdlib', () => {
@@ -54,20 +50,20 @@ test('inferred references resolve to internal ids and stdlib', () => {
     export const when = new Date()
   `)
   const foo = typeOf(idx, 'foo') as T.Type<'reference'>
-  assert.equal(foo.kind, 'reference')
-  assert.equal(foo.name, 'Foo')
-  assert.equal(foo.type, 'internal')
-  assert.equal(foo.targetId, byName(idx, 'Foo').id)
+  expect(foo.kind).toBe('reference')
+  expect(foo.name).toBe('Foo')
+  expect(foo.type).toBe('internal')
+  expect(foo.targetId).toBe(byName(idx, 'Foo').id)
 
   const when = typeOf(idx, 'when') as T.Type<'reference'>
-  assert.equal(when.type, 'external')
-  assert.equal((when as Extract<T.Type<'reference'>, { type: 'external' }>).external, 'stdlib')
+  expect(when.type).toBe('external')
+  expect((when as Extract<T.Type<'reference'>, { type: 'external' }>).external).toBe('stdlib')
 })
 
 test('falls back to a text node for exotic inferred types', () => {
   const idx = scanFixture(`export const t = [1, 'a'] as const`)
   const t = typeOf(idx, 't')
   // Tuples are not structured — they surface as the checker's string form.
-  assert.equal(t.kind, 'unknown')
-  assert.match((t as T.Type<'unknown'>).text, /readonly \[/)
+  expect(t.kind).toBe('unknown')
+  expect((t as T.Type<'unknown'>).text).toMatch(/readonly \[/)
 })

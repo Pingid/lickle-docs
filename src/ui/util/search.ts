@@ -68,8 +68,9 @@ const termsOf = (...sources: string[]): string => {
  * `getHTMLParser` -> `get html parser`, `render-error` -> `render error`,
  * `a.b_c` -> `a b c`.
  */
-const splitWords = (input: string): string[] =>
-  input
+const splitWords = (input: string | undefined | null): string[] => {
+  if (!input) return []
+  return input
     .split(/[\s._/\\-]+/)
     .flatMap((part) =>
       part
@@ -80,3 +81,4 @@ const splitWords = (input: string): string[] =>
     )
     .map((w) => w.toLowerCase())
     .filter(Boolean)
+}

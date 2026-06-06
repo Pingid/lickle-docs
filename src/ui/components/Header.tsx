@@ -3,25 +3,11 @@ import { For, Show, createMemo } from 'solid-js'
 import { useProject } from '../context/index.tsx'
 import { createSlot } from '../context/index.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
+import { LinkButton, SearchIcon } from './icons.tsx'
 import { clientOnly } from '../util/solid.tsx'
-import { withBaseUrl } from '../util/base.ts'
 import { A } from '../context/router.tsx'
 
 const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
-
-const ICON_BY_NAME: Record<string, string> = {
-  github: 'github-icon',
-  bluesky: 'bluesky-icon',
-  discord: 'discord-icon',
-  x: 'x-icon',
-  twitter: 'x-icon',
-  npm: 'documentation-icon',
-}
-
-const iconFor = (label: string): string | null => {
-  const k = label.toLowerCase()
-  return ICON_BY_NAME[k] ?? null
-}
 
 /** id of the CSS-only drawer toggle checkbox; the mobile menu `<label>` targets it. */
 export const MENU_TOGGLE_ID = 'lickle-menu-toggle'
@@ -59,27 +45,7 @@ export const Header = createSlot('header', (props: { onSearch?: () => void }) =>
         <SearchButton onSearch={props.onSearch} />
 
         <nav class="ml-auto flex items-center gap-1">
-          <For each={project().links}>
-            {({ label, href }) => {
-              const icon = iconFor(label)
-              return (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                  class="flex items-center gap-1.5 px-2 py-1 text-xs text-mute hover:text-fg transition-colors duration-150"
-                  title={label}
-                >
-                  <Show when={icon} fallback={<span>{label}</span>}>
-                    <svg width="14" height="14">
-                      <use href={withBaseUrl(`icons.svg#${icon}`)} />
-                    </svg>
-                    <span class="sr-only">{label}</span>
-                  </Show>
-                </a>
-              )
-            }}
-          </For>
+          <For each={project().links}>{(link) => <LinkButton link={link} class="px-2 py-1 text-xs" />}</For>
           <div class="ml-2">
             <ThemeToggle />
           </div>
@@ -99,10 +65,7 @@ const SearchButton = clientOnly(() => (props: { onSearch?: () => void }) => {
       aria-label="Search"
       class="ml-4 flex items-center gap-2 px-2.5 py-1 text-xs text-mute border border-line rounded-md hover:text-fg hover:bg-hover transition-colors cursor-pointer"
     >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-3.5-3.5" stroke-linecap="round" />
-      </svg>
+      <SearchIcon size={13} />
       <span class="hidden sm:inline">Search</span>
       <kbd class="font-mono text-[0.65rem] text-mute">{searchHint()}</kbd>
     </button>

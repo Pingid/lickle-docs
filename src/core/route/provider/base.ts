@@ -38,9 +38,18 @@ const getRoute =
 const getModules =
   (cx: RouteContext) =>
   (id: number): ModuleRef[] => {
-    const mods = cx.docs.exposures(id).flat()
-
-    return mods.map((m) => ({ target: m.exposer, alias: cx.provider.alias(id) }))
+    // Each exposure path runs root -> ... -> id; its last edge is id's direct
+    // exposer. Registering only direct exposers keeps a symbol a member of its
+    // immediate parent, not of every ancestor module on the way down.
+    const seen = new Set<number>()
+    const out: ModuleRef[] = []
+    for (const path of cx.docs.exposures(id)) {
+      const direct = path[path.length - 1]
+      if (!direct || seen.has(direct.exposer)) continue
+      seen.add(direct.exposer)
+      out.push({ target: direct.exposer, alias: cx.provider.alias(id) })
+    }
+    return out
   }
 
 const getReferenced =

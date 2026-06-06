@@ -39,7 +39,8 @@
   },
   "scripts": {
     "build": "pnpm tsc -b -f",
-    "test": "node --test --experimental-strip-types --disable-warning=ExperimentalWarning 'test/**/*.test.ts' 'src/**/*.test.ts'"
+    "test": "vitest run --exclude '**/dist/**'",
+    "test:watch": "vitest --exclude '**/dist/**'"
   },
   "files": [
     "dist",

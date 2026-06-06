@@ -1,0 +1,155 @@
+import { test, expect } from 'vitest'
+
+import { routesFixture, memberTitles, memberGroups } from './fixture.ts'
+import { compact, type Adapter } from '../src/core/route/index.ts'
+import type { ClientRouter, DocStatement, DocReferenced, Route } from '../src/core/route/client/index.ts'
+
+/** The `doc:statement` id of the route at `slug`. */
+const idAt = (router: ClientRouter, slug: string): number => {
+  const route = router.get({ slug })
+  if (!route) throw new Error(`no route at ${slug}`)
+  const stmt = route.body.find((b): b is DocStatement => b.kind === 'doc:statement')
+  if (!stmt) throw new Error(`no statement at ${slug}`)
+  return stmt.id
+}
+
+/** Aliases of the declarations that reference (link back to) the route at `slug`. */
+const backlinks = (router: ClientRouter, slug: string): string[] => {
+  const route = router.get({ slug })!
+  const ref = route.body.find((b): b is DocReferenced => b.kind === 'doc:referenced')
+  return (ref?.referenced ?? []).map((r) => r.alias)
+}
+
+// --- slugs & member nesting/grouping --------------------------------------
+
+test('top-level and nested exports get prefixed, qualified slugs', () => {
+  const { router, slugBase } = routesFixture(`
+    export namespace Outer {
+      export const inner = 1
+    }
+    export const top = 2
+  `)
+  expect(slugBase).toBe('l')
+  expect(router.get({ slug: '/l/fixture' }), 'root module route exists').toBeTruthy()
+  expect(router.get({ slug: '/l/fixture/top' }), 'top-level export').toBeTruthy()
+  expect(router.get({ slug: '/l/fixture/Outer' }), 'namespace').toBeTruthy()
+  expect(router.get({ slug: '/l/fixture/Outer/inner' }), 'namespace member').toBeTruthy()
+})
+
+test('root lists only direct members; nested members live under their namespace', () => {
+  const { router } = routesFixture(`
+    export namespace Outer {
+      export const inner = 1
+      export function deep() {}
+    }
+    export const top = 2
+  `)
+  const root = idAt(router, '/l/fixture')
+  expect(memberTitles(router, root)).toEqual(['Outer', 'top'])
+
+  const outer = idAt(router, '/l/fixture/Outer')
+  expect(memberTitles(router, outer).sort()).toEqual(['Outer.deep', 'Outer.inner'])
+})
+
+test('members are grouped by kind (plural) and ordered functions → variables → types', () => {
+  const { router } = routesFixture(`
+    export type A = string
+    export const b = 1
+    export function c() {}
+    export interface D {}
+    export class E {}
+  `)
+  const root = idAt(router, '/l/fixture')
+  expect(memberGroups(router, root)).toEqual(['functions', 'variables', 'types', 'classes', 'interfaces'])
+  expect(memberTitles(router, root)).toEqual(['c', 'b', 'A', 'E', 'D'])
+})
+
+// --- sidebar, referenced-in, reachable, compact ---------------------------
+
+test('sidebar roots hold the entrypoint; children link to it by parent slug', () => {
+  const { router } = routesFixture(`
+    export const a = 1
+    export function b() {}
+  `)
+  expect(router.sidebar.roots().map((r: Route) => r.title)).toEqual(['fixture'])
+  const children = router.sidebar.children('/l/fixture')
+  expect(children.flatMap((g) => g.items.map((r) => r.title)).sort()).toEqual(['a', 'b'])
+})
+
+test('a parameter type reference is recorded as a backlink on the referenced type', () => {
+  const { router } = routesFixture(`
+    export type Foo = { x: number }
+    export function use(a: Foo) { return a.x }
+  `)
+  expect(backlinks(router, '/l/fixture/Foo')).toEqual(['use'])
+  // The inverse view: what `use` references.
+  const useId = idAt(router, '/l/fixture/use')
+  expect(router.referenced(useId).flatMap((g) => g.items.map((i) => i.route.title))).toEqual(['Foo'])
+})
+
+test('reachable keeps a non-exported referrer but drops fully-unreferenced declarations', () => {
+  const { router } = routesFixture(`
+    export type Foo = { x: number }
+    function helper(a: Foo) { return a.x }
+    export const usesHelper = helper
+
+    const orphan = 99
+  `)
+  const titles = router.items.map((r) => r.title)
+  expect(titles, 'referrer of an export is kept').toContain('helper')
+  expect(titles).toContain('usesHelper')
+  expect(titles, 'unreferenced non-export is pruned').not.toContain('orphan')
+})
+
+test('compact returns exactly the declarations backing a doc:statement', () => {
+  const { index, routes } = routesFixture(`
+    const secret = 1
+    export const shown = 2
+  `)
+  const names = compact({ docs: index, routes }).map((d) => d.name)
+  expect(names).toContain('shown')
+  expect(names).not.toContain('secret')
+  const statements = routes.filter((r) => r.body.some((b) => b.kind === 'doc:statement')).length
+  expect(compact({ docs: index, routes }).length).toBe(statements)
+})
+
+// --- alias / title / exports / adapter ------------------------------------
+
+test('namespace member title is the member name; statement alias is qualified', () => {
+  const { router } = routesFixture(`
+    export namespace Outer {
+      export function inner() {}
+    }
+  `)
+  const route = router.get({ slug: '/l/fixture/Outer/inner' })!
+  expect(route.title).toBe('Outer.inner')
+  const stmt = route.body.find((b): b is DocStatement => b.kind === 'doc:statement')!
+  expect(stmt.alias).toBe('Outer.inner')
+})
+
+test('export { x as y } exposes the target under the alias and produces no extra route', () => {
+  const { router } = routesFixture(`
+    const internalThing = 1
+    export { internalThing as renamed }
+  `)
+  const route = router.get({ slug: '/l/fixture/renamed' })
+  expect(route, 'aliased export is routed').toBeTruthy()
+  expect(route!.title).toBe('renamed')
+  expect(router.get({ slug: '/l/fixture/internalThing' })).toBeUndefined()
+})
+
+test('non-exported top-level declarations are excluded from the sidebar', () => {
+  const { router } = routesFixture(`
+    const secret = 1
+    export const shown = 2
+  `)
+  const children = router.sidebar.children('/l/fixture').flatMap((g) => g.items.map((r) => r.title))
+  expect(children).toEqual(['shown'])
+})
+
+test('a custom adapter slug hook composes onto the default output', () => {
+  const adapter: Adapter = { slug: (slug) => `${slug}-X` }
+  const { router } = routesFixture(`export const a = 1`, adapter)
+  expect(router.get({ slug: '/l/fixture-X' }), 'root slug is transformed').toBeTruthy()
+  expect(router.get({ slug: '/l/fixture/a-X' }), 'member slug is transformed').toBeTruthy()
+})

@@ -19,28 +19,22 @@ export * from './Tag.tsx'
  * through to {@link UnknownTag}.
  */
 export const Comment = createSlot('comment', (props) => {
-  return (
-    <Show when={props.comment}>
-      {(c) => {
-        const summary = useCommentMarkdown(c)
-        const groups = createMemo(() => groupTags(c().tags ?? []))
+  const summary = useCommentMarkdown(() => props.comment)
+  const groups = createMemo(() => groupTags(props.comment?.tags ?? []))
 
-        return (
-          <Show when={summary() || props.comment?.tags?.length}>
-            <div class={props.class}>
-              <Show when={summary()}>{(c) => <Markdown source={c()} />}</Show>
-              <For each={groups()}>
-                {(g) => {
-                  if (g.kind === '@param') return <NamedTable title="Parameters" tags={g.items} />
-                  if (g.kind === '@property') return <NamedTable title="Properties" tags={g.items} />
-                  if (g.tag.tag === '@module') return null
-                  return <Tag tag={g.tag} />
-                }}
-              </For>
-            </div>
-          </Show>
-        )
-      }}
+  return (
+    <Show when={summary() || props.comment?.tags?.length}>
+      <div class={props.class}>
+        <Show when={summary()}>{(md) => <Markdown source={md()} />}</Show>
+        <For each={groups()}>
+          {(g) => {
+            if (g.kind === '@param') return <NamedTable title="Parameters" tags={g.items} />
+            if (g.kind === '@property') return <NamedTable title="Properties" tags={g.items} />
+            if (g.tag.tag === '@module') return null
+            return <Tag tag={g.tag} />
+          }}
+        </For>
+      </div>
     </Show>
   )
 })

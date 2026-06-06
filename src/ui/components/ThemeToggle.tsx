@@ -1,5 +1,4 @@
 import { useTheme, type ThemeMode } from '../context/theme.tsx'
-import { For } from 'solid-js'
 
 const ICONS: Record<ThemeMode, string> = {
   light:

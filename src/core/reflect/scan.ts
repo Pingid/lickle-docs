@@ -197,6 +197,7 @@ scan.Type = (s: State, node: ts.TypeNode): T.Type => {
   if (name) return scan.Intrinsic(s, node, name)
 
   if (ts.isTypeReferenceNode(node)) return scan.TypeReference(s, node)
+  if (ts.isExpressionWithTypeArguments(node)) return scan.ExpressionWithTypeArguments(s, node)
 
   return scan.Unknown(s, node)
 }
@@ -283,12 +284,20 @@ scan.ImportType = (s: State, node: ts.ImportTypeNode): T.Type<'import-type'> => 
   })
 }
 
-scan.TypeReference = (s: State, node: ts.TypeReferenceNode): T.Type<'reference'> => {
+scan.TypeReference = (s: State, node: ts.TypeReferenceNode): T.Type<'reference'> =>
+  reference(s, node, node.typeArguments)
+
+/** `extends`/`implements` clauses surface base types as `ExpressionWithTypeArguments`. */
+scan.ExpressionWithTypeArguments = (s: State, node: ts.ExpressionWithTypeArguments): T.Type<'reference'> =>
+  reference(s, node, node.typeArguments)
+
+/** Shared reference builder: names the target via {@link getName} and defers symbol resolution to `resolve`. */
+const reference = (s: State, node: ts.Node, typeArguments?: ts.NodeArray<ts.TypeNode>): T.Type<'reference'> => {
   const r = type(s, node, 'reference', { type: 'internal', targetId: 0 } as any)
   r.id = s.nextId()
   r.owner = s.currentStmt
   r.name = getName(node) ?? 'unknown'
-  if (node.typeArguments?.length) r.args = node.typeArguments.map((a) => scan.Type(s, a))
+  if (typeArguments?.length) r.args = typeArguments.map((a) => scan.Type(s, a))
   s.references.push(r)
   s.referenceOrigins.set(r.id, node)
   return r

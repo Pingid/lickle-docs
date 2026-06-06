@@ -38,27 +38,32 @@ export const init = cmd.command({
   },
 })
 
-const configTemplate = `
-import { defineConfig } from '@lickle/docs/config'
+const configTemplate = `import { defineConfig } from '@lickle/docs/config'
 
 export default defineConfig({
   name: '@lickle/docs',
   pages: [{ title: 'Overview', content: './README.md' }],
-  custom: './docs/index.tsx',
+  components: './docs/index.tsx',
 })
 `
 
-const example = `
-import { registerComponent, LiveExample, transform } from '@lickle/docs/ui'
+const example = `import { defineComponents, LiveExample } from '@lickle/docs/ui'
 
-// Execute the compiled example into its preview host. \`host\` is the live DOM
-// node, available to the example as a global.
+// Execute compiled example JS into its live preview host. \`host\` is the DOM
+// node the example renders into.
 const run = (code: string, host: HTMLElement) => new Function('host', code)(host)
 
-// Opt in to runnable \`@example\` blocks: compile with \`transform\` then \`run\`.
-registerComponent('tag.example', (props) => (
-  <LiveExample {...props} run={(code, host) => run(transform(code), host)} />
-))`
+// Opt in to runnable \`@example\` blocks by overriding the \`tag\` slot: render
+// \`@example\` tags with an editable live preview (\`transform\` defaults to
+// TypeScript + JSX), and defer every other tag to the stock renderer.
+export default defineComponents({
+  tag: (props) =>
+    props.tag.tag === '@example' ? (
+      <LiveExample tag={props.tag} run={run} transform={{}} />
+    ) : (
+      <props.Default {...props} />
+    ),
+})`
 
 const initFiles = {
   '.gitignore': [`docs.json`, `dist`],

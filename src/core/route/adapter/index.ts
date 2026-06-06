@@ -25,7 +25,10 @@ export const groupBy = (
     referenced: (value, _, cx) => value.map((r) => ({ ...r, group: cb(cx.docs.get(r.target)!, cx, r.group) })),
   })
 
-export const groupByKind = groupBy((d) => ({ name: pluralLabel(d.kind), order: groupOrder(d.kind) }))
+export const groupByKind = groupBy((d) => {
+  const name = pluralLabel(d.kind)
+  return { name, order: groupOrder(name) }
+})
 
 export const slugBase = (prefix: string) => compose({ slug: (value) => joinSlug(prefix, value) })
 

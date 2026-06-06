@@ -4,7 +4,7 @@ import type * as Reflect from '../reflect/index.ts'
 
 import { compose, makeContext, withMemo, provide, type ContextOptions } from './provider/index.ts'
 import { groupByKind, slugBase } from './adapter/index.ts'
-import { groupOrder } from './naming.ts'
+import { groupOrder, pluralLabel } from './naming.ts'
 
 export type * from './provider/index.ts'
 export * from './debug/index.ts'
@@ -36,7 +36,7 @@ export const docRoutes = (opts: ContextOptions): { routes: Route[]; slugBase: st
         const a1 = statement(a)
         const b1 = statement(b)
         if (!a1 || !b1) return 0
-        return groupOrder(cx.docs.get(a1.id)!.kind) - groupOrder(cx.docs.get(b1.id)!.kind)
+        return groupOrder(pluralLabel(cx.docs.get(a1.id)!.kind)) - groupOrder(pluralLabel(cx.docs.get(b1.id)!.kind))
       }),
   }
 }

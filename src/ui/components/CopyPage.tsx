@@ -1,4 +1,4 @@
-import { createMemo, createSignal, onCleanup, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
 
 import { useProject, type Types } from '../context/index.tsx'
 import { useSlugFor } from '../hooks/index.ts'
@@ -25,30 +25,43 @@ export const CopyPageButton = clientOnly(() => (props: { route: Types.Route; cla
     return !!stmt && project().routes.members(stmt.id).length > 0
   })
 
+  let resetTimer: ReturnType<typeof setTimeout> | undefined
   const copy = (inlineMembers: boolean) => {
     const md = routeToMarkdown(props.route, project(), (name) => slugs.byName(name), { inlineMembers })
     void navigator.clipboard?.writeText(md).catch(() => {})
     setOpen(false)
     setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    clearTimeout(resetTimer)
+    resetTimer = setTimeout(() => setCopied(false), 1500)
   }
+  onCleanup(() => clearTimeout(resetTimer))
 
   const onClick = () => (hasMembers() ? setOpen((v) => !v) : copy(false))
 
+  // Only listen for outside clicks while the menu is open; the effect re-runs
+  // and tears down its listener whenever `open()` flips.
   let root: HTMLDivElement | undefined
-  const onDocClick = (e: MouseEvent) => {
-    if (open() && root && !root.contains(e.target as Node)) setOpen(false)
-  }
-  document.addEventListener('click', onDocClick)
-  onCleanup(() => document.removeEventListener('click', onDocClick))
+  createEffect(() => {
+    if (!open()) return
+    const onDocClick = (e: MouseEvent) => {
+      if (root && !root.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('click', onDocClick)
+    onCleanup(() => document.removeEventListener('click', onDocClick))
+  })
 
   return (
-    <div ref={root} class={`relative inline-flex ${props.class ?? ''}`}>
+    <div
+      ref={root}
+      class={`relative inline-flex ${props.class ?? ''}`}
+      onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+    >
       <button
         type="button"
         onClick={onClick}
         aria-label="Copy page as markdown"
         aria-haspopup={hasMembers() ? 'menu' : undefined}
+        aria-expanded={hasMembers() ? open() : undefined}
         title={copied() ? 'Copied' : 'Copy as markdown'}
         class="p-1.5 rounded-md text-mute hover:text-fg hover:bg-hover transition-colors cursor-pointer"
       >

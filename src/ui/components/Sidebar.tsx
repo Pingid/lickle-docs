@@ -1,4 +1,4 @@
-import { For, Show, createMemo } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal } from 'solid-js'
 import { A, useLocation } from '../context/router.tsx'
 
 import { createSlot, useProject, type Types } from '../context/index.tsx'
@@ -62,9 +62,11 @@ type NodeProps = { route: Route; depth: number; onNavigate?: () => void }
 /**
  * A single navigation node.
  *
- * - A route with children renders as a native `<details>` so expand/collapse
- *   works with zero JavaScript; the branch on the active path is open by
- *   default (slugs are hierarchical, so the active page lives under its prefix).
+ * - A route with children is a controlled disclosure: a chevron button toggles
+ *   the section while the title stays a plain link. The branch on the active
+ *   path opens automatically (slugs are hierarchical, so the active page lives
+ *   under its prefix). A native `<details>` can't be used here because its
+ *   toggle swallows the router's delegated link clicks.
  * - A leaf route is a plain link.
  */
 const NavNode = (props: NodeProps) => {
@@ -76,6 +78,11 @@ const NavNode = (props: NodeProps) => {
   const isActive = () => loc.pathname === base()
   const onPath = () => isActive() || loc.pathname.startsWith(`${base()}/`)
 
+  const [open, setOpen] = createSignal(onPath())
+  // Auto-open the branch containing the active page; a manual collapse sticks
+  // until the route changes.
+  createEffect(() => onPath() && setOpen(true))
+
   return (
     <Show
       when={hasChildren()}
@@ -86,20 +93,25 @@ const NavNode = (props: NodeProps) => {
         </div>
       }
     >
-      <details open={onPath()}>
-        <summary
-          class="flex items-center list-none cursor-pointer [&::-webkit-details-marker]:hidden"
-          style={{ 'padding-left': indent(props.depth) }}
-        >
-          <span class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors">
-            <Chevron />
-          </span>
+      <div>
+        <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open()}
+            aria-label={open() ? 'Collapse section' : 'Expand section'}
+            class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors cursor-pointer"
+          >
+            <Chevron open={open()} />
+          </button>
           <NodeLink route={props.route} active={isActive()} onNavigate={props.onNavigate} />
-        </summary>
-        <div class="pb-2">
-          <NavChildren slug={props.route.slug} depth={props.depth + 1} onNavigate={props.onNavigate} />
         </div>
-      </details>
+        <Show when={open()}>
+          <div class="pb-2">
+            <NavChildren slug={props.route.slug} depth={props.depth + 1} onNavigate={props.onNavigate} />
+          </div>
+        </Show>
+      </div>
     </Show>
   )
 }
@@ -127,12 +139,13 @@ const KindCue = (props: { route: Route }) => {
   return <Show when={kind()}>{(k) => <Type.KindBadge kind={k()} class="text-[0.7rem]! w-3.5 shrink-0" />}</Show>
 }
 
-const Chevron = () => (
+const Chevron = (props: { open?: boolean }) => (
   <svg
     width="10"
     height="10"
     viewBox="0 0 12 12"
-    class="shrink-0 text-mute transition-transform [details[open]>summary_&]:rotate-90"
+    class="shrink-0 text-mute transition-transform"
+    classList={{ 'rotate-90': props.open }}
     aria-hidden="true"
   >
     <path d="M4 2.5 7.5 6 4 9.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" />

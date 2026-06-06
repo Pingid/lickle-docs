@@ -6,6 +6,7 @@ import { docStatement } from '../util/route.ts'
 import { type SearchHit } from '../util/search.ts'
 import { useSearch } from '../hooks/index.ts'
 import { type Kind } from '../util/kind.ts'
+import { SearchIcon } from './icons.tsx'
 import { Type } from './Type.tsx'
 
 const DEBOUNCE_MS = 80
@@ -54,12 +55,20 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
   createEffect(
     on(props.open, (isOpen) => {
       if (!isOpen) return
+      const prev = document.activeElement as HTMLElement | null
       setTerm('')
       setDebounced('')
       setHighlight(0)
       queueMicrotask(() => inputRef?.focus())
+      // Restore focus to the trigger (or whatever was focused) when the palette closes.
+      onCleanup(() => prev?.focus?.())
     }),
   )
+
+  // Keep the highlighted result visible during keyboard navigation. `nearest`
+  // is a no-op when the option is already on screen (e.g. on mouse hover).
+  let optionEls: (HTMLElement | undefined)[] = []
+  createEffect(() => optionEls[highlight()]?.scrollIntoView({ block: 'nearest' }))
 
   const [hits] = createResource(
     () => [engine(), debounced()] as const,
@@ -128,10 +137,11 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
           class="w-full max-w-xl mt-[12vh] bg-bg border border-line rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh]"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
+          aria-modal="true"
           aria-label="Search"
         >
           <div class="flex items-center gap-3 px-4 py-3.5 border-b border-line">
-            <SearchGlyph class="text-mute shrink-0" />
+            <SearchIcon class="text-mute shrink-0" />
             <input
               ref={inputRef}
               type="text"
@@ -156,6 +166,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
               <For each={list()}>
                 {(hit, i) => (
                   <li
+                    ref={(el) => (optionEls[i()] = el)}
                     role="option"
                     aria-selected={i() === highlight()}
                     class="group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer scroll-mt-2"
@@ -250,7 +261,7 @@ const EmptyState = (props: { loading: boolean; term: string }) => (
       }
     >
       <div class="flex items-center justify-center w-12 h-12 rounded-full bg-hover text-mute">
-        <SearchGlyph size={22} />
+        <SearchIcon size={22} />
       </div>
       <Show
         when={props.term}
@@ -276,22 +287,6 @@ const Kbd = (props: { children: any }) => (
   <kbd class="font-mono text-[0.65rem] text-mute bg-hover border border-line rounded px-1.5 py-0.5 leading-none">
     {props.children}
   </kbd>
-)
-
-const SearchGlyph = (props: { class?: string; size?: number }) => (
-  <svg
-    width={props.size ?? 16}
-    height={props.size ?? 16}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    class={props.class}
-    aria-hidden="true"
-  >
-    <circle cx="11" cy="11" r="7" />
-    <path d="m20 20-3.5-3.5" stroke-linecap="round" />
-  </svg>
 )
 
 const Spinner = () => (

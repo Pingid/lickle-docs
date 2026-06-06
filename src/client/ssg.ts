@@ -35,7 +35,7 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const name = Node.Fs.sanitizeFilename(`project-${opts.json.version ?? ''}-${hash}.js`)
   const outPath = path.resolve(opts.assetsDir, name)
   await Node.Fs.writeFile(outPath, `window.__LICKLE_JSON__ = ${serializedJson}`)
-  const jsonHref = prefixSlash(path.relative(opts.outDir, outPath))
+  const jsonHref = prefixSlash(path.join(opts.baseUrl, path.relative(opts.outDir, outPath)))
 
   // Server script
   const serverManifest = await readManifest(path.join(opts.serverOutDir, '.vite', 'manifest.json'))
