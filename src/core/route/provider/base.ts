@@ -68,7 +68,8 @@ const getSlug =
 const getSidebar =
   (cx: RouteContext) =>
   (id: number): Sidebar | undefined => {
-    if (cx.docs.isRoot(id)) return {}
+    const idx = cx.docs.rootIndex(id)
+    if (typeof idx === 'number') return { order: idx + 1 }
     if (!cx.docs.isExposed(id)) return undefined
 
     const parents = getExposedPath(cx, id)

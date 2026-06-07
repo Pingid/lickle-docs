@@ -67,7 +67,7 @@ export const createRouter = (p: { routes: Route[]; slugBase: string }): ClientRo
         if (!s.startsWith(`/${p.slugBase}`)) return []
         return _sidebar.get(s) ?? []
       },
-      roots: () => _allSidebar.get(ROOT) ?? [],
+      roots: () => (_allSidebar.get(ROOT) ?? []).sort((a, b) => (a.sidebar?.order ?? 0) - (b.sidebar?.order ?? 0)),
     },
   }
 }

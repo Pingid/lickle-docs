@@ -1,6 +1,6 @@
 import { compose, type RouteContext } from '../provider/core.ts'
+import { createFacade, type DeclarationFacade } from '../provider/facade.ts'
 import { groupOrder, pluralLabel } from '../naming.ts'
-import type { Reflect } from '../../index.ts'
 
 export type * from '../provider/core.ts'
 export type * from '../types.ts'
@@ -10,19 +10,19 @@ export { compose }
 
 export const groupBy = (
   cb: (
-    d: Reflect.Declaration,
+    d: DeclarationFacade,
     cx: RouteContext,
     value: { name: string; order?: number } | undefined,
   ) => { name: string; order?: number },
 ) =>
   compose({
-    modules: (value, d, cx) => value.map((m) => ({ ...m, group: cb(cx.docs.get(d.id)!, cx, m.group) })),
+    modules: (value, d, cx) => value.map((m) => ({ ...m, group: cb(d, cx, m.group) })),
     sidebar: (value, d, cx) => {
       if (!value) return undefined
-      const decl = cx.docs.get(d.id)!
-      return { parent: value?.parent, group: cb(decl, cx, value?.group) }
+      return { ...value, group: cb(d, cx, value?.group) }
     },
-    referenced: (value, _, cx) => value.map((r) => ({ ...r, group: cb(cx.docs.get(r.target)!, cx, r.group) })),
+    referenced: (value, _, cx) =>
+      value.map((r) => ({ ...r, group: cb(createFacade(cx.docs, r.target)!, cx, r.group) })),
   })
 
 export const groupByKind = groupBy((d) => {
