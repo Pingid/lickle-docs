@@ -1,4 +1,6 @@
 import { v, type Valid } from '@lickle/is'
+
+import type { Router } from '../index.ts'
 import * as T from './types.ts'
 
 export const validate = (v: unknown): Partial<T.UserConfig> => {
@@ -25,20 +27,33 @@ const entry = v.struct.match<T.Entry>({
   path: v.string,
 })
 
+const adapter = v.struct.match<Router.Adapter>({
+  alias: v.function,
+  title: v.function,
+  slug: v.function,
+  route: v.function,
+  sidebar: v.function,
+  modules: v.function,
+  referenced: v.function,
+})
+
 const any: Valid<any, unknown> = (v) => ({ ok: true, value: v })
 
+const field = <T>(tp: Valid<T, unknown>) => v.optional(tp)
+
 export const schema = v.struct.match<Partial<T.UserConfig>>({
-  name: v.or(v.string, v.undefined),
-  version: v.or(v.string, v.undefined),
-  links: v.or(v.array(v.struct({ label: v.string, href: v.string })), v.undefined),
-  tsconfig: v.or(v.string, v.undefined),
-  repository: v.or(repo, v.undefined),
-  srcDir: v.or(v.string, v.undefined),
-  entrypoints: v.or(v.array(entry), v.undefined),
-  pages: v.or(v.array(page), v.undefined),
-  components: v.or(v.string, v.undefined),
-  exclude: v.or(v.array(v.string), v.undefined),
-  include: v.or(any, v.undefined),
-  languages: v.or(v.array(v.string), v.undefined),
-  provider: any,
+  name: field(v.string),
+  version: field(v.string),
+  links: field(v.array(v.struct({ label: v.string, href: v.string }))),
+  tsconfig: field(v.string),
+  repository: field(repo),
+  srcDir: field(v.string),
+  entrypoints: field(v.array(entry)),
+  pages: field(v.array(page)),
+  components: field(v.string),
+  exclude: field(v.array(v.string)),
+  include: field(any),
+  languages: field(v.array(v.string)),
+  provider: field(adapter),
+  manifest: field(v.string),
 })

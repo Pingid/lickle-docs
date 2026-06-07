@@ -16,11 +16,13 @@ export type ClientOptions = Context.ViteContextOptions & {
   outDir: string
   baseUrl: string
   router?: 'hash' | 'browser'
+  manifest?: string
   noJavascript?: boolean
 }
 
 export const dev = async (options: ClientOptions) => {
-  const server = await vite.createServer(client(options))
+  const context = Context.makeContext(options)
+  const server = await vite.createServer(client(options, context))
   await server.listen()
   server.printUrls()
   Node.onExit(() => server.close())
@@ -28,13 +30,18 @@ export const dev = async (options: ClientOptions) => {
 }
 
 export const preview = async (options: ClientOptions) => {
-  const server = await vite.preview(client(options))
+  const server = await vite.preview({ build: { outDir: options.outDir }, server: { port: options.port } })
   server.printUrls()
   Node.onExit(() => server.close())
   return server
 }
 
-export const build = async (options: ClientOptions) => vite.build(client(options))
+export const build = async (options: ClientOptions) => {
+  const context = Context.makeContext(options)
+  const c = client(options, context)
+  await vite.build(c)
+  await postBuild(options, context)
+}
 
 export const buildStatic = async (options: ClientOptions) => {
   const context = Context.makeContext(options)
@@ -60,8 +67,14 @@ export const buildStatic = async (options: ClientOptions) => {
   })
 }
 
-export const client = (opts: ClientOptions) => {
-  const context = Context.makeContext(opts)
+const postBuild = async (opts: ClientOptions, _ctx: Context.ViteContext) => {
+  if (opts.manifest) {
+    const m = await Node.Fs.readFile(opts.manifest!, 'utf-8')
+    await Node.Fs.writeFile(path.join(opts.outDir, 'manifest.json'), m)
+  }
+}
+
+const client = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
   config.plugins!.push(Plugin.html(context), solid(), ...tailwindcss())
 
@@ -75,13 +88,13 @@ export const client = (opts: ClientOptions) => {
 }
 
 // vite.mergeConfig()
-export const ssgClient = (opts: ClientOptions, context: Context.ViteContext) => {
+const ssgClient = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
   config.plugins.push(Plugin.html(context), solid({ solid: { hydratable: !opts.noJavascript } }), ...tailwindcss())
   return Util.deepMerge(config, { build: { manifest: true, rolldownOptions: { input: clientFiles.entry.client } } })
 }
 
-export const ssgServer = (opts: ClientOptions, context: Context.ViteContext) => {
+const ssgServer = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
   config.plugins.push(solid({ ssr: true, solid: { hydratable: !opts.noJavascript } }), Plugin.ignoreCss())
   return Util.deepMerge(config, {
@@ -95,17 +108,20 @@ export const ssgServer = (opts: ClientOptions, context: Context.ViteContext) => 
   } satisfies vite.UserConfig)
 }
 
-const shared = (opts: ClientOptions, context: Context.ViteContext) =>
-  ({
+const shared = (opts: ClientOptions, context: Context.ViteContext) => {
+  const manifestPath = opts.manifest ? `/${opts.baseUrl}/manifest.json`.replace(/\/{2,}/g, '/') : undefined
+  const define = manifestPath ? { 'import.meta.env.VITE_MANIFEST_PATH': JSON.stringify(manifestPath) } : {}
+  return {
     root: clientFiles.root,
     base: opts.baseUrl,
     plugins: [Plugin.project(context), Plugin.components(context), Plugin.shiki(context), Plugin.resolve(context)],
     build: { outDir: opts.outDir, emptyOutDir: true, assetsDir: 'lickle-doc-assets' },
     server: { port: opts.port, fs: { allow: [clientFiles.root] } },
     resolve: { alias: {} },
+    define,
     clearScreen: false,
-  }) satisfies vite.UserConfig
-
+  } satisfies vite.UserConfig
+}
 const devAlias = () => {
   const LIB_UI_PATH = path.resolve(libRoot, './src/ui/index.ts')
   const LIB_THEME_CSS_PATH = path.resolve(libRoot, 'theme.css')

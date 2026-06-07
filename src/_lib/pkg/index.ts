@@ -14,6 +14,14 @@ export const read = memo1(async (projectDir: string) => {
   return pkg as PackageJson
 })
 
+export const repo = (pkg: PackageJson): { url?: string; directory?: string } | undefined => {
+  const repo = pkg.repository
+  if (!repo) return undefined
+  const url = typeof repo === 'string' ? repo : repo.url
+  if (typeof url !== 'string') return undefined
+  return { url, directory: typeof repo === 'object' ? repo.directory : undefined }
+}
+
 export type ExportedSource = { path: string; as: string }
 
 interface Options {

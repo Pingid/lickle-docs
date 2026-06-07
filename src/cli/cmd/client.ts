@@ -1,6 +1,7 @@
 import * as cmd from 'cmd-ts'
 import path from 'node:path'
 
+import { Config } from '../../core/index.ts'
 import * as Client from '../../client/index.ts'
 import * as Core from '../../core/index.ts'
 
@@ -43,6 +44,11 @@ const Options = {
     long: 'no-script',
     description: 'Emit plain HTML with no client JavaScript (applies to --static builds only)',
   }),
+  manifest: cmd.option({
+    long: 'manifest',
+    description: 'Include manifest containing versioned routes',
+    type: cmd.optional(cmd.string),
+  }),
 }
 
 export const dev = cmd.command({
@@ -62,6 +68,7 @@ export const build = cmd.command({
     outDir: Options.outDir,
     router: Options.router,
     noScript: Options.noScript,
+    manifest: Options.manifest,
   },
   handler: async (args) => {
     if (args.static) await Client.buildStatic(resolveOptions(args))
@@ -84,8 +91,10 @@ const resolveOptions = (args: {
   outDir?: string
   router?: 'hash' | 'browser'
   noScript?: boolean
+  manifest?: string
 }): Client.ClientOptions => {
   const dir = process.cwd()
+
   return {
     dir,
     config: configLoader(dir),
@@ -93,15 +102,27 @@ const resolveOptions = (args: {
     baseUrl: args.base ?? '/',
     outDir: path.resolve(dir, args.outDir ?? 'docs/dist'),
     noJavascript: args.noScript,
+    manifest: args.manifest ? path.resolve(dir, args.manifest) : undefined,
   }
 }
 
 /** Lazily load config + reflection JSON for the project rooted at `dir`. */
 const configLoader =
-  (dir: string): Client.ClientOptions['config'] =>
+  (dir: string, manifest?: string): Client.ClientOptions['config'] =>
   async () => {
     const file = await Core.Config.findFile(dir)
     const load = await Core.Config.load(dir)
     const project = await Core.buildDocs(dir, load.config)
-    return { json: project.json, config: load.config, file }
+    const json: Config.ProjectJson = {
+      name: load.config.name,
+      version: load.config.version,
+      repository: load.config.repository,
+      links: load.config.links,
+      entrypoints: load.config.entrypoints,
+      routes: project.routes,
+      slugBase: project.slugBase,
+      declarations: project.declarations,
+      manifest,
+    }
+    return { json, config: load.config, file }
   }

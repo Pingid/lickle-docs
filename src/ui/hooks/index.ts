@@ -1,7 +1,8 @@
-import { createMemo } from 'solid-js'
+import { createMemo, createResource } from 'solid-js'
 
 import { useDeclarationId, useMarkup, useProject, type Types } from '../context/index.tsx'
 import { createSearchEngine, type SearchEngine } from '../util/search.ts'
+import { MANIFEST_PATH } from '../util/base.ts'
 import { commentToMarkdown } from '../util/markdown.ts'
 
 // ============================================================================
@@ -66,4 +67,12 @@ export const useCommentMarkdown = (comment: () => Types.Comment | undefined) => 
     const c = comment()
     return c ? commentToMarkdown(c, slugOf) : ''
   })
+}
+
+export const useVersions = (): (() => Types.VersionsManifest['versions']) => {
+  const [r] = createResource(async (): Promise<Types.VersionsManifest> => {
+    if (!MANIFEST_PATH) return { versions: [] }
+    return fetch(MANIFEST_PATH).then((res) => res.json() as Promise<Types.VersionsManifest>)
+  })
+  return () => r()?.versions ?? []
 }

@@ -18,8 +18,8 @@ importers:
         specifier: 'link:'
         version: 'link:'
       '@lickle/is':
-        specifier: 0.1.0-dev.12
-        version: 0.1.0-dev.12
+        specifier: 0.1.0-dev.14
+        version: 0.1.0-dev.14
       '@orama/orama':
         specifier: ^3.1.18
         version: 3.1.18
@@ -367,8 +367,8 @@ packages:
   '@lickle/cn@0.0.1':
     resolution: {integrity: sha512-G1YLme/L/AP1aLzKXuOcsU35VQLV3/yMVg0YpS2+foVkngXMxeJzujffYfk9747C8giOKizuiMafL6Juh5FOqg==}
 
-  '@lickle/is@0.1.0-dev.12':
-    resolution: {integrity: sha512-EzvHT/IxSKQ6tnOXGltEa9uF40vMueFHQAXiw2k3+d3/y08zeOw56zlEGpAowkBxo+93yGOec1dajdKAcJ8j3Q==}
+  '@lickle/is@0.1.0-dev.14':
+    resolution: {integrity: sha512-//JOV3BHdkIOiXF5pHJ+tzxWDkXDw4In1oLv8uVU9UO0z/L7PjxIruJusqlnP229icS3XMdt2rqk4OOc603WJw==}
 
   '@napi-rs/wasm-runtime@1.1.4':
     resolution: {integrity: sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow==}
@@ -1646,7 +1646,7 @@ snapshots:
 
   '@lickle/cn@0.0.1': {}
 
-  '@lickle/is@0.1.0-dev.12': {}
+  '@lickle/is@0.1.0-dev.14': {}
 
   '@napi-rs/wasm-runtime@1.1.4(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:

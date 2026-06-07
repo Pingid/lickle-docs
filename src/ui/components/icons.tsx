@@ -44,6 +44,8 @@ export const SearchIcon = svg(() => (
   </>
 ))
 
+export const ChevronIcon = svg(() => <path d="m6 9 6 6 6-6" />)
+
 /** Pick an icon for an external link by its href/label, falling back to a generic external glyph. */
 export const iconForLink = (link: { label: string; href: string }): Component<IconProps> => {
   const k = `${link.href} ${link.label}`.toLowerCase()

@@ -4,7 +4,7 @@ import mm from 'micromatch'
 
 import type { Config, UserConfig } from './types.ts'
 
-import { Node, Path, Pkg, Repo, TsConfig } from '../../_lib/index.ts'
+import { Node, Path, Pkg, Workspace, TsConfig } from '../../_lib/index.ts'
 
 /**
  * Resolve a partial `UserConfig` into a fully-defaulted `UserConfig`.
@@ -12,13 +12,13 @@ import { Node, Path, Pkg, Repo, TsConfig } from '../../_lib/index.ts'
  * Missing fields fall back to `package.json`, conventional project files
  * (`README.md`) and the working directory.
  */
-export const populate = async (dir: string, c?: Partial<UserConfig>) => {
+export const populate = async (dir: string, c?: Partial<UserConfig>): Promise<{ config: Config }> => {
   const pkg = await Pkg.read(process.cwd())
   const name = c?.name ?? pkg?.name
   if (!name) throw new Error('No project name found')
 
-  const info = await Repo.info(dir)
-  const defualtLinks = info ? [{ label: 'Repository', href: info.url }] : []
+  const info = await Workspace.info(dir)
+  const defualtLinks = info && info.url ? [{ label: 'Repository', href: info.url }] : []
   const entrypoints = c?.entrypoints ?? (await Pkg.resolveExportedSources(dir, pkg, { tsconfig: c?.tsconfig }))
   const absoluteEntrypoints = entrypoints.map((e) => ({ as: e.as, path: path.resolve(dir, e.path) }))
   const tsconfig = TsConfig.resolve(dir, c?.tsconfig)
@@ -61,7 +61,7 @@ export const populate = async (dir: string, c?: Partial<UserConfig>) => {
       version: c?.version ?? pkg?.version ?? info?.tag,
       entrypoints: absoluteEntrypoints,
       links: c?.links ?? defualtLinks,
-      repository: info ? { url: info.url, rev: info.commit, fileUrl: info.fileUrl } : undefined,
+      repository: info && info.rev && info.url ? { url: info.url, rev: info.rev, fileUrl: info.fileUrl } : undefined,
       srcDir: c?.srcDir ?? tsconfig.rootDir,
       exclude: c?.exclude ?? [],
       include,

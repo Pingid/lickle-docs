@@ -13,6 +13,7 @@ import '@lickle/docs/theme.css'
 import * as custom from 'virtual:lickle/custom-components'
 
 const ROUTER_TYPE = import.meta.env['VITE_ROUTER_TYPE'] as 'hash' | 'browser'
+
 const AppRouter = ROUTER_TYPE === 'hash' ? HashRouter : Router
 
 const HmrApp = () => {

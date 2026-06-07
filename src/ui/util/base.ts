@@ -14,3 +14,11 @@ export const BASE_URL: string = import.meta.env.BASE_URL.replace(/\/+$/, '')
 
 /** Resolve an app-absolute path (`/foo`) or asset name (`icons.svg`) against {@link BASE_URL}. */
 export const withBaseUrl = (path: string): string => `${BASE_URL}/${path.replace(/^\/+/, '')}`
+
+declare global {
+  interface ImportMetaEnv {
+    VITE_MANIFEST_PATH: string
+  }
+}
+
+export const MANIFEST_PATH = import.meta.env.VITE_MANIFEST_PATH
