@@ -1,23 +1,22 @@
 import { test, expect } from 'vitest'
 
 import { routesFixture, memberTitles, memberGroups } from './fixture.ts'
-import { compact, type Adapter } from '../src/core/route/index.ts'
-import type { ClientRouter, DocStatement, DocReferenced, Route } from '../src/core/route/client/index.ts'
+import { type Adapter } from '../src/core/route/index.ts'
+import type { ClientRouter, Route } from '../src/core/route/client/index.ts'
 
-/** The `doc:statement` id of the route at `slug`. */
+/** The declaration id of the doc route at `slug`. */
 const idAt = (router: ClientRouter, slug: string): number => {
   const route = router.get({ slug })
   if (!route) throw new Error(`no route at ${slug}`)
-  const stmt = route.body.find((b): b is DocStatement => b.kind === 'doc:statement')
-  if (!stmt) throw new Error(`no statement at ${slug}`)
-  return stmt.id
+  if (route.kind !== 'doc') throw new Error(`route at ${slug} is not a declaration`)
+  return route.decl
 }
 
 /** Aliases of the declarations that reference (link back to) the route at `slug`. */
 const backlinks = (router: ClientRouter, slug: string): string[] => {
   const route = router.get({ slug })!
-  const ref = route.body.find((b): b is DocReferenced => b.kind === 'doc:referenced')
-  return (ref?.referenced ?? []).map((r) => r.alias)
+  if (route.kind !== 'doc') return []
+  return route.referenced.map((r) => r.alias)
 }
 
 // --- slugs & member nesting/grouping --------------------------------------
@@ -101,30 +100,28 @@ test('reachable keeps a non-exported referrer but drops fully-unreferenced decla
   expect(titles, 'unreferenced non-export is pruned').not.toContain('orphan')
 })
 
-test('compact returns exactly the declarations backing a doc:statement', () => {
-  const { index, routes } = routesFixture(`
+test('builder declarations back exactly the doc routes', () => {
+  const { routes, declarations } = routesFixture(`
     const secret = 1
     export const shown = 2
   `)
-  const names = compact({ docs: index, routes }).map((d) => d.name)
+  const names = declarations.map((d) => d.name)
   expect(names).toContain('shown')
   expect(names).not.toContain('secret')
-  const statements = routes.filter((r) => r.body.some((b) => b.kind === 'doc:statement')).length
-  expect(compact({ docs: index, routes }).length).toBe(statements)
+  expect(declarations.length).toBe(routes.filter((r) => r.kind === 'doc').length)
 })
 
 // --- alias / title / exports / adapter ------------------------------------
 
-test('namespace member title is the member name; statement alias is qualified', () => {
-  const { router } = routesFixture(`
+test('namespace member title is the qualified alias; decl name is the simple name', () => {
+  const { router, index } = routesFixture(`
     export namespace Outer {
       export function inner() {}
     }
   `)
   const route = router.get({ slug: '/l/fixture/Outer/inner' })!
   expect(route.title).toBe('Outer.inner')
-  const stmt = route.body.find((b): b is DocStatement => b.kind === 'doc:statement')!
-  expect(stmt.alias).toBe('Outer.inner')
+  expect(route.kind === 'doc' && index.get(route.decl)?.name).toBe('inner')
 })
 
 test('export { x as y } exposes the target under the alias and produces no extra route', () => {

@@ -4,7 +4,7 @@ import mm from 'micromatch'
 
 import type { Config, UserConfig } from './types.ts'
 
-import { Node, Path, Pkg, Workspace, TsConfig } from '../../_lib/index.ts'
+import { Node, Pkg, Workspace, TsConfig } from '../../_lib/index.ts'
 
 /**
  * Resolve a partial `UserConfig` into a fully-defaulted `UserConfig`.
@@ -27,30 +27,23 @@ export const populate = async (dir: string, c?: Partial<UserConfig>): Promise<{ 
     composeIncludeChecks(useConfigExcludeCheck(c), tsconfigIncludeCheck(tsconfig, dir), nodeModulesCheck),
     c?.include,
   )
-  const routes: Config['routes'] = []
 
-  const readmePath = await Node.Fs.existingPath(path.resolve(dir, 'README.md'))
-  if (!c?.pages && readmePath) {
-    const readme = await Node.Fs.readFile(readmePath, 'utf-8')
-    if (readme) {
-      routes.push({
-        title: 'README',
-        slug: '/',
-        sidebar: {},
-        body: [{ kind: 'markdown', markdown: readme }],
-      })
-    }
-  }
+  const pages = []
 
   if (c?.pages?.length) {
-    for (const p of c.pages) {
-      const content = await Node.Fs.readFile(path.resolve(dir, p.content), 'utf-8')
-      routes.push({
-        title: p.title,
-        slug: p.slug ?? Path.toSlug(p.title),
-        sidebar: {},
-        body: [{ kind: 'markdown', markdown: content }],
-      })
+    for (const p of c?.pages) {
+      if (p.content.endsWith('.md')) {
+        const content = await Node.Fs.readFile(path.resolve(dir, p.content), 'utf-8')
+        pages.push({ ...p, content })
+      } else {
+        pages.push({ ...p })
+      }
+    }
+  } else {
+    const readmePath = await Node.Fs.existingPath(path.resolve(dir, 'README.md'))
+    if (readmePath) {
+      const readme = await Node.Fs.readFile(readmePath, 'utf-8')
+      if (readme) pages.push({ title: 'README', slug: '/', content: readme })
     }
   }
 
@@ -64,8 +57,8 @@ export const populate = async (dir: string, c?: Partial<UserConfig>): Promise<{ 
       repository: info && info.rev && info.url ? { url: info.url, rev: info.rev, fileUrl: info.fileUrl } : undefined,
       srcDir: c?.srcDir ?? tsconfig.rootDir,
       exclude: c?.exclude ?? [],
+      pages,
       include,
-      routes,
     } satisfies Config,
   }
 }

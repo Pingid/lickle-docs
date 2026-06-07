@@ -1,64 +1,46 @@
 import { type RouteContext, type Provider, type Adapter, provideAdapter } from './core.ts'
-import type { ModuleRef, Body, Route, Sidebar, TypeRef } from '../types.ts'
+import type { DocRoute, Sidebar, DocLink } from '../types.ts'
 import type { Exposure } from '../../reflect/indexed.ts'
 
 export const provide = (c: RouteContext, adapter: Adapter): Provider => provideAdapter(c, provider(c), adapter)
 
 const provider = (cx: RouteContext): Provider => ({
   alias: getAlias(cx),
-  title: getAlias(cx),
   slug: getSlug(cx),
-  route: getRoute(cx),
+  declare: getRoute(cx),
   sidebar: getSidebar(cx),
-  modules: getModules(cx),
+  links: getLinks(cx),
   referenced: getReferenced(cx),
 })
 
 const getRoute =
   (cx: RouteContext) =>
-  (id: number): Route | undefined => {
+  (id: number): DocRoute | undefined => {
     const decl = cx.docs.get(id)!
     if (decl.kind === 'export') return undefined
 
     const sidebar = cx.provider.sidebar(id)
-    const alias = cx.provider.alias(id)
-    const title = cx.provider.title(id)
+    const title = cx.provider.alias(id)
     const slug = cx.provider.slug(id)
-    const modules = cx.provider.modules(id)
-    const exported = isExported(cx, id)
+    const links = cx.provider.links(id)
+    const referenced = cx.provider.referenced(id)
 
-    const body: Body[] = [
-      { kind: 'doc:statement', alias, id, exported, modules },
-      { kind: 'doc:referenced', referenced: cx.provider.referenced(id) },
-    ]
-
-    return { title, slug, sidebar, body }
+    return { kind: 'doc', decl: id, title, slug, sidebar, links, referenced }
   }
 
-const getModules =
+const getLinks =
   (cx: RouteContext) =>
-  (id: number): ModuleRef[] => {
-    // Each exposure path runs root -> ... -> id; its last edge is id's direct
-    // exposer. Registering only direct exposers keeps a symbol a member of its
-    // immediate parent, not of every ancestor module on the way down.
-    const seen = new Set<number>()
-    const out: ModuleRef[] = []
-    for (const path of cx.docs.exposures(id)) {
-      const direct = path[path.length - 1]
-      if (!direct || seen.has(direct.exposer)) continue
-      seen.add(direct.exposer)
-      out.push({ target: direct.exposer, alias: cx.provider.alias(id) })
-    }
-    return out
+  (id: number): DocLink[] => {
+    const decl = cx.docs.get(id)!
+    if (decl.kind !== 'module') return []
+    return cx.docs.exposes(id).map((e) => ({ target: e.exposer, alias: e.alias ?? cx.provider.alias(id) }))
   }
 
 const getReferenced =
   (cx: RouteContext) =>
-  (id: number): TypeRef[] => {
+  (id: number): DocLink[] => {
     return Array.from(cx.docs.referencedIn(id)).map((id) => ({ target: id, alias: cx.provider.alias(id) }))
   }
-
-const isExported = (cx: RouteContext, id: number): boolean => !!getExposedPath(cx, id)[0]
 
 const getSlug =
   (cx: RouteContext) =>

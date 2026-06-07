@@ -1,28 +1,21 @@
-export interface Route {
+export type Route = DocRoute | PageRoute
+
+export interface RouteBase {
   title: string
   slug: Slug
   sidebar?: Sidebar
-  body: Body[]
 }
 
-export type Body = DocStatement | DocReferenced | MarkdownBody
-
-export interface DocStatement {
-  kind: 'doc:statement'
-  id: number
-  alias: string
-  exported: boolean
-  modules: ModuleRef[]
+export interface DocRoute extends RouteBase {
+  kind: 'doc'
+  decl: number
+  links: DocLink[]
+  referenced: DocLink[]
 }
 
-export interface DocReferenced {
-  kind: 'doc:referenced'
-  referenced: TypeRef[]
-}
-
-export interface MarkdownBody {
-  kind: 'markdown'
-  markdown: string
+export interface PageRoute extends RouteBase {
+  kind: 'page'
+  body: string[]
 }
 
 /**
@@ -36,6 +29,4 @@ export type Group = { name: string; order?: number }
 
 export type Sidebar = { parent?: Slug; group?: Group; order?: number }
 
-export type ModuleRef = { target: number; alias: string; group?: Group }
-
-export type TypeRef = { target: number; alias: string; group?: Group }
+export type DocLink = { target: number; alias: string; group?: Group }

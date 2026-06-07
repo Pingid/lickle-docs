@@ -2,7 +2,6 @@ import { For, Show, createEffect, createMemo, createSignal } from 'solid-js'
 import { A, useLocation } from '../context/router.tsx'
 
 import { createSlot, useProject, type Types } from '../context/index.tsx'
-import { docStatement } from '../util/route.ts'
 import { Type } from './Type.tsx'
 
 type Route = Types.Route
@@ -132,10 +131,7 @@ const indent = (depth: number): string => `${depth * 0.75}rem`
 
 const KindCue = (props: { route: Route }) => {
   const project = useProject()
-  const kind = () => {
-    const stmt = docStatement(props.route)
-    return stmt ? project().byId(stmt.id)?.kind : undefined
-  }
+  const kind = () => (props.route.kind === 'doc' ? project().byId(props.route.decl)?.kind : undefined)
   return <Show when={kind()}>{(k) => <Type.KindBadge kind={k()} class="text-[0.7rem]! w-3.5 shrink-0" />}</Show>
 }
 

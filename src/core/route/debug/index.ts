@@ -1,8 +1,8 @@
 import pc from 'picocolors'
 
-import { createRouter, type ClientRouter } from '../client/index.ts'
+import { createRouter, groupItems, type ClientRouter } from '../client/index.ts'
 import * as reflect from '../../reflect/index.ts'
-import type { Route, TypeRef } from '../types.ts'
+import type { Route } from '../types.ts'
 
 export const printRoutes = (opts: {
   index: reflect.Index
@@ -23,23 +23,37 @@ const printContent = (s: Styler, router: ClientRouter) => {
   s.l(pc.bold('Routes'))
   s.l('-'.repeat(40))
   for (const route of router.items) {
+    if (route.kind === 'page') {
+      s.l(pc.bold(route.title), pc.gray(route.slug))
+      continue
+    }
     if (route.title === 'unknown') s.l(pc.red('unknown'), pc.gray(route.slug))
 
-    for (const content of route.body) {
-      if (content.kind === 'doc:statement') {
-        s.page(content.id, content.alias, route.slug)
+    s.page(route.decl, route.title, route.slug)
 
-        // print members
-        for (const group of router.members(content.id)) {
-          s.group(group.group)
-          for (const module of group.items) {
-            s.child().page(module.target, module.alias, module.route.slug)
-          }
+    if (route.links.length > 0) {
+      const s2 = s.child()
+      s2.section('Members')
+      for (const groups of groupItems(route.links, (l) => l.group)) {
+        s2.group(groups.group)
+        for (const link of groups.items) {
+          const route = router.get({ id: link.target })
+          if (!route) continue
+          s2.child().child().page(link.target, link.alias, route.slug)
         }
       }
+    }
 
-      if (content.kind === 'doc:referenced' && content.referenced.length > 0) {
-        s.referenced(content.referenced)
+    if (route.referenced.length > 0) {
+      const s2 = s.child()
+      s2.section('Referenced In')
+      for (const groups of groupItems(route.referenced, (r) => r.group)) {
+        s2.group(groups.group)
+        for (const referenced of groups.items) {
+          const route = router.get({ id: referenced.target })
+          if (!route) continue
+          s2.child().child().page(referenced.target, referenced.alias, route.slug)
+        }
       }
     }
   }
@@ -47,14 +61,14 @@ const printContent = (s: Styler, router: ClientRouter) => {
 
 const printSidebar = (s: Styler, router: ClientRouter) => {
   const printSidebar = (s: Styler, route: Route) => {
-    const id = route.body.map((b) => (b.kind === 'doc:statement' ? b.id : undefined))[0]!
-    if (!id) return
+    if (route.kind === 'page') return
 
-    s.page(id, route.title, route.slug)
+    s.page(route.decl, route.title, route.slug)
 
     for (const group of router.sidebar.children(route.slug)) {
-      if (group.group !== '') s.group(group.group)
-      for (const child of group.items) printSidebar(s.child(), child)
+      const s2 = s.child()
+      if (group.group !== '') s2.group(group.group)
+      for (const child of group.items) printSidebar(s2.child(), child)
     }
   }
 
@@ -83,35 +97,21 @@ const printer = (index: reflect.Index, routes: Route[], write?: (value: string) 
     writer(prfx + _args.map((arg) => (typeof arg === 'function' ? arg(_depth) : (arg?.toString() ?? ''))).join(' '))
   }
 
-  const kind = (id: number) => {
-    const decl = index.get(id)!
-    return pc.bold(SHORTS[decl.kind]!)
-  }
   const padName = (name?: string) => (d: number) => pc.cyan((name ?? '').padEnd(40 - d * tabSize))
 
-  const page = (id: number, alias: string, slug: string) => l(kind(id), padName(alias), pc.gray(slug))
-  const group = (group: string) => l(3, pc.yellow(group))
+  const section = (title: string) => (l(), l(pc.gray(pc.bold(title.toUpperCase()) + '-'.repeat(40))))
+  const group = (group: string) => l(pc.yellow(group))
+  const page = (id: number, alias: string, slug: string) =>
+    l(pc.bold(SHORTS[index.get(id)!.kind]!), padName(alias), pc.gray(slug))
 
-  const route = (id: number) => routes.find((r) => r.body.some((b) => b.kind === 'doc:statement' && b.id === id))!
-
-  const parentId = (id: number) => index.get(id)!.parent
-  const referenced = (id: TypeRef[]) => {
-    const line = id
-      .map((id) => {
-        const r = route(parentId(id.target))
-        return [kind(id.target), [pc.green(r?.title ?? ''), pc.green(id.alias)].join('.')].join(': ')
-      })
-      .join(', ')
-    l(4, pc.gray(`referenced in: [${line}]`))
-  }
-  const tabSize = 1
+  const tabSize = 2
   return {
     index,
     l,
     page,
     group,
-    child: () => printer(index, routes, write, depth + 5),
-    referenced,
+    section,
+    child: () => printer(index, routes, write, depth + 1),
   }
 }
 

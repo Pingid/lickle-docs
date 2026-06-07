@@ -16,7 +16,7 @@ export const groupBy = (
   ) => { name: string; order?: number },
 ) =>
   compose({
-    modules: (value, d, cx) => value.map((m) => ({ ...m, group: cb(d, cx, m.group) })),
+    links: (value, _, cx) => value.map((l) => ({ ...l, group: cb(createFacade(cx.docs, l.target)!, cx, l.group) })),
     sidebar: (value, d, cx) => {
       if (!value) return undefined
       return { ...value, group: cb(d, cx, value?.group) }

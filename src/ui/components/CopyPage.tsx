@@ -1,9 +1,8 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
 
 import { useProject, type Types } from '../context/index.tsx'
-import { useSlugFor } from '../hooks/index.ts'
 import { routeToMarkdown } from '../util/markdown.ts'
-import { docStatement } from '../util/route.ts'
+import { useSlugFor } from '../hooks/index.ts'
 import { clientOnly } from '../util/solid.tsx'
 
 const COPY = 'M9 9h10v10H9zM5 15H4V5h10v1'
@@ -20,10 +19,7 @@ export const CopyPageButton = clientOnly(() => (props: { route: Types.Route; cla
   const [copied, setCopied] = createSignal(false)
   const [open, setOpen] = createSignal(false)
 
-  const hasMembers = createMemo(() => {
-    const stmt = docStatement(props.route)
-    return !!stmt && project().routes.members(stmt.id).length > 0
-  })
+  const hasMembers = createMemo(() => props.route.kind === 'doc' && props.route.links.length > 0)
 
   let resetTimer: ReturnType<typeof setTimeout> | undefined
   const copy = (inlineMembers: boolean) => {
@@ -65,7 +61,16 @@ export const CopyPageButton = clientOnly(() => (props: { route: Types.Route; cla
         title={copied() ? 'Copied' : 'Copy as markdown'}
         class="p-1.5 rounded-md text-mute hover:text-fg hover:bg-hover transition-colors cursor-pointer"
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <path d={copied() ? CHECK : COPY} />
         </svg>
       </button>

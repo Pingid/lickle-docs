@@ -1,7 +1,6 @@
 import { create, insert, search } from '@orama/orama'
 
 import { type Types } from '../context/index.tsx'
-import { docStatement } from './route.ts'
 import { type Kind } from './kind.ts'
 
 export type SearchHit = { name: string; qualified: string; kind: Kind; slug: string; file: string }
@@ -13,7 +12,7 @@ export type SearchEngine = { query: (term: string, limit?: number) => Promise<Se
  * Names are boosted above qualified paths so exact-name hits rank first;
  * `tolerance: 1` allows one-character typos. Each declaration is indexed once
  * — re-export routes share a declaration id, so they're de-duplicated here.
- * Markdown pages (no `doc:statement`) are skipped.
+ * Markdown pages (no declaration) are skipped.
  */
 export const createSearchEngine = async (project: Types.Project): Promise<SearchEngine> => {
   const db = await create({
@@ -25,18 +24,18 @@ export const createSearchEngine = async (project: Types.Project): Promise<Search
 
   const seen = new Set<number>()
   for (const route of project.routes.items) {
-    const stmt = docStatement(route)
-    if (!stmt || seen.has(stmt.id)) continue
-    seen.add(stmt.id)
-    const decl = project.byId(stmt.id)
+    if (route.kind !== 'doc' || seen.has(route.decl)) continue
+    seen.add(route.decl)
+    const decl = project.byId(route.decl)
     const kind = (decl?.kind ?? 'module') as Kind
+    const name = decl?.name ?? route.title
     await insert(db, {
-      name: route.title,
-      qualified: stmt.alias,
+      name,
+      qualified: route.title,
       kind,
       slug: route.slug,
       file: decl?.sources?.[0]?.file ?? '',
-      terms: termsOf(route.title, stmt.alias),
+      terms: termsOf(name, route.title),
     })
   }
 

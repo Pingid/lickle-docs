@@ -48,8 +48,6 @@ export interface Config {
   components?: string
   /** Languages used in example code blocks and markdown for syntax highlighting. Defaults to ['ts'] */
   languages?: string[]
-  /** Routes of the project. */
-  routes: Router.Route[]
   /** Path to manifest file. {@see ProjectManifest} */
   manifest?: string
 }

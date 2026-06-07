@@ -65,7 +65,6 @@ export interface Components {
   // Page slots
   page?: WithDefault<{ route: Types.Route }>
   'page.header'?: WithDefault<{ decl: Types.Declaration; route: Types.Route }>
-  'page.content'?: WithDefault<{ route: Types.Route; body: Types.Body }>
 
   // Declaration page slots
   declaration?: WithDefault<{ decl: Types.Declaration }>

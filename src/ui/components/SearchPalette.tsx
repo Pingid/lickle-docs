@@ -1,16 +1,14 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
 import { useNavigate } from '../context/router.tsx'
 
-import { useProject, type Types } from '../context/index.tsx'
-import { docStatement } from '../util/route.ts'
 import { type SearchHit } from '../util/search.ts'
+import { useProject } from '../context/index.tsx'
 import { useSearch } from '../hooks/index.ts'
-import { type Kind } from '../util/kind.ts'
 import { SearchIcon } from './icons.tsx'
 import { Type } from './Type.tsx'
 
 const DEBOUNCE_MS = 80
-const DEFAULT_LIMIT = 12
+// const DEFAULT_LIMIT = 12
 const RECENTS_KEY = 'lickle:recent-search'
 const RECENTS_MAX = 8
 
@@ -80,19 +78,9 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
   const [recents, setRecents] = createSignal<SearchHit[]>(loadRecents())
   const validRecents = createMemo(() => recents().filter((h) => project().routes.get({ slug: h.slug })))
 
-  // Before the user types, show recent selections; otherwise the first module's
-  // entries so the palette opens with something to browse instead of empty.
-  const firstModule = createMemo(() => project().routes.sidebar.roots()[0])
-  const suggestions = createMemo<SearchHit[]>(() => {
-    const mod = firstModule()
-    return mod ? childHits(project(), mod).slice(0, DEFAULT_LIMIT) : []
-  })
-
   const hasTerm = () => debounced().trim().length > 0
-  const sectionLabel = () => (validRecents().length ? 'Recent' : firstModule()?.title)
-  const list = createMemo<SearchHit[]>(() =>
-    hasTerm() ? (hits() ?? []) : validRecents().length ? validRecents() : suggestions(),
-  )
+  const sectionLabel = () => (validRecents().length ? 'Recent' : '')
+  const list = createMemo<SearchHit[]>(() => (hasTerm() ? (hits() ?? []) : validRecents().length ? validRecents() : []))
 
   createEffect(
     on(list, (l) => {
@@ -226,27 +214,6 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
       </div>
     </Show>
   )
-}
-
-/** Map a route's members into search-hit rows for the default listing. */
-const childHits = (project: Types.Project, route: Types.Route): SearchHit[] => {
-  const stmt = docStatement(route)
-  if (!stmt) return []
-  const out: SearchHit[] = []
-  for (const group of project.routes.members(stmt.id)) {
-    for (const m of group.items) {
-      const memberStmt = docStatement(m.route)
-      const decl = memberStmt ? project.byId(memberStmt.id) : undefined
-      out.push({
-        name: m.route.title,
-        qualified: memberStmt?.alias ?? m.route.title,
-        kind: (decl?.kind ?? 'module') as Kind,
-        slug: m.route.slug,
-        file: decl?.sources?.[0]?.file ?? '',
-      })
-    }
-  }
-  return out
 }
 
 const EmptyState = (props: { loading: boolean; term: string }) => (

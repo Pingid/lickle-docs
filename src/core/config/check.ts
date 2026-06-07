@@ -29,12 +29,11 @@ const entry = v.struct.match<T.Entry>({
 
 const adapter = v.struct.match<Router.Adapter>({
   alias: v.function,
-  title: v.function,
   slug: v.function,
-  route: v.function,
+  declare: v.function,
   sidebar: v.function,
-  modules: v.function,
   referenced: v.function,
+  links: v.function,
 })
 
 const any: Valid<any, unknown> = (v) => ({ ok: true, value: v })

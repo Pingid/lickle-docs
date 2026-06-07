@@ -161,9 +161,11 @@ export type Exposure = { exposer: number; alias?: string }
 export type ExposerIndex = {
   isExposed: (id: number) => boolean
   exposures: (id: number) => Exposure[][]
+  exposes: (id: number) => Exposure[]
 }
 export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) => {
   const exposedBy = new Map<number, Exposure[]>()
+  const exposesIn = new Map<number, Exposure[]>()
 
   // Records id under exposer/alias. Returns whether this (exposer → id) edge
   // is new — used to stop infinite recursion on cycles, NOT to globally
@@ -173,6 +175,10 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     const edge = exposer + ':' + id
     if (seenEdge.has(edge)) return false
     seenEdge.add(edge)
+
+    let items = exposesIn.get(exposer)
+    if (!items) exposesIn.set(exposer, (items = []))
+    items.push({ exposer: id, alias })
 
     let by = exposedBy.get(id)
     if (!by) exposedBy.set(id, (by = []))
@@ -228,13 +234,16 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
 
   const exposures = (id: number, pth: Exposure[] = []): Exposure[][] => {
     const d = exposedBy.get(id)
+    // console.log('d', d)
     if (!d) return []
     return d.flatMap((e) => (deps.isRoot(e.exposer) ? [[e, ...pth]] : exposures(e.exposer, [e, ...pth])))
   }
 
+  const exposes = (id: number) => exposesIn.get(id) ?? []
+
   const isExposed = (id: number): boolean => (exposedBy.get(id)?.length ?? 0) > 0
 
-  return { isExposed, exposures }
+  return { isExposed, exposures, exposes }
 }
 
 // -------------------------------------------

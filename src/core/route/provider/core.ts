@@ -1,7 +1,7 @@
 import type * as Reflect from '../../reflect/index.ts'
 import { memo1 } from '../../../_lib/util/index.ts'
 
-import type { ModuleRef, Route, Sidebar, TypeRef } from '../types.ts'
+import type { DocRoute, Sidebar, DocLink } from '../types.ts'
 import { createFacade, type DeclarationFacade } from './facade.ts'
 
 /** A hook that can be used to customize page route generation. */
@@ -10,17 +10,19 @@ export type Hook<V> = (value: V, id: DeclarationFacade, cx: RouteContext) => V
 /** Customize page route generation. */
 export type Adapter = {
   alias?: Hook<string>
-  title?: Hook<string>
   slug?: Hook<string>
-  route?: Hook<Route | undefined>
   sidebar?: Hook<Sidebar | undefined>
-  modules?: Hook<ModuleRef[]>
-  referenced?: Hook<TypeRef[]>
+  declare?: Hook<DocRoute | undefined>
+  links?: Hook<DocLink[]>
+  referenced?: Hook<DocLink[]>
 }
 
 export type RouteContext = { docs: Reflect.Index; provider: Provider }
 
-export type ContextOptions = { docs: Reflect.Index; adapter?: Adapter }
+export type ContextOptions = {
+  docs: Reflect.Index
+  adapter?: Adapter
+}
 
 export const makeContext = (opts: ContextOptions, provider: (cx: RouteContext) => Provider): RouteContext => {
   let id = 0
@@ -31,17 +33,16 @@ export const makeContext = (opts: ContextOptions, provider: (cx: RouteContext) =
 
 export type Provider = {
   alias: (id: number) => string
-  title: (id: number) => string
   slug: (id: number) => string
-  route: (id: number) => Route | undefined
+  declare: (id: number) => DocRoute | undefined
   sidebar: (id: number) => Sidebar | undefined
-  modules: (id: number) => ModuleRef[]
-  referenced: (id: number) => TypeRef[]
+  links: (id: number) => DocLink[]
+  referenced: (id: number) => DocLink[]
 }
 
 export const compose = (...adapters: (Adapter | undefined)[]): Adapter => adapters.reduce<Adapter>(merge, {})
 
-const hooks = ['alias', 'title', 'slug', 'route', 'sidebar', 'modules', 'referenced'] as const
+const hooks = ['alias', 'slug', 'declare', 'sidebar', 'referenced', 'links'] as const
 const merge = (a: Adapter | undefined, b: Adapter | undefined): Adapter => {
   if (!a) return b ?? {}
   if (!b) return a ?? {}

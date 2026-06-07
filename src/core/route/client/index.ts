@@ -1,8 +1,7 @@
-import type { DocStatement, Group, ModuleRef, Route, Slug, TypeRef } from '../types.ts'
+import type { Group, Route, Slug, DocLink } from '../types.ts'
 export type * from '../types.ts'
 
-type MemberItem = { route: Route } & ModuleRef
-type ReferencedItem = { route: Route } & TypeRef
+type ReferencedItem = { route: Route } & DocLink
 
 /** A list of items sharing a group name, emitted in resolved group order. */
 export type GroupedItems<T> = { group: string; items: T[] }
@@ -11,7 +10,6 @@ export interface ClientRouter {
   items: Route[]
   slugBase: string
   get(match: { slug?: Slug; id?: number }): Route | undefined
-  members(id: number): GroupedItems<MemberItem>[]
   referenced(id: number): GroupedItems<ReferencedItem>[]
   sidebar: {
     roots: () => Route[]
@@ -26,28 +24,22 @@ export const createRouter = (p: { routes: Route[]; slugBase: string }): ClientRo
 
   const _bySlug = new Map<Slug, Route>()
   const _byId = new Map<number, Route>()
-  const _allMembers = new Map<number, MemberItem[]>()
+
   const _allReferenced = new Map<number, ReferencedItem[]>()
   const _allSidebar = new Map<Slug, Route[]>()
 
   for (const route of routes) {
     _bySlug.set(route.slug, route)
-    const stmt = route.body.find((b): b is DocStatement => b.kind === 'doc:statement')
-    if (stmt) _byId.set(stmt.id, route)
     // `sidebar.parent` is a raw provider slug; normalize it to match the
     // normalized `route.slug` keys so child lookups resolve.
     if (route.sidebar) push(_allSidebar, route.sidebar.parent ? normalizeSlug(route.sidebar.parent) : ROOT, route)
+    if (route.kind !== 'doc') continue
 
-    for (const body of route.body) {
-      if (body.kind === 'doc:statement')
-        for (const module of body.modules) push(_allMembers, module.target, { ...module, route })
+    _byId.set(route.decl, route)
 
-      if (body.kind === 'doc:referenced')
-        for (const ref of body.referenced) push(_allReferenced, ref.target, { ...ref, route })
-    }
+    for (const ref of route.referenced) push(_allReferenced, ref.target, { ...ref, route })
   }
 
-  const _members = groupValues(_allMembers, (m) => m.group)
   const _referenced = groupValues(_allReferenced, (r) => r.group)
   const _sidebar = groupValues(_allSidebar, (r) => r.sidebar?.group)
 
@@ -59,7 +51,6 @@ export const createRouter = (p: { routes: Route[]; slugBase: string }): ClientRo
       if (typeof match.id === 'number') return _byId.get(match.id)
       return undefined
     },
-    members: (id) => _members.get(id) ?? [],
     referenced: (id) => _referenced.get(id) ?? [],
     sidebar: {
       children: (slug) => {

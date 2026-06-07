@@ -10,7 +10,7 @@ import * as Router from './route/index.ts'
 export const buildDocs = async (
   dir: string = process.cwd(),
   config: Config.Config,
-): Promise<{ index: Reflect.Index; routes: Router.Route[]; slugBase: string; declarations: Reflect.Declaration[] }> => {
+): Promise<{ index: Reflect.Index } & Router.DocRoutes> => {
   const c = TsConfig.resolve(dir, config.tsconfig)
   if (!c.config) throw new Error('No tsconfig.json found')
 
@@ -25,14 +25,9 @@ export const buildDocs = async (
   const resolved = Reflect.resolve(scanned)
   const indexed = Reflect.index(resolved, config.entrypoints ?? [])
 
-  const docroutes = Router.docRoutes({ docs: indexed, adapter: config.provider })
+  const builder = Router.builder({ docs: indexed, adapter: config.provider })
+  for (const page of config.pages ?? []) builder.markdown(page)
+  for (const decl of indexed.declarations()) builder.declare(decl)
 
-  const declarations = Router.compact({ docs: indexed, routes: docroutes.routes })
-
-  return {
-    routes: [...config.routes, ...docroutes.routes],
-    slugBase: docroutes.slugBase,
-    declarations,
-    index: indexed,
-  }
+  return { ...builder.build(), index: indexed }
 }

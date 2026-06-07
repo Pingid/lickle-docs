@@ -4,8 +4,8 @@ import path from 'node:path'
 import ts from 'typescript'
 
 import * as reflect from '../src/core/reflect/index.ts'
-import { docRoutes, type Adapter } from '../src/core/route/index.ts'
-import { createRouter, type ClientRouter } from '../src/core/route/client/index.ts'
+import { builder, type Adapter } from '../src/core/route/index.ts'
+import { createRouter, type ClientRouter, type Route } from '../src/core/route/client/index.ts'
 
 /**
  * Scan a single in-memory module end-to-end and return its reflection index.
@@ -48,20 +48,36 @@ export const typeOf = (index: reflect.Index, name: string): reflect.Type => byNa
 
 /**
  * Scan a single module and run the full route pipeline over it: the reflection
- * index, the generated routes, and a client router built from them.
+ * index, the generated routes (and the declarations backing them), and a client
+ * router built from them.
  */
 export const routesFixture = (
   code: string,
   adapter?: Adapter,
-): { index: reflect.Index; routes: ReturnType<typeof docRoutes>['routes']; slugBase: string; router: ClientRouter } => {
+): {
+  index: reflect.Index
+  routes: Route[]
+  declarations: reflect.Declaration[]
+  slugBase: string
+  router: ClientRouter
+} => {
   const index = scanFixture(code)
-  const { routes, slugBase } = docRoutes({ docs: index, adapter })
-  return { index, routes, slugBase, router: createRouter({ routes, slugBase }) }
+  const b = builder({ docs: index, adapter })
+  for (const decl of index.declarations()) b.declare(decl)
+  const { routes, slugBase, declarations } = b.build()
+  return { index, routes, declarations, slugBase, router: createRouter({ routes, slugBase }) }
+}
+
+/** The sidebar children of the route with `id`, grouped by kind. */
+const childrenOf = (router: ClientRouter, id: number) => {
+  const route = router.get({ id })
+  return route ? router.sidebar.children(route.slug) : []
 }
 
 /** Member titles under a declaration id, flattened across groups in resolved order. */
 export const memberTitles = (router: ClientRouter, id: number): string[] =>
-  router.members(id).flatMap((g) => g.items.map((i) => i.route.title))
+  childrenOf(router, id).flatMap((g) => g.items.map((r) => r.title))
 
 /** Group names (in resolved order) of a declaration's members. */
-export const memberGroups = (router: ClientRouter, id: number): string[] => router.members(id).map((g) => g.group)
+export const memberGroups = (router: ClientRouter, id: number): string[] =>
+  childrenOf(router, id).map((g) => g.group)
