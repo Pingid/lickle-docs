@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createMemo } from 'solid-js'
 
-import { createSlot, DeclarationScope, useProject, type Types } from '../context/index.tsx'
+import { createSlot, useProject, type Types } from '../context/index.tsx'
 import { groupItems } from '../../core/client/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
 import { A } from '../context/router.tsx'
@@ -45,10 +45,10 @@ const Statement = (props: { route: Types.DocRoute }) => {
   return (
     <Show when={decl()}>
       {(d) => (
-        <DeclarationScope id={d().id}>
+        <>
           <PageHeader decl={d()} route={props.route} />
           <Declaration decl={d()} />
-        </DeclarationScope>
+        </>
       )}
     </Show>
   )
@@ -64,28 +64,36 @@ export const PageHeader = createSlot('page.header', (props: { decl: Types.Declar
         <span class="text-xs uppercase tracking-wider text-mute">· deprecated</span>
       </Show>
     </div>
-    <Source sources={props.decl.sources} />
+    <Source decl={props.decl} />
   </header>
 ))
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
-export const Source = (props: { sources?: Types.Source[] }) => {
+export const Source = (props: { decl: Types.Declaration }) => {
   const project = useProject()
+  const sources = createMemo(() => {
+    return (props.decl.sources ?? []).map((s) => ({
+      link: project().sourceLink(s),
+      text: props.decl.kind === 'module' ? `${s.file}` : `${s.file}:${s.line}`,
+    }))
+  })
   return (
-    <Show when={props.sources?.[0]}>
-      {(s) => {
-        const link = project().sourceLink(s())
-        const text = `${s().file}:${s().line}`
-        if (link) {
-          return (
-            <a href={link} class="text-xs text-mute mt-2 font-mono">
-              {text}
-            </a>
-          )
-        }
-        return <div class="text-xs text-mute mt-2 font-mono">{text}</div>
-      }}
-    </Show>
+    <For each={sources()}>
+      {(s) => (
+        <>
+          <Show when={s.link}>
+            {(link) => (
+              <a href={link()} class="text-xs text-mute mt-2 font-mono">
+                {s.text}
+              </a>
+            )}
+          </Show>
+          <Show when={!s.link}>
+            <div class="text-xs text-mute mt-2 font-mono">{s.text}</div>
+          </Show>
+        </>
+      )}
+    </For>
   )
 }
 
@@ -193,6 +201,7 @@ const ReferenceRow = (props: { typeRef: Types.DocLink }) => {
   const qualified = () => props.typeRef.alias || route()?.title || ''
   const dot = () => qualified().lastIndexOf('.')
   const source = () => decl()?.sources?.[0]
+
   return (
     <Show when={route() && decl()}>
       <li class="contents">

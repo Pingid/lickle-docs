@@ -17,7 +17,7 @@ export const json = cmd.command({
   handler: async (args) => {
     await Node.Fs.ensureDir('docs')
     const load = await Config.load(process.cwd())
-    const p = await buildDocs(process.cwd(), load.config)
+    const p = await buildDocs(process.cwd(), load.config, load.ts)
     if (args.print) Router.printRoutes(p)
     await Node.Fs.writeFile('docs/project.json', JSON.stringify(p, null, 2))
   },

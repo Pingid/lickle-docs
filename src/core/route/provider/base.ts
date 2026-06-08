@@ -32,8 +32,10 @@ const getLinks =
   (cx: RouteContext) =>
   (id: number): DocLink[] => {
     const decl = cx.docs.get(id)!
-    if (decl.kind !== 'module') return []
-    return cx.docs.exposes(id).map((e) => ({ target: e.exposer, alias: e.alias ?? cx.provider.alias(id) }))
+    if (decl.kind === 'module' || decl.kind === 'namespace') {
+      return cx.docs.exposes(id).map((e) => ({ target: e.exposer, alias: e.alias ?? cx.provider.alias(id) }))
+    }
+    return []
   }
 
 const getReferenced =
@@ -68,7 +70,7 @@ const getSidebar =
 const getAlias =
   (cx: RouteContext) =>
   (id: number): string => {
-    if (cx.docs.isRoot(id)) cx.docs.rootAlias(id)!.as.replace(/^\.\//, '')
+    if (cx.docs.isRoot(id)) return cx.docs.rootAlias(id)!.as.replace(/^\.\//, '').replace(/^\.$/, cx.name)
 
     if (cx.docs.isExposed(id)) {
       return getExposedPath(cx, id)

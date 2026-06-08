@@ -1,6 +1,6 @@
-import { compose, type RouteContext } from '../provider/core.ts'
 import { createFacade, type DeclarationFacade } from '../provider/facade.ts'
-import { groupOrder, pluralLabel } from '../naming.ts'
+import { compose, type RouteContext } from '../provider/core.ts'
+import { kindOrder, pluralLabel } from '../naming.ts'
 
 export type * from '../provider/core.ts'
 export type * from '../types.ts'
@@ -26,16 +26,6 @@ export const groupBy = (
   })
 
 export const groupByKind = groupBy((d) => {
-  const name = pluralLabel(d.kind)
-  return { name, order: groupOrder(name) }
+  if (d.isEntry()) return { name: '', order: 1 + (d.entryIndex() ?? 0) }
+  return { name: pluralLabel(d.kind), order: kindOrder(d.kind) }
 })
-
-export const slugBase = (prefix: string) => compose({ slug: (value) => joinSlug(prefix, value) })
-
-const joinSlug = (prefix: string, value: string) => {
-  const v = value.startsWith('/') ? value.slice(1) : value
-  const p = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix
-  if (!p.length) return v
-  if (!v.length) return p
-  return `${p}/${v}`
-}

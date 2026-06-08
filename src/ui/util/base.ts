@@ -20,5 +20,3 @@ declare global {
     VITE_MANIFEST_PATH: string
   }
 }
-
-export const MANIFEST_PATH = import.meta.env.VITE_MANIFEST_PATH

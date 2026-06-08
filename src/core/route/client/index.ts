@@ -1,73 +1,91 @@
-import type { Group, Route, Slug, DocLink } from '../types.ts'
-export type * from '../types.ts'
+import * as Slug from '../../../_lib/slug/index.ts'
 
-type ReferencedItem = { route: Route } & DocLink
+import type { Group, Route, RoutePrefix, SlugPath } from '../types.ts'
+export type * from '../types.ts'
 
 /** A list of items sharing a group name, emitted in resolved group order. */
 export type GroupedItems<T> = { group: string; items: T[] }
 
+export type SidebarRoute = Route & { children: GroupedItems<SidebarRoute>[] }
+
 export interface ClientRouter {
   items: Route[]
-  slugBase: string
-  get(match: { slug?: Slug; id?: number }): Route | undefined
-  referenced(id: number): GroupedItems<ReferencedItem>[]
-  sidebar: {
-    roots: () => Route[]
-    children: (slug?: Slug) => GroupedItems<Route>[]
-  }
+  sidebar: GroupedItems<SidebarRoute>[]
+  get(match: { slug?: SlugPath; id?: number }): Route | undefined
+  parts(id: number): { value: string; slug?: SlugPath }[]
 }
 
-const ROOT = '/'
-
-export const createRouter = (p: { routes: Route[]; slugBase: string }): ClientRouter => {
-  const routes = p.routes.map((r) => ({ ...r, slug: normalizeSlug(r.slug) }))
-
-  const _bySlug = new Map<Slug, Route>()
-  const _byId = new Map<number, Route>()
-
-  const _allReferenced = new Map<number, ReferencedItem[]>()
-  const _allSidebar = new Map<Slug, Route[]>()
-
-  for (const route of routes) {
-    _bySlug.set(route.slug, route)
-    // `sidebar.parent` is a raw provider slug; normalize it to match the
-    // normalized `route.slug` keys so child lookups resolve.
-    if (route.sidebar) push(_allSidebar, route.sidebar.parent ? normalizeSlug(route.sidebar.parent) : ROOT, route)
-    if (route.kind !== 'doc') continue
-
-    _byId.set(route.decl, route)
-
-    for (const ref of route.referenced) push(_allReferenced, ref.target, { ...ref, route })
+export const createRouter = (p: { items: Route[]; prefix: RoutePrefix }): ClientRouter => {
+  // console.log('prefix', p)
+  let matchedHome = false
+  const getSlug = (route: Route) => {
+    if (!matchedHome && (route.slug === '/' || route.slug === '')) {
+      matchedHome = true
+      return '/'
+    }
+    const slug = Slug.normalize(route.slug)
+    if (route.kind === 'doc') return Slug.join(p.prefix?.doc, slug)
+    return Slug.join(p.prefix?.page, slug)
   }
 
-  const _referenced = groupValues(_allReferenced, (r) => r.group)
-  const _sidebar = groupValues(_allSidebar, (r) => r.sidebar?.group)
+  const _byId = new Map<number, Route>()
+  const _bySlug = new Map<SlugPath, Route>()
+  const _byNextSlug = new Map<SlugPath, SlugPath>()
+  const _byOldSlug = new Map<SlugPath, SlugPath>()
+
+  const allRoutes: Route[] = []
+  const _sidebarRoot: Route[] = []
+
+  for (const route of p.items) {
+    const next = { ...route, slug: getSlug(route) }
+    allRoutes.push(next)
+    _bySlug.set(next.slug, next)
+    _byNextSlug.set(next.slug, route.slug)
+    _byOldSlug.set(route.slug, next.slug)
+
+    if (next.slug === '/') _bySlug.set('', next)
+    if (next.kind === 'doc') _byId.set(next.decl, next)
+
+    if (next.sidebar && typeof next.sidebar?.parent !== 'string') _sidebarRoot.push(next)
+  }
+
+  for (const route of allRoutes) {
+    if (route.sidebar && typeof route.sidebar?.parent === 'string') {
+      route.sidebar = { ...route.sidebar, parent: _byOldSlug.get(route.sidebar.parent) }
+    }
+  }
+
+  const buildSidebar = (routes: Route[]): GroupedItems<SidebarRoute>[] =>
+    groupItems(
+      routes.map((r) => ({
+        ...r,
+        children: buildSidebar(allRoutes.filter((b) => b.sidebar?.parent === r.slug)),
+      })),
+      (r) => r.sidebar?.group,
+    ).map((g) => ({ ...g, items: g.items.sort((a, b) => (a.sidebar?.order ?? 0) - (b.sidebar?.order ?? 0)) }))
+
+  const sidebar = buildSidebar(_sidebarRoot)
 
   return {
-    slugBase: p.slugBase,
-    items: [..._bySlug.values()],
+    items: allRoutes,
     get: (match) => {
-      if (typeof match.slug === 'string') return _bySlug.get(normalizeSlug(match.slug))
+      if (typeof match.slug === 'string') return _bySlug.get(match.slug)
       if (typeof match.id === 'number') return _byId.get(match.id)
       return undefined
     },
-    referenced: (id) => _referenced.get(id) ?? [],
-    sidebar: {
-      children: (slug) => {
-        const s = normalizeSlug(slug)
-        if (!s.startsWith(`/${p.slugBase}`)) return []
-        return _sidebar.get(s) ?? []
-      },
-      roots: () => (_allSidebar.get(ROOT) ?? []).sort((a, b) => (a.sidebar?.order ?? 0) - (b.sidebar?.order ?? 0)),
+    parts: (id: number) => {
+      const route = _byId.get(id)
+      if (!route) return []
+      const old = _byNextSlug.get(route.slug)
+      if (typeof old !== 'string') return []
+      const segs = [p.prefix.doc, ...old.split('/')].filter((s) => s !== undefined)
+      return segs.map((seg, i) => {
+        const s = segs.slice(0, i + 1).join('/')
+        return { value: seg, slug: _bySlug.has(s) ? s : undefined }
+      })
     },
+    sidebar,
   }
-}
-
-/** Append `value` to the array at `key`, creating it on first use. */
-const push = <K, V>(map: Map<K, V[]>, key: K, value: V): void => {
-  const arr = map.get(key)
-  if (arr) arr.push(value)
-  else map.set(key, [value])
 }
 
 /**
@@ -92,18 +110,4 @@ export const groupItems = <T>(items: T[], groupOf: (item: T) => Group | undefine
   return [...groups.entries()]
     .sort(([, a], [, b]) => a.order - b.order)
     .map(([group, bucket]) => ({ group, items: bucket.items }))
-}
-
-/** Apply {@link groupItems} to every value list in a map, preserving keys. */
-const groupValues = <K, T>(src: Map<K, T[]>, groupOf: (item: T) => Group | undefined): Map<K, GroupedItems<T>[]> => {
-  const out = new Map<K, GroupedItems<T>[]>()
-  for (const [key, items] of src) out.set(key, groupItems(items, groupOf))
-  return out
-}
-
-export const normalizeSlug = (slug?: string): string => {
-  if (!slug) return '/'
-  if (!slug.startsWith('/')) return `/${slug}`
-  if (/^\/\//.test(slug)) return slug.slice(1)
-  return slug
 }

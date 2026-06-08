@@ -48,7 +48,7 @@ const PathRoute = () => {
 /** Empty path redirects to the first sidebar route; anything else is a miss. */
 const Fallback = (props: { slug?: string }) => {
   const project = useProject()
-  const first = createMemo(() => project()?.routes.sidebar.roots()[0]?.slug)
+  const first = createMemo(() => project()?.routes.sidebar[0]?.items?.[0]?.slug)
   return (
     <Show when={!props.slug && first()} fallback={<NotFound />}>
       {(slug) => <Navigate href={slug()} />}

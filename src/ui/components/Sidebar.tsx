@@ -8,8 +8,8 @@ type Route = Types.Route
 
 export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
   const project = useProject()
-  const roots = createMemo(() => project().routes.sidebar.roots())
-
+  const roots = createMemo(() => project().routes.sidebar)
+  // console.log('roots', roots())
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
       <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
@@ -20,29 +20,32 @@ export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; 
 })
 
 /** A flat run of sibling routes. */
-const NavList = (props: { routes: Route[]; depth: number; onNavigate?: () => void }) => (
+const NavList = (props: {
+  routes: Types.GroupedItems<Types.SidebarRoute>[]
+  depth: number
+  onNavigate?: () => void
+}) => (
   <For each={props.routes}>
-    {(route) => <NavNode route={route} depth={props.depth} onNavigate={props.onNavigate} />}
+    {(route) => <NavChildren route={route} depth={props.depth} onNavigate={props.onNavigate} />}
   </For>
 )
 
 /** The grouped children of a route, each group preceded by a {@link GroupLabel}. */
-const NavChildren = (props: { slug: string; depth: number; onNavigate?: () => void }) => {
-  const project = useProject()
-  const groups = createMemo(() => project().routes.sidebar.children(props.slug))
-
+const NavChildren = (props: {
+  route: Types.GroupedItems<Types.SidebarRoute>
+  depth: number
+  onNavigate?: () => void
+}) => {
   if (props.depth > 10) return <div>Too deep</div>
   return (
-    <For each={groups()}>
-      {(g) => (
-        <>
-          <Show when={g.group}>
-            <GroupLabel label={g.group} depth={props.depth} />
-          </Show>
-          <NavList routes={g.items} depth={props.depth} onNavigate={props.onNavigate} />
-        </>
-      )}
-    </For>
+    <>
+      <Show when={props.route.group}>
+        <GroupLabel label={props.route.group} depth={props.depth} />
+      </Show>
+      <For each={props.route.items}>
+        {(child) => <NavNode route={child} depth={props.depth} onNavigate={props.onNavigate} />}
+      </For>
+    </>
   )
 }
 
@@ -56,7 +59,7 @@ const GroupLabel = (props: { label: string; depth: number }) => (
   </div>
 )
 
-type NodeProps = { route: Route; depth: number; onNavigate?: () => void }
+type NodeProps = { route: Types.SidebarRoute; depth: number; onNavigate?: () => void }
 
 /**
  * A single navigation node.
@@ -69,10 +72,9 @@ type NodeProps = { route: Route; depth: number; onNavigate?: () => void }
  * - A leaf route is a plain link.
  */
 const NavNode = (props: NodeProps) => {
-  const project = useProject()
+  // const project = useProject()
   const loc = useLocation()
-  const groups = createMemo(() => project().routes.sidebar.children(props.route.slug))
-  const hasChildren = () => groups().some((g) => g.items.length)
+
   const base = () => props.route.slug
   const isActive = () => loc.pathname === base()
   const onPath = () => isActive() || loc.pathname.startsWith(`${base()}/`)
@@ -84,7 +86,7 @@ const NavNode = (props: NodeProps) => {
 
   return (
     <Show
-      when={hasChildren()}
+      when={props.route.children.length > 0}
       fallback={
         <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
           <span class="w-5 shrink-0" />
@@ -107,7 +109,7 @@ const NavNode = (props: NodeProps) => {
         </div>
         <Show when={open()}>
           <div class="pb-2">
-            <NavChildren slug={props.route.slug} depth={props.depth + 1} onNavigate={props.onNavigate} />
+            <NavList routes={props.route.children} depth={props.depth + 1} onNavigate={props.onNavigate} />
           </div>
         </Show>
       </div>

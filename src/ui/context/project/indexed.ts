@@ -1,6 +1,8 @@
 import { createRouter, type ProjectJson } from '../../../core/client/index.ts'
 import * as Types from './types.ts'
 
+import { createSearchEngine } from './search.ts'
+
 export const createProject = (project: ProjectJson): Types.Project => {
   const json = { ...project }
   const _byId = new Map<number, Types.Declaration>()
@@ -12,14 +14,14 @@ export const createProject = (project: ProjectJson): Types.Project => {
     return json.repository.fileUrl.replace('{PATH}', `/${src.file}`).replace('{LINE}', src.line.toString())
   }
 
-  for (const declaration of json.declarations) {
+  for (const declaration of json.routes.declarations) {
     _byId.set(declaration.id, declaration)
     _byName.set(declaration.name, declaration)
     if (!_children.has(declaration.parent)) _children.set(declaration.parent, [])
     _children.get(declaration.parent)?.push(declaration)
   }
 
-  const _router = createRouter({ routes: json.routes, slugBase: json.slugBase })
+  const _router = createRouter(project.routes)
 
   const byId = (id: number): Types.Declaration | undefined => _byId.get(id)
 
@@ -44,6 +46,7 @@ export const createProject = (project: ProjectJson): Types.Project => {
   hide(p, 'byName', byName)
   hide(p, 'sourceLink', sourceLink)
   hide(p, 'routes', _router)
+  hide(p, 'search', createSearchEngine(_router, byId))
   return p
 }
 

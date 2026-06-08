@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import fg from 'fast-glob'
 
-import { Node } from '../../_lib/index.ts'
+import { Node, TsConfig } from '../../_lib/index.ts'
 
 import { populate } from './populate.ts'
 import { validate } from './check.ts'
@@ -11,7 +11,10 @@ export type * from './types.ts'
 
 const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 
-export const load = async (dir: string, opts?: Partial<T.UserConfig>): Promise<{ config: T.Config }> => {
+export const load = async (
+  dir: string,
+  opts?: Partial<T.UserConfig>,
+): Promise<{ config: T.Config; ts: TsConfig.ResolvedTsconfig }> => {
   const config = await loadFile(dir)
   return populate(dir, { ...config?.config, ...opts })
 }

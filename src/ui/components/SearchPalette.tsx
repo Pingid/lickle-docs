@@ -1,8 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
 import { useNavigate } from '../context/router.tsx'
 
-import { type SearchHit } from '../util/search.ts'
-import { useProject } from '../context/index.tsx'
+import { useProject, type Types } from '../context/index.tsx'
 import { useSearch } from '../hooks/index.ts'
 import { SearchIcon } from './icons.tsx'
 import { Type } from './Type.tsx'
@@ -13,17 +12,17 @@ const RECENTS_KEY = 'lickle:recent-search'
 const RECENTS_MAX = 8
 
 /** Read the persisted recent selections, tolerating SSR and corrupt storage. */
-const loadRecents = (): SearchHit[] => {
+const loadRecents = (): Types.SearchHit[] => {
   if (typeof localStorage === 'undefined') return []
   try {
     const parsed = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')
-    return Array.isArray(parsed) ? (parsed as SearchHit[]) : []
+    return Array.isArray(parsed) ? (parsed as Types.SearchHit[]) : []
   } catch {
     return []
   }
 }
 
-const saveRecents = (hits: SearchHit[]): void => {
+const saveRecents = (hits: Types.SearchHit[]): void => {
   if (typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(RECENTS_KEY, JSON.stringify(hits))
@@ -75,12 +74,14 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
 
   // Recently selected items, persisted across sessions. Stale entries (routes
   // that no longer exist after a rebuild) are filtered out.
-  const [recents, setRecents] = createSignal<SearchHit[]>(loadRecents())
+  const [recents, setRecents] = createSignal<Types.SearchHit[]>(loadRecents())
   const validRecents = createMemo(() => recents().filter((h) => project().routes.get({ slug: h.slug })))
 
   const hasTerm = () => debounced().trim().length > 0
   const sectionLabel = () => (validRecents().length ? 'Recent' : '')
-  const list = createMemo<SearchHit[]>(() => (hasTerm() ? (hits() ?? []) : validRecents().length ? validRecents() : []))
+  const list = createMemo<Types.SearchHit[]>(() =>
+    hasTerm() ? (hits() ?? []) : validRecents().length ? validRecents() : [],
+  )
 
   createEffect(
     on(list, (l) => {
@@ -88,7 +89,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
     }),
   )
 
-  const choose = (hit: SearchHit) => {
+  const choose = (hit: Types.SearchHit) => {
     const next = [hit, ...recents().filter((h) => h.slug !== hit.slug)].slice(0, RECENTS_MAX)
     setRecents(next)
     saveRecents(next)
@@ -169,9 +170,6 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
                       <Type.KindBadge kind={hit.kind} class="w-3.5" />
                     </span>
                     <span class="font-mono font-semibold text-sm shrink-0">{hit.name}</span>
-                    <Show when={hit.qualified && hit.qualified !== hit.name}>
-                      <span class="font-mono text-xs text-mute truncate">{hit.qualified}</span>
-                    </Show>
                     <Show when={hit.file}>
                       <span class="font-mono text-[0.7rem] text-mute truncate ml-auto pl-3 opacity-70">{hit.file}</span>
                     </Show>

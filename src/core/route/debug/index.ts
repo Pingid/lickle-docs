@@ -1,19 +1,20 @@
 import pc from 'picocolors'
 
-import { createRouter, groupItems, type ClientRouter } from '../client/index.ts'
+import { createRouter, groupItems, type ClientRouter, type GroupedItems, type SidebarRoute } from '../client/index.ts'
 import * as reflect from '../../reflect/index.ts'
 import type { Route } from '../types.ts'
 
 export const printRoutes = (opts: {
   index: reflect.Index
-  routes: Route[]
-  slugBase: string
+  prefix: { doc?: string; page?: string }
+  items: Route[]
   sidebar?: boolean
   content?: boolean
   write?: (str: string) => void
 }) => {
-  const s = printer(opts.index, opts.routes, opts.write)
-  const router = createRouter({ routes: opts.routes, slugBase: opts.slugBase })
+  const s = printer(opts.index, opts.items, opts.write)
+  const router = createRouter(opts)
+
   if (opts.sidebar !== false) printSidebar(s, router)
   if (opts.content !== false) printContent(s, router)
 }
@@ -60,23 +61,24 @@ const printContent = (s: Styler, router: ClientRouter) => {
 }
 
 const printSidebar = (s: Styler, router: ClientRouter) => {
-  const printSidebar = (s: Styler, route: Route) => {
+  const printSidebarGroup = (s: Styler, group: GroupedItems<SidebarRoute>) => {
+    const s2 = s.child()
+    if (group.group !== '') s2.group(group.group)
+    for (const child of group.items) printSidebar(s2.child(), child)
+  }
+
+  const printSidebar = (s: Styler, route: SidebarRoute) => {
     if (route.kind === 'page') return
-
     s.page(route.decl, route.title, route.slug)
-
-    for (const group of router.sidebar.children(route.slug)) {
-      const s2 = s.child()
-      if (group.group !== '') s2.group(group.group)
-      for (const child of group.items) printSidebar(s2.child(), child)
-    }
+    for (const group of route.children) printSidebarGroup(s, group)
   }
 
   s.l('-'.repeat(40))
   s.l(pc.bold('Sidebar'))
   s.l('-'.repeat(40))
-  for (const e of router.sidebar.roots()) {
-    printSidebar(s, e)
+
+  for (const e of router.sidebar) {
+    printSidebarGroup(s, e)
   }
 }
 

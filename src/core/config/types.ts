@@ -15,13 +15,16 @@ export interface ProjectJson {
   /** Entrypoints — relative source paths reachable from `main` / `exports`. */
   entrypoints: Entry[]
   /** Routes of the project. */
-  routes: Router.Route[]
-  /** Slug base for type documentation routes. */
-  slugBase: string
+  routes: ProjectRoutes
+}
+
+export interface ProjectRoutes {
+  /** Routes of the project. */
+  items: Router.Route[]
+  /** Route prefix for documentation and pages. */
+  prefix: Router.RoutePrefix
   /** Flat list of every declaration in the project, source order. */
   declarations: Reflect.Declaration[]
-  /** Path to manifest file. {@see ProjectManifest} */
-  manifest?: string
 }
 
 /** Configuration used for generating the project json */
@@ -48,26 +51,12 @@ export interface Config {
   components?: string
   /** Languages used in example code blocks and markdown for syntax highlighting. Defaults to ['ts'] */
   languages?: string[]
-  /** Path to manifest file. {@see ProjectManifest} */
-  manifest?: string
-}
-
-export interface VersionsManifest {
-  /** Available versions. The entry whose `version` matches the project version is the current one. */
-  versions: {
-    /** Path the version is served under, e.g. `/` or `/v/0.2.1/`. */
-    href: string
-    /** Project version this entry points to, matched against {@link ProjectJson.version}. */
-    version: string
-    /** Display label, defaults to `version`. */
-    alias?: string
-  }[]
 }
 
 // Non serializable config
 export interface Config {
   /** Filter function to include or exclude files from the project */
-  include: (sf: ts.SourceFile, defaultValue?: boolean) => boolean
+  include: (sf: ts.SourceFile, defaultValue: boolean) => boolean
   /** Route generation adapter */
   provider?: Router.Adapter
 }

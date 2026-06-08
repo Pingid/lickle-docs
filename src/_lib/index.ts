@@ -1,7 +1,7 @@
 export * as Workspace from './workspace/index.ts'
 export * as TsConfig from './tsconfig/index.ts'
 export * as Node from './node/index.ts'
-export * as Path from './path/index.ts'
+export * as Slug from './slug/index.ts'
 export * as Util from './util/index.ts'
 export * as Git from './git/index.ts'
 export * as Pkg from './pkg/index.ts'

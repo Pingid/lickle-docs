@@ -1,15 +1,25 @@
-import { createMemo, createResource } from 'solid-js'
+import { useParams } from '@solidjs/router'
+import { createMemo } from 'solid-js'
 
-import { useDeclarationId, useMarkup, useProject, type Types } from '../context/index.tsx'
-import { createSearchEngine, type SearchEngine } from '../util/search.ts'
-import { MANIFEST_PATH } from '../util/base.ts'
+import { useMarkup, useProject, type Types } from '../context/index.tsx'
 import { commentToMarkdown } from '../util/markdown.ts'
 
-// ============================================================================
-// SELECTOR HOOKS
-// Thin readers over the project bag. Components should reach for these instead
-// of pulling `project` apart directly.
-// ============================================================================
+export const useRoute = () => {
+  const params = useParams()
+  const project = useProject()
+  return createMemo(() => project().routes.get({ slug: params['slug'] ?? '' }))
+}
+
+export const useDeclaration = () => {
+  const route = useRoute()
+  const project = useProject()
+  return createMemo(() => {
+    const r = route()
+    if (!r) return undefined
+    if (r.kind === 'doc') return project().byId(r.decl)
+    return undefined
+  })
+}
 
 /**
  * Slug accessors keyed two ways. `byId` is the id-driven path used by render
@@ -17,41 +27,25 @@ import { commentToMarkdown } from '../util/markdown.ts'
  * names and qualified names both resolve via the project's name index).
  */
 export const useSlugFor = () => {
-  const id = useDeclarationId()
   const project = useProject()
+  const d = useDeclaration()
   return {
     byId: (id: number): string | undefined => project().routes.get({ id })?.slug,
     byName: (name: string): string | undefined => {
-      const decl = project().byName(name, id())
+      const decl = project().byName(name, d()?.id)
       if (!decl) return undefined
       return project().routes.get({ id: decl.id })?.slug
     },
   }
 }
 
-// ============================================================================
-// SEARCH
-// `createSearchEngine` is async (Orama indexing). Cached per project so the
-// palette pays the cost once per session, even if it opens and closes.
-// ============================================================================
-
-const searchCache = new WeakMap<object, Promise<SearchEngine>>()
-
 /**
  * Returns a thunk that builds (or returns the cached) search engine for the
  * current project. Callers wrap the thunk in their own resource/effect.
  */
-export const useSearch = (): (() => Promise<SearchEngine>) => {
+export const useSearch = (): (() => Promise<Types.SearchEngine>) => {
   const project = useProject()
-  return () => buildSearch(project())
-}
-
-const buildSearch = (project: Types.Project): Promise<SearchEngine> => {
-  const cached = searchCache.get(project)
-  if (cached) return cached
-  const p = createSearchEngine(project)
-  searchCache.set(project, p)
-  return p
+  return () => project().search
 }
 
 export const useRenderMarkdown = (text: string) => {
@@ -69,10 +63,4 @@ export const useCommentMarkdown = (comment: () => Types.Comment | undefined) => 
   })
 }
 
-export const useVersions = (): (() => Types.VersionsManifest['versions']) => {
-  const [r] = createResource(async (): Promise<Types.VersionsManifest> => {
-    if (!MANIFEST_PATH) return { versions: [] }
-    return fetch(MANIFEST_PATH).then((res) => res.json() as Promise<Types.VersionsManifest>)
-  })
-  return () => r()?.versions ?? []
-}
+export const useVersions = (): (() => { version: string; alias?: string; href: string }[]) => () => []

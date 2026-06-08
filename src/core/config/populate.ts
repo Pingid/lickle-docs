@@ -12,7 +12,10 @@ import { Node, Pkg, Workspace, TsConfig } from '../../_lib/index.ts'
  * Missing fields fall back to `package.json`, conventional project files
  * (`README.md`) and the working directory.
  */
-export const populate = async (dir: string, c?: Partial<UserConfig>): Promise<{ config: Config }> => {
+export const populate = async (
+  dir: string,
+  c?: Partial<UserConfig>,
+): Promise<{ config: Config; ts: TsConfig.ResolvedTsconfig }> => {
   const pkg = await Pkg.read(process.cwd())
   const name = c?.name ?? pkg?.name
   if (!name) throw new Error('No project name found')
@@ -48,6 +51,7 @@ export const populate = async (dir: string, c?: Partial<UserConfig>): Promise<{ 
   }
 
   return {
+    ts: tsconfig,
     config: {
       ...c,
       name,
@@ -66,14 +70,14 @@ export const populate = async (dir: string, c?: Partial<UserConfig>): Promise<{ 
 type IncludeCheck = (sf: ts.SourceFile) => boolean
 
 const wrapIncludeCheck =
-  (base: IncludeCheck, check?: (sf: ts.SourceFile, defaultValue?: boolean) => boolean): IncludeCheck =>
+  (base: IncludeCheck, check?: (sf: ts.SourceFile, defaultValue: boolean) => boolean): IncludeCheck =>
   (sf: ts.SourceFile) =>
     check ? check(sf, base(sf)) : base(sf)
 
 const tsconfigIncludeCheck = (tsconfig: TsConfig.ResolvedTsconfig, dir: string): IncludeCheck => {
-  const tsconfigDir = tsconfig.config?.path ? path.dirname(tsconfig.config.path) : dir
-  const tsconfigExclude = (tsconfig.config?.config.exclude ?? []).map((i) => path.resolve(tsconfigDir, i))
-  const tsconfigInclude = (tsconfig.config?.config.include ?? []).map((i) => path.resolve(tsconfigDir, i))
+  const tsconfigDir = tsconfig.path ? path.dirname(tsconfig.path) : dir
+  const tsconfigExclude = (tsconfig.config.exclude ?? []).map((i) => path.resolve(tsconfigDir, i))
+  const tsconfigInclude = (tsconfig.config.include ?? []).map((i) => path.resolve(tsconfigDir, i))
   return (sf: ts.SourceFile) => {
     const pth = sf.fileName
     if (tsconfigInclude.length && !tsconfigInclude.some((i) => mm.isMatch(pth, i))) return false
@@ -94,5 +98,9 @@ const nodeModulesCheck: IncludeCheck = (sf: ts.SourceFile) => !sf.fileName.inclu
 
 const composeIncludeChecks =
   (...checks: IncludeCheck[]): IncludeCheck =>
-  (sf: ts.SourceFile) =>
-    checks.every((check) => check(sf))
+  (sf: ts.SourceFile) => {
+    for (const check of checks) {
+      if (!check(sf)) return false
+    }
+    return true
+  }

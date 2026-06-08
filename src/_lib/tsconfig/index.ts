@@ -1,8 +1,9 @@
-import { getTsconfig, type TsConfigResult } from 'get-tsconfig'
+import { getTsconfig, type TsConfigJsonResolved } from 'get-tsconfig'
 import path from 'node:path'
 
 export type ResolvedTsconfig = {
-  config: TsConfigResult | null
+  config: TsConfigJsonResolved
+  path: string
   outDir: string
   rootDir: string
 }
@@ -13,6 +14,6 @@ export const resolve = (projectDir: string, tsconfig?: string): ResolvedTsconfig
   const tsconfigDir = tsconfigResult ? path.dirname(tsconfigResult.path) : projectDir
   const outDir = path.resolve(tsconfigDir, opts.outDir ?? 'dist')
   const rootDir = path.resolve(tsconfigDir, opts.rootDir ?? 'src')
-
-  return { outDir, rootDir, config: tsconfigResult }
+  if (!tsconfigResult?.config) throw new Error('No tsconfig.json found')
+  return { outDir, rootDir, config: tsconfigResult.config, path: tsconfigResult.path }
 }

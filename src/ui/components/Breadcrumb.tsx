@@ -1,31 +1,26 @@
 import { For, Show, createMemo } from 'solid-js'
 import { A } from '../context/router.tsx'
 
-import { useProject, type Types } from '../context/index.tsx'
-
-type Crumb = { label: string; href?: string }
+import { useProject } from '../context/index.tsx'
 
 export const Breadcrumb = (props: { id: number }) => {
   const project = useProject()
-  const crumbs = createMemo(() => buildCrumbs(project(), props.id))
+  const crumbs = createMemo(() => project().routes.parts(props.id))
 
   return (
     <nav class="text-xs text-mute mb-3" aria-label="Breadcrumb">
       <ol class="flex items-center gap-1.5 flex-wrap">
-        <li>
-          <A href="/" class="hover:text-fg">
-            {project().name}
-          </A>
-        </li>
         <For each={crumbs()}>
           {(c, i) => (
             <>
-              <li class="text-mute opacity-60">/</li>
+              {i() > 0 && <li class="text-mute opacity-60">/</li>}
               <li>
-                <Show when={c.href && i() < crumbs().length - 1} fallback={<span class="text-fg">{c.label}</span>}>
-                  <A href={c.href!} class="hover:text-fg">
-                    {c.label}
-                  </A>
+                <Show when={c.slug} fallback={<span class="text-fg">{c.value}</span>}>
+                  {(s) => (
+                    <A href={s()} class="hover:text-fg">
+                      {c.value}
+                    </A>
+                  )}
                 </Show>
               </li>
             </>
@@ -34,21 +29,4 @@ export const Breadcrumb = (props: { id: number }) => {
       </ol>
     </nav>
   )
-}
-
-/**
- * One crumb per slug segment, so every module level is reachable — each prefix
- * resolves through `routeForSlug`, which returns pages even when they aren't in
- * the sidebar. Levels with no page render as plain text.
- */
-const buildCrumbs = (project: Types.Project, id: number): Crumb[] => {
-  const route = project.routes.get({ id })
-  if (!route?.slug) return []
-
-  const segs = route.slug.replace(`/${project.routes.slugBase}`, '').split('/').filter(Boolean)
-  return segs.map((seg, i) => {
-    const prefix = segs.slice(0, i + 1).join('/')
-    const r = project.routes.get({ slug: prefix })
-    return { label: r?.title ?? seg, href: r ? prefix : undefined }
-  })
 }

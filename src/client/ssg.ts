@@ -45,7 +45,7 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const { renderPage } = await Node.Jiti.importModule<{ renderPage: RenderPage }>(serverSrc)
   const htmlShell = await htmlShellGenerator()
 
-  for (const route of opts.json.routes) {
+  for (const route of opts.json.routes.items) {
     // The base route (`/` or empty) owns `index.html`; others map their slug to
     // a `<slug>.html` file (a leading slash would break the filename).
     const rel = route.slug.replace(/^\/+/, '')

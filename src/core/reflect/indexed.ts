@@ -1,5 +1,6 @@
 import path from 'node:path'
-import { Path, type t } from '../../_lib/index.ts'
+
+import { type t } from '../../_lib/index.ts'
 import type { ScanState } from './state.ts'
 import * as T from './types.ts'
 
@@ -49,7 +50,7 @@ export const roots =
       }
     })
     b.after(() => {
-      commonDir = Path.common(Array.from(byPath.keys()))
+      commonDir = common(Array.from(byPath.keys()))
     })
 
     return {
@@ -272,4 +273,17 @@ export const index = <const T extends Indexer<any, any>[]>(
   for (const after of afters) after()
 
   return acc
+}
+
+// ---------------- Helpers ----------------
+const common = (pths: string[]): string => {
+  if (pths.length === 0) return ''
+
+  const split = pths.map((p) => p.split('/'))
+  const first = split[0]!
+  let i = 0
+  for (; i < first.length; i++) {
+    if (!split.every((parts) => parts[i] === first[i])) break
+  }
+  return first.slice(0, i).join('/')
 }

@@ -97,24 +97,20 @@ const PLURAL: Record<Kind, string> = {
 
 export const pluralLabel = (kind: Kind | string): string => PLURAL[kind as Kind] ?? `${labelOf(kind)}s`
 
-/**
- * Canonical group ordering: functions → variables → types → everything else.
- * Unknown titles sort to the end.
- */
-const GROUP_ORDER = [
-  'modules',
-  'namespaces',
-  'functions',
-  'variables',
-  'types',
-  'classes',
-  'interfaces',
-  'enums',
-  'properties',
-  'methods',
+const GROUP_KIND_ORDER: Kind[] = [
+  'module',
+  'namespace',
+  'function',
+  'variable',
+  'type-alias',
+  'class',
+  'interface',
+  'enum',
+  'property',
+  'method',
 ]
 
-export const groupOrder = (title: string): number => {
-  const i = GROUP_ORDER.indexOf(title.trim().toLowerCase())
-  return i < 0 ? GROUP_ORDER.length : i
+export const kindOrder = (kind: Kind): number => {
+  const i = GROUP_KIND_ORDER.indexOf(kind)
+  return i < 0 ? GROUP_KIND_ORDER.length : i
 }

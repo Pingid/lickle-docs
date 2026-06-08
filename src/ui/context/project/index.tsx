@@ -26,16 +26,3 @@ export const useProject = (): Accessor<T.Project> => {
   if (!fn) throw new Error('useProject must be used within <ProjectProvider>')
   return fn
 }
-
-const DeclarationIdContext = createContext<Accessor<number | undefined>>(() => undefined)
-
-/**
- * Scope a subtree to a reflection id so nested `<Comment>`s pass it to tag
- * handlers. The id is exposed as a reactive accessor so consumers re-track
- * when the surrounding route swaps to a new declaration.
- */
-export const DeclarationScope = (props: { id: number; children: JSX.Element }) => (
-  <DeclarationIdContext.Provider value={() => props.id}>{props.children}</DeclarationIdContext.Provider>
-)
-
-export const useDeclarationId = (): Accessor<number | undefined> => useContext(DeclarationIdContext)

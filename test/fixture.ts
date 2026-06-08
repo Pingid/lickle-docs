@@ -5,7 +5,16 @@ import ts from 'typescript'
 
 import * as reflect from '../src/core/reflect/index.ts'
 import { builder, type Adapter } from '../src/core/route/index.ts'
-import { createRouter, type ClientRouter, type Route } from '../src/core/route/client/index.ts'
+import {
+  createRouter,
+  type ClientRouter,
+  type GroupedItems,
+  type Route,
+  type SidebarRoute,
+} from '../src/core/route/client/index.ts'
+
+/** Slug prefix applied to every fixture router, so doc slugs read as `l/...`. */
+const PREFIX = { doc: 'l', page: '' }
 
 /**
  * Scan a single in-memory module end-to-end and return its reflection index.
@@ -58,21 +67,30 @@ export const routesFixture = (
   index: reflect.Index
   routes: Route[]
   declarations: reflect.Declaration[]
-  slugBase: string
   router: ClientRouter
 } => {
   const index = scanFixture(code)
-  const b = builder({ docs: index, adapter })
+  const b = builder({ docs: index, name: 'fixture', adapter })
   for (const decl of index.declarations()) b.declare(decl)
-  const { routes, slugBase, declarations } = b.build()
-  return { index, routes, declarations, slugBase, router: createRouter({ routes, slugBase }) }
+  const { items, declarations } = b.build()
+  return { index, routes: items, declarations, router: createRouter({ items, prefix: PREFIX }) }
+}
+
+/** Locate a declaration's node in the sidebar tree by its id. */
+const sidebarNode = (groups: GroupedItems<SidebarRoute>[], id: number): SidebarRoute | undefined => {
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (item.kind === 'doc' && item.decl === id) return item
+      const found = sidebarNode(item.children, id)
+      if (found) return found
+    }
+  }
+  return undefined
 }
 
 /** The sidebar children of the route with `id`, grouped by kind. */
-const childrenOf = (router: ClientRouter, id: number) => {
-  const route = router.get({ id })
-  return route ? router.sidebar.children(route.slug) : []
-}
+const childrenOf = (router: ClientRouter, id: number): GroupedItems<SidebarRoute>[] =>
+  sidebarNode(router.sidebar, id)?.children ?? []
 
 /** Member titles under a declaration id, flattened across groups in resolved order. */
 export const memberTitles = (router: ClientRouter, id: number): string[] =>

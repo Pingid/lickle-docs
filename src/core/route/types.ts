@@ -2,7 +2,7 @@ export type Route = DocRoute | PageRoute
 
 export interface RouteBase {
   title: string
-  slug: Slug
+  slug: SlugPath
   sidebar?: Sidebar
 }
 
@@ -23,10 +23,12 @@ export interface PageRoute extends RouteBase {
  *
  * `(string & {})` just means that it displays as "Slug" instead of "string".
  */
-export type Slug = string & {}
+export type SlugPath = string & {}
 
 export type Group = { name: string; order?: number }
 
-export type Sidebar = { parent?: Slug; group?: Group; order?: number }
+export type Sidebar = { parent?: SlugPath; group?: Group; order?: number }
 
 export type DocLink = { target: number; alias: string; group?: Group }
+
+export type RoutePrefix = { doc?: string; page?: string }

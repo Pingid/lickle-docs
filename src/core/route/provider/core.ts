@@ -17,27 +17,27 @@ export type Adapter = {
   referenced?: Hook<DocLink[]>
 }
 
-export type RouteContext = { docs: Reflect.Index; provider: Provider }
+export type RouteContext = { docs: Reflect.Index; provider: Provider; name: string }
 
 export type ContextOptions = {
   docs: Reflect.Index
+  name: string
   adapter?: Adapter
 }
 
 export const makeContext = (opts: ContextOptions, provider: (cx: RouteContext) => Provider): RouteContext => {
-  let id = 0
-  const cx = { docs: opts.docs, provider: {} as any, id: () => id++ }
+  const cx = { ...opts, provider: {} as any }
   cx.provider = provider(cx)
   return cx
 }
 
 export type Provider = {
-  alias: (id: number) => string
-  slug: (id: number) => string
-  declare: (id: number) => DocRoute | undefined
-  sidebar: (id: number) => Sidebar | undefined
-  links: (id: number) => DocLink[]
-  referenced: (id: number) => DocLink[]
+  alias(id: number): string
+  slug(id: number): string
+  declare(id: number): DocRoute | undefined
+  sidebar(id: number): Sidebar | undefined
+  links(id: number): DocLink[]
+  referenced(id: number): DocLink[]
 }
 
 export const compose = (...adapters: (Adapter | undefined)[]): Adapter => adapters.reduce<Adapter>(merge, {})

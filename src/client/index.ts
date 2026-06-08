@@ -16,7 +16,6 @@ export type ClientOptions = Context.ViteContextOptions & {
   outDir: string
   baseUrl: string
   router?: 'hash' | 'browser'
-  manifest?: string
   noJavascript?: boolean
 }
 
@@ -40,7 +39,6 @@ export const build = async (options: ClientOptions) => {
   const context = Context.makeContext(options)
   const c = client(options, context)
   await vite.build(c)
-  await postBuild(options, context)
 }
 
 export const buildStatic = async (options: ClientOptions) => {
@@ -65,13 +63,6 @@ export const buildStatic = async (options: ClientOptions) => {
     assetsDir: path.join(options.outDir, clientOptions.build.assetsDir),
     noJavascript: options.noJavascript,
   })
-}
-
-const postBuild = async (opts: ClientOptions, _ctx: Context.ViteContext) => {
-  if (opts.manifest) {
-    const m = await Node.Fs.readFile(opts.manifest!, 'utf-8')
-    await Node.Fs.writeFile(path.join(opts.outDir, 'manifest.json'), m)
-  }
 }
 
 const client = (opts: ClientOptions, context: Context.ViteContext) => {
@@ -109,8 +100,6 @@ const ssgServer = (opts: ClientOptions, context: Context.ViteContext) => {
 }
 
 const shared = (opts: ClientOptions, context: Context.ViteContext) => {
-  const manifestPath = opts.manifest ? `/${opts.baseUrl}/manifest.json`.replace(/\/{2,}/g, '/') : undefined
-  const define = manifestPath ? { 'import.meta.env.VITE_MANIFEST_PATH': JSON.stringify(manifestPath) } : {}
   return {
     root: clientFiles.root,
     base: opts.baseUrl,
@@ -118,7 +107,6 @@ const shared = (opts: ClientOptions, context: Context.ViteContext) => {
     build: { outDir: opts.outDir, emptyOutDir: true, assetsDir: 'lickle-doc-assets' },
     server: { port: opts.port, fs: { allow: [clientFiles.root] } },
     resolve: { alias: {} },
-    define,
     clearScreen: false,
   } satisfies vite.UserConfig
 }

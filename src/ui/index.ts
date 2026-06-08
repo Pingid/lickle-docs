@@ -2,7 +2,6 @@ export {
   useProject,
   useTheme,
   useComponents,
-  useDeclarationId,
   useMarkup,
   ThemeProvider,
   MarkupProvider,

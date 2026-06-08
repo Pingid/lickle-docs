@@ -1,15 +1,7 @@
 import { test, expect } from 'vitest'
 
-import { createRouter, groupItems, normalizeSlug } from '../src/core/route/client/index.ts'
-import type { Route, DocLink, DocLink, Group, Sidebar } from '../src/core/route/types.ts'
-
-test('normalizeSlug roots, prefixes, and collapses leading "//"', () => {
-  expect(normalizeSlug(undefined)).toBe('/')
-  expect(normalizeSlug('')).toBe('/')
-  expect(normalizeSlug('foo')).toBe('/foo')
-  expect(normalizeSlug('//foo')).toBe('/foo')
-  expect(normalizeSlug('/foo')).toBe('/foo')
-})
+import { createRouter, groupItems } from '../src/core/route/client/index.ts'
+import type { Route, DocLink, Group, Sidebar } from '../src/core/route/types.ts'
 
 test('groupItems buckets by group name and orders buckets by order', () => {
   const item = (id: number, group?: Group) => ({ id, group })
@@ -47,43 +39,47 @@ const route = (over: {
   ...(over.sidebar ? { sidebar: over.sidebar } : {}),
 })
 
-test('createRouter resolves get() by normalized slug and by declaration id', () => {
+test('createRouter prefixes doc slugs and resolves get() by slug and id', () => {
   const r = route({ slug: 'a', decl: 7 })
-  const router = createRouter({ routes: [r], slugBase: 'l' })
-  expect(router.get({ slug: 'a' })?.slug).toBe('/a')
-  expect(router.get({ slug: '/a' })?.slug).toBe('/a')
-  expect(router.get({ id: 7 })?.slug).toBe('/a')
+  const router = createRouter({ items: [r], prefix: { doc: 'l' } })
+  expect(router.get({ slug: 'l/a' })?.slug).toBe('l/a')
+  expect(router.get({ id: 7 })?.slug).toBe('l/a')
   expect(router.get({ id: 99 })).toBeUndefined()
 })
 
-test('link targets resolve to their routes via get()', () => {
-  const child = route({ slug: 'l/p/c', decl: 2 })
-  const mod = route({ slug: 'l/p', decl: 1, links: [{ target: 2, alias: 'c', group: { name: 'fns', order: 0 } }] })
-  const router = createRouter({ routes: [mod, child], slugBase: 'l' })
-  const links = (router.get({ id: 1 }) as Extract<Route, { kind: 'doc' }>).links
-  expect(groupItems(links, (l) => l.group).map((g) => g.group)).toEqual(['fns'])
-  expect(router.get({ id: links[0]!.target })?.slug).toBe('/l/p/c')
+test('createRouter normalizes slugs: collapses repeated slashes and roots', () => {
+  const r = route({ slug: '//foo//bar', decl: 1 })
+  const router = createRouter({ items: [r], prefix: {} })
+  expect(router.get({ id: 1 })?.slug).toBe('/foo/bar')
 })
 
-test('referenced() groups type backlinks and returns [] for unknown ids', () => {
+test('link targets resolve to their routes via get()', () => {
+  const child = route({ slug: 'p/c', decl: 2 })
+  const mod = route({ slug: 'p', decl: 1, links: [{ target: 2, alias: 'c', group: { name: 'fns', order: 0 } }] })
+  const router = createRouter({ items: [mod, child], prefix: { doc: 'l' } })
+  const links = (router.get({ id: 1 }) as Extract<Route, { kind: 'doc' }>).links
+  expect(groupItems(links, (l) => l.group).map((g) => g.group)).toEqual(['fns'])
+  expect(router.get({ id: links[0]!.target })?.slug).toBe('l/p/c')
+})
+
+test('doc routes carry their referenced backlinks, grouped by group', () => {
   const r = route({
-    slug: 'l/f',
+    slug: 'f',
     decl: 2,
     referenced: [{ target: 5, alias: 'X', group: { name: 'refs', order: 0 } }],
   })
-  const router = createRouter({ routes: [r], slugBase: 'l' })
-  expect(router.referenced(5).map((g) => g.group)).toEqual(['refs'])
-  expect(router.referenced(5)[0]!.items[0]!.route.slug).toBe('/l/f')
-  expect(router.referenced(123)).toEqual([])
+  const router = createRouter({ items: [r], prefix: { doc: 'l' } })
+  const doc = router.get({ id: 2 }) as Extract<Route, { kind: 'doc' }>
+  expect(groupItems(doc.referenced, (x) => x.group).map((g) => g.group)).toEqual(['refs'])
+  expect(doc.referenced[0]!.target).toBe(5)
 })
 
-test('sidebar.roots() are parent-less routes; children() respects slugBase', () => {
-  const root = route({ slug: 'l/p', decl: 1, sidebar: {} })
-  const child = route({ slug: 'l/p/c', decl: 2, sidebar: { parent: 'l/p', group: { name: 'fns', order: 0 } } })
-  const router = createRouter({ routes: [root, child], slugBase: 'l' })
+test('sidebar roots are parent-less routes; children nest under their parent by slug', () => {
+  const root = route({ slug: 'p', decl: 1, sidebar: {} })
+  const child = route({ slug: 'p/c', decl: 2, sidebar: { parent: 'p', group: { name: 'fns', order: 0 } } })
+  const router = createRouter({ items: [root, child], prefix: { doc: 'l' } })
 
-  expect(router.sidebar.roots().map((r) => r.slug)).toEqual(['/l/p'])
-  const kids = router.sidebar.children('l/p')
-  expect(kids.flatMap((g) => g.items.map((r) => r.slug))).toEqual(['/l/p/c'])
-  expect(router.sidebar.children('outside')).toEqual([])
+  const roots = router.sidebar.flatMap((g) => g.items)
+  expect(roots.map((r) => r.slug)).toEqual(['l/p'])
+  expect(roots[0]!.children.flatMap((g) => g.items).map((r) => r.slug)).toEqual(['l/p/c'])
 })

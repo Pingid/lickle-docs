@@ -54,5 +54,4 @@ export const schema = v.struct.match<Partial<T.UserConfig>>({
   include: field(any),
   languages: field(v.array(v.string)),
   provider: field(adapter),
-  manifest: field(v.string),
 })

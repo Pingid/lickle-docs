@@ -28,6 +28,7 @@ export const scan = (options: ScanOptions) => {
 
 scan.SourceFile = (s: State, node: ts.SourceFile, queue: ts.SourceFile[]) => {
   if (s.seen.has(node) || !s.include(node)) return
+
   s.seen.add(node)
   s.parent = s.root
   const f = statement(s, node, 'module', () => ({ path: s.getPath(node) }))
