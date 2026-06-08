@@ -1,20 +1,24 @@
-import { Config, Build } from '../../../core/index.ts'
+import { Build } from '../../../core/index.ts'
 
-import { on, send, type Result } from './types.ts'
+import { on, send } from './types.ts'
 
-/** Lazily load config + reflection JSON for the project rooted at `dir`. */
-export const build = async (dir: string): Promise<Result> => {
-  const file = await Config.findFile(dir)
-  const load = await Config.load(dir)
-  const json = await Build.fromConfig(dir, load.config, load.ts)
-  return { json, config: load.config, file: file! }
-}
+let abort: AbortController = new AbortController()
 
-on(process, 'message', (message) => {
+on(process, 'message', async (message) => {
   if (message.kind === 'rebuild') {
     const { dir, id } = message
-    build(dir).then((result) =>
-      send({ send: (message) => process.send?.(message) ?? false }, { kind: 'result', result, id }),
-    )
+    abort.abort()
+    abort = new AbortController()
+
+    try {
+      const result = await Build.build(dir, abort.signal).catch((error) => {
+        if (error.message === 'Aborted') return
+        console.error(error)
+      })
+      if (!result) return
+      send({ send: (message) => process.send?.(message) ?? false }, { kind: 'result', result, id })
+    } catch (error) {
+      console.error(error)
+    }
   }
 })

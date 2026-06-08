@@ -51,8 +51,19 @@ export interface Config {
   components?: string
   /** Languages used in example code blocks and markdown for syntax highlighting. Defaults to ['ts'] */
   languages?: string[]
+  /** Path to versions file */
+  versions?: ProjectVersion[]
+}
 
-  versions?: ProjectJson[]
+export interface ProjectVersion {
+  /** The path to the project json file. */
+  path: string
+  /** The version of the project. */
+  version: string
+  /** Load the project json file. */
+  alias?: string
+  /** The slug of the version. */
+  slug: string
 }
 
 // Non serializable config
@@ -64,9 +75,11 @@ export interface Config {
 }
 
 /** Configuration used for generating the project json */
-export interface UserConfig extends Partial<Omit<Config, 'routes'>> {
+export interface UserConfig extends Partial<Omit<Config, 'routes' | 'versions'>> {
   /** The name of the project. default is the package name from package.json */
   name: string
+  /** Path or glob to project json files */
+  versions?: string
 }
 
 export interface Page {

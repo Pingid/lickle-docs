@@ -1,4 +1,5 @@
 export * from './project/index.tsx'
 export * from './markup/index.tsx'
 export * from './components.tsx'
+export * from './versions.tsx'
 export * from './theme.tsx'

@@ -69,7 +69,6 @@ export const langOf = (info: string | undefined) => {
 
   const matched = has(info)
   if (matched) return matched
-
   const base = info.slice(0, -1) || 'text'
   if (langs.has(base)) {
     console.warn(`Missing language: ${info}x, using instead ${base}`)

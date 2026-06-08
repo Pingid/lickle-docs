@@ -139,7 +139,11 @@ const buildTag = (s: State, tag: ts.JSDocTag): T.CommentTag => {
   const name = '@' + tag.tagName.text
   // `@example` carries semantic indentation; re-extract from source so the
   // leader-strip never eats author tabs (see `rawTagBody`).
-  if (name === '@example') return parseExample(rawTagBody(tag))
+  if (name === '@example') {
+    const example = parseExample(rawTagBody(tag))
+    if (example.lang) s.langs.add(example.lang)
+    return example
+  }
   return parseCustom(name, rawTagBody(tag))
 }
 

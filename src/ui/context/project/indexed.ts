@@ -3,7 +3,7 @@ import * as Types from './types.ts'
 
 import { createSearchEngine } from './search.ts'
 
-export const createProject = (project: ProjectJson): Types.Project => {
+export const createProject = (project: ProjectJson, version?: string): Types.Project => {
   const json = { ...project }
   const _byId = new Map<number, Types.Declaration>()
   const _byName = new Map<string, Types.Declaration>()
@@ -21,7 +21,7 @@ export const createProject = (project: ProjectJson): Types.Project => {
     _children.get(declaration.parent)?.push(declaration)
   }
 
-  const _router = createRouter(project.routes)
+  const _router = createRouter({ items: project.routes.items, prefix: { ...project.routes.prefix, version } })
 
   const byId = (id: number): Types.Declaration | undefined => _byId.get(id)
 

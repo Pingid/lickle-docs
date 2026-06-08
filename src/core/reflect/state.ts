@@ -14,6 +14,12 @@ export interface ScanOptions {
 }
 
 export interface ScanState extends ScanOptions {
+  checker: ts.TypeChecker
+  compilerOptions: ts.CompilerOptions
+
+  /** Declarations found in the source files. */
+  declarations: T.Declaration[]
+
   /** Monotonic id source. Every node that needs identity calls this. */
   nextId: () => number
   getPath: (sf: ts.SourceFile) => string
@@ -21,13 +27,15 @@ export interface ScanState extends ScanOptions {
   parent: number
   currentStmt: number
   srcDir: string
-  compilerOptions: ts.CompilerOptions
 
-  checker: ts.TypeChecker
+  /** References to other declarations. resolved later. */
   references: T.Type<'reference'>[]
+  /** Export declarations, which are populated later. */
   exports: T.Declaration<'export'>[]
-  declarations: T.Declaration[]
+
+  /** Symbols by id. Used to resolve references. */
   symbolsById: Map<number, ts.Symbol>
+  /** Reference origins, used to re-resolve references. */
   referenceOrigins: Map<number, ts.Node>
   /** Symbol for inferred references, which have no syntactic origin to re-resolve. */
   referenceSymbols: Map<number, ts.Symbol>
@@ -46,6 +54,10 @@ export interface ScanState extends ScanOptions {
 
   /** Source files already scanned — dedups the transitive re-export worklist. */
   seen: Set<ts.SourceFile>
+
+  // Meta info used down stream
+  /** Languages found in the source file @example code blocks. */
+  langs: Set<string>
 }
 
 export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): ScanState => {
@@ -77,5 +89,6 @@ export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): Sc
     exportsAlias: new Map(),
     exportsOrigin: new Map(),
     seen: new Set(),
+    langs: new Set(),
   }
 }

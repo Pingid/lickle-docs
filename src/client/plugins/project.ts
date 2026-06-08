@@ -1,10 +1,17 @@
 import * as vite from 'vite'
+import pc from 'picocolors'
 
 import type { ViteContext } from '../context/index.ts'
-import { Util } from '../../_lib/index.ts'
+import { virtualFile } from './util/index.ts'
+import { clientFiles } from '../env.ts'
 
 export const project = (config: ViteContext): vite.Plugin => {
-  const PROJECT_JSON_ID = 'virtual:lickle/docs.json'
+  const json = virtualFile({
+    id: 'virtual:lickle/docs.json',
+    path: clientFiles.virtuals.json,
+    content: async () => config.current().then((c) => `export default ${JSON.stringify(c.json)}`),
+  })
+
   let logger: vite.Logger | undefined = undefined
 
   return {
@@ -13,30 +20,22 @@ export const project = (config: ViteContext): vite.Plugin => {
     configResolved(config) {
       logger = config.logger
     },
-    async resolveId(id) {
-      if (id === PROJECT_JSON_ID) return '\0' + PROJECT_JSON_ID
-      return undefined
-    },
-
-    async load(id) {
-      if (id !== '\0' + PROJECT_JSON_ID) return undefined
-      return JSON.stringify(await config.json())
-    },
-
+    resolveId: json.plugin.resolveId,
+    load: json.plugin.load,
     configureServer(s) {
-      s.watcher.add([config.dir])
+      s.watcher.add(config.dir)
 
       let last = '0'
-      const handleJson = async () => {
-        await config.rebuild()
-        const json = await config.json()
-        const hash = JSON.stringify(json)
-        if (hash === last) return
+      const rebuild = async () => {
+        logger?.info(pc.yellow('Building docs...'), { timestamp: true })
+        const c = await config.rebuild()
+        s.watcher.add(c.file)
+        const hash = JSON.stringify(c.json)
+        if (hash === last) return logger?.info(pc.green('No changes'), { timestamp: true })
+        logger?.info(pc.green(`Built ${c.json.routes.items.length} pages`), { timestamp: true })
         last = hash
-        s.ws.send({ type: 'custom', event: 'docs-update', data: json })
-        const mod = s.moduleGraph.getModuleById('\0' + PROJECT_JSON_ID)
-        if (mod) s.moduleGraph.invalidateModule(mod)
-        logger?.info('Docs built successfully', { timestamp: true })
+        s.ws.send({ type: 'custom', event: 'docs-update', data: c.json })
+        json.invalidate(s)
       }
 
       const isProjectFile = (path: string) => {
@@ -46,9 +45,8 @@ export const project = (config: ViteContext): vite.Plugin => {
         return false
       }
 
-      const rebuild = Util.serial(() => handleJson())
       s.watcher.on('change', (changedPath) => isProjectFile(changedPath) && rebuild())
-      rebuild()
+      setTimeout(() => rebuild(), 100)
     },
   }
 }

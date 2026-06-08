@@ -9,10 +9,14 @@ export * as Types from './types.ts'
 
 const ProjectContext = createContext<Accessor<T.Project>>()
 
-export const ProjectProvider = (props: { children: JSX.Element; json: Accessor<ProjectJson | null> }) => {
+export const ProjectProvider = (props: {
+  children: JSX.Element
+  json: Accessor<ProjectJson | null>
+  version?: Accessor<string>
+}) => {
   const bag = createMemo<T.Project | undefined>(() => {
     if (!props.json()) return undefined
-    return createProject(props.json()!)
+    return createProject(props.json()!, props.version?.())
   })
   return (
     <Show when={bag()} fallback={<div>Missing project json...</div>}>

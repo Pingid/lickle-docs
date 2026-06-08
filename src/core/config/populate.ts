@@ -1,10 +1,11 @@
 import type ts from 'typescript'
 import path from 'node:path'
 import mm from 'micromatch'
+import fg from 'fast-glob'
 
-import type { Config, UserConfig } from './types.ts'
+import type { Config, UserConfig, ProjectJson } from './types.ts'
 
-import { Node, Pkg, Workspace, TsConfig } from '../../_lib/index.ts'
+import { Node, Pkg, Workspace, TsConfig, Slug } from '../../_lib/index.ts'
 
 /**
  * Resolve a partial `UserConfig` into a fully-defaulted `UserConfig`.
@@ -50,6 +51,16 @@ export const populate = async (
     }
   }
 
+  const versions = c?.versions ? await fg.glob(path.resolve(dir, c.versions)) : []
+  const resolvedVersions = await Promise.all(
+    versions.map(async (v) => {
+      const content = await Node.Fs.readFile(v, 'utf-8')
+      const version = JSON.parse(content) as ProjectJson
+      if (!version.version) return null
+      return { path: v, version: version.version, slug: Slug.normalize(Slug.toSlug(version.version)) }
+    }),
+  ).then((v) => v.filter((v) => v !== null))
+
   return {
     ts: tsconfig,
     config: {
@@ -62,6 +73,7 @@ export const populate = async (
       srcDir: c?.srcDir ?? tsconfig.rootDir,
       exclude: c?.exclude ?? [],
       pages,
+      versions: resolvedVersions,
       include,
     } satisfies Config,
   }

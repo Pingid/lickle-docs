@@ -1,4 +1,4 @@
-import { defineConfig, versions } from '@lickle/docs/config'
+import { defineConfig } from '@lickle/docs/config'
 
 export default defineConfig({
   name: '@lickle/docs',
@@ -8,5 +8,5 @@ export default defineConfig({
     if (sf.fileName.includes('solidjs/')) return false
     return d
   },
-  versions: await versions({ tags: ['1dfd97'], prepare: 'pnpm install && pnpm build' }),
+  versions: './docs/version/*.json',
 })

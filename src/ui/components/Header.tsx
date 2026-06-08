@@ -1,8 +1,7 @@
 import { For, Show, createMemo } from 'solid-js'
 
-import { useProject, createSlot } from '../context/index.tsx'
-import { useVersions } from '../hooks/index.ts'
 import { LinkButton, SearchIcon, ChevronIcon } from './icons.tsx'
+import { useProject, useProjectVersions, useActiveVersion, createSlot, type Version } from '../context/index.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
 import { clientOnly } from '../util/solid.tsx'
 import { A } from '../context/router.tsx'
@@ -54,17 +53,17 @@ export const Header = createSlot('header', (props: { onSearch?: () => void }) =>
   )
 })
 
-/** Current version label, upgraded to a switcher when a manifest lists other versions. */
+/** Current version label, upgraded to a switcher when more than one version exists. */
 const VersionSelect = () => {
   const project = useProject()
-  const versions = useVersions()
-  const aliasOf = (v: { version: string; alias?: string }) => v.alias ?? v.version
-  const current = () => versions().find((v) => v.version === project().version)
-  const label = () => `v${current() ? aliasOf(current()!) : project().version}`
+  const versions = useProjectVersions()
+  const active = useActiveVersion()
+  const aliasOf = (v?: Version) => v?.alias ?? v?.version
+  const label = () => `v${aliasOf(active()) ?? project().version ?? ''}`
 
   return (
     <Show when={project().version}>
-      <Show when={versions().length} fallback={<span class="text-xs text-mute font-mono">{label()}</span>}>
+      <Show when={versions().length > 1} fallback={<span class="text-xs text-mute font-mono">{label()}</span>}>
         <details class="relative group text-xs font-mono">
           <summary class="list-none flex items-center gap-1 px-1.5 py-1 rounded-md text-mute hover:text-fg hover:bg-hover cursor-pointer">
             {label()}
@@ -74,14 +73,13 @@ const VersionSelect = () => {
             <For each={versions()}>
               {(v) => (
                 <li>
-                  <a
-                    href={versionHref(v.href)}
-                    rel="external"
-                    aria-current={v.version === project().version ? 'true' : undefined}
+                  <A
+                    href={v.slug}
+                    aria-current={v.slug === active()?.slug ? 'true' : undefined}
                     class="block px-3 py-1.5 text-mute hover:text-fg hover:bg-hover aria-current:text-fg aria-current:font-semibold"
                   >
                     {aliasOf(v)}
-                  </a>
+                  </A>
                 </li>
               )}
             </For>
@@ -91,9 +89,6 @@ const VersionSelect = () => {
     </Show>
   )
 }
-
-/** Internal version roots need a trailing slash so the static server serves their `index.html`. */
-const versionHref = (href: string) => (/^https?:\/\//.test(href) || href.endsWith('/') ? href : `${href}/`)
 
 const SearchButton = clientOnly(() => (props: { onSearch?: () => void }) => {
   const searchHint = createMemo(() => (isMac() ? '\u2318K' : 'Ctrl K'))

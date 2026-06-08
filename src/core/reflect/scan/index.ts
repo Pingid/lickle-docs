@@ -6,6 +6,30 @@ import type * as T from '../types.ts'
 import { commentForModule, commentForNode } from './comment.ts'
 
 export const scan = (options: ScanOptions) => {
+  const { s, files } = setup(options)
+
+  while (files.length) {
+    const sf = files.shift()!
+    scan.SourceFile(s, sf, files)
+  }
+
+  return s
+}
+
+export const scanAsync = async (options: ScanOptions, abortSignal?: AbortSignal) => {
+  const { s, files } = setup(options)
+
+  while (files.length) {
+    const sf = files.shift()!
+    scan.SourceFile(s, sf, files)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    if (abortSignal?.aborted) throw new Error('Aborted')
+  }
+
+  return s
+}
+
+const setup = (options: ScanOptions) => {
   const program = ts.createProgram(options.cmd.fileNames, options.cmd.options)
   const checker = program.getTypeChecker()
   const s = makeScanState(checker, options)
@@ -18,12 +42,7 @@ export const scan = (options: ScanOptions) => {
     files.push(sf)
   }
 
-  while (files.length) {
-    const sf = files.shift()!
-    scan.SourceFile(s, sf, files)
-  }
-
-  return s
+  return { s, files }
 }
 
 scan.SourceFile = (s: State, node: ts.SourceFile, queue: ts.SourceFile[]) => {

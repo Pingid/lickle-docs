@@ -31,4 +31,4 @@ export type Sidebar = { parent?: SlugPath; group?: Group; order?: number }
 
 export type DocLink = { target: number; alias: string; group?: Group }
 
-export type RoutePrefix = { doc?: string; page?: string }
+export type RoutePrefix = { doc?: string; page?: string; version?: string }

@@ -10,6 +10,8 @@ export type * from './types.ts'
 
 export const scan = (options: ScanOptions) => Scan.scan(options)
 
+export const scanAsync = (options: ScanOptions, abortSignal?: AbortSignal) => Scan.scanAsync(options, abortSignal)
+
 export const resolve = (s: ScanState) => Resolve.resolve(s)
 
 export const index = (s: ScanState, entrypoints: { as: string; path: string }[]) => indexed.create(s, entrypoints)

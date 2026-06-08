@@ -1,8 +1,16 @@
-import { Show, createMemo, type Accessor, type Component } from 'solid-js'
+import { Show, Suspense, createMemo, createResource, type Accessor, type Component } from 'solid-js'
 import { Route, useParams, Navigate, HashRouter } from './context/router.tsx'
 import type { JSX } from 'solid-js/jsx-runtime'
 
-import { ComponentsProvider, ProjectProvider, useProject, type Components } from './context/index.tsx'
+import {
+  ComponentsProvider,
+  ProjectProvider,
+  useProject,
+  useActiveVersion,
+  VersionsProvider,
+  type Components,
+  type Version,
+} from './context/index.tsx'
 import { Link, Page, Layout } from './components/index.ts'
 import type { ProjectJson } from '../core/client/index.ts'
 import { BASE_URL } from './util/base.ts'
@@ -11,21 +19,53 @@ export interface AppProps {
   components?: Components
   project?: Accessor<ProjectJson | null> | ProjectJson
   Router?: Component<{ children: JSX.Element; root?: Component<{ children?: JSX.Element }>; base?: string }>
+  versions?: Version[]
 }
 
 export const App = (p: AppProps) => {
   const json = createMemo(() => (typeof p.project === 'function' ? p.project() : (p.project ?? null)))
   const Router = p.Router ?? HashRouter
   return (
-    <ProjectProvider json={json}>
+    <VersionsProvider value={() => p.versions ?? []}>
       <ComponentsProvider value={p.components}>
-        <Router base={BASE_URL} root={(p) => <Layout>{p.children}</Layout>}>
+        <Router base={BASE_URL} root={(rp) => <ActiveProject json={json}>{rp.children}</ActiveProject>}>
           <Routes />
         </Router>
       </ComponentsProvider>
-    </ProjectProvider>
+    </VersionsProvider>
   )
 }
+
+/**
+ * Mount the project for the version owning the current URL. The default version
+ * stays live via `json` (HMR-friendly); older versions lazily `import()` their
+ * json and suspend while it loads. With no versions configured this is a
+ * pass-through to `json`.
+ */
+const ActiveProject = (props: { json: Accessor<ProjectJson | null>; children: JSX.Element }) => {
+  const active = useActiveVersion()
+  const isCurrent = () => {
+    const a = active()
+    return !a || a.slug === '/'
+  }
+
+  const [loaded] = createResource(
+    () => (isCurrent() ? undefined : active()),
+    (v) => v.get(),
+  )
+
+  const json = createMemo(() => (isCurrent() ? props.json() : (loaded() ?? null)))
+  const version = () => active()?.slug ?? ''
+
+  return (
+    <Suspense fallback={<div class="p-8 text-mute">Loading…</div>}>
+      <ProjectProvider json={json} version={version}>
+        <Layout>{props.children}</Layout>
+      </ProjectProvider>
+    </Suspense>
+  )
+}
+
 /**
  * Stock route table. Exported on its own so a custom `App` can drop it in
  * under a different root, add prefixes, or compose alongside extra routes.

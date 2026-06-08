@@ -62,5 +62,3 @@ export const useCommentMarkdown = (comment: () => Types.Comment | undefined) => 
     return c ? commentToMarkdown(c, slugOf) : ''
   })
 }
-
-export const useVersions = (): (() => { version: string; alias?: string; href: string }[]) => () => []

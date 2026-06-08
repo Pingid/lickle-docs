@@ -5,10 +5,12 @@ export {
   useMarkup,
   ThemeProvider,
   MarkupProvider,
-  EagerMarkupProvider,
   ComponentsProvider,
   ProjectProvider,
+  VersionsProvider,
+  useProjectVersions,
   defineComponents,
+  type Version,
   type Types,
 } from './context/index.tsx'
 export { BASE_URL, withBaseUrl as withBase } from './util/base.ts'

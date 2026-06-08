@@ -103,7 +103,13 @@ const shared = (opts: ClientOptions, context: Context.ViteContext) => {
   return {
     root: clientFiles.root,
     base: opts.baseUrl,
-    plugins: [Plugin.project(context), Plugin.components(context), Plugin.shiki(context), Plugin.resolve(context)],
+    plugins: [
+      Plugin.project(context),
+      Plugin.components(context),
+      Plugin.shiki(context),
+      Plugin.resolve(context),
+      Plugin.versions(context),
+    ],
     build: { outDir: opts.outDir, emptyOutDir: true, assetsDir: 'lickle-doc-assets' },
     server: { port: opts.port, fs: { allow: [clientFiles.root] } },
     resolve: { alias: {} },
