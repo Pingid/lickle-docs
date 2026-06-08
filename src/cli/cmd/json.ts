@@ -2,7 +2,7 @@ import * as cmd from 'cmd-ts'
 
 import { Node } from '../../_lib/index.ts'
 
-import { Router, Config, buildDocs } from '../../core/index.ts'
+import { Router, Build } from '../../core/index.ts'
 
 export const json = cmd.command({
   name: 'json',
@@ -13,12 +13,19 @@ export const json = cmd.command({
       short: 'p',
       description: 'Print the generated route tree to the console',
     }),
+    file: cmd.option({
+      long: 'file',
+      short: 'f',
+      type: cmd.string,
+      defaultValue: () => 'docs/project.json' as const,
+      defaultValueIsSerializable: true,
+      description: 'File to write the project JSON to',
+    }),
   },
   handler: async (args) => {
-    await Node.Fs.ensureDir('docs')
-    const load = await Config.load(process.cwd())
-    const p = await buildDocs(process.cwd(), load.config, load.ts)
-    if (args.print) Router.printRoutes(p)
-    await Node.Fs.writeFile('docs/project.json', JSON.stringify(p, null, 2))
+    const p = await Build.build(process.cwd())
+    if (args.print) Router.printRoutes(p.json.routes)
+    await Node.Fs.ensureDir(args.file)
+    await Node.Fs.writeFile(args.file, JSON.stringify(p.json))
   },
 })

@@ -1,5 +1,5 @@
 import { execFile, spawn as spawnRaw } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 
 export * as Jiti from './jiti.ts'
@@ -18,3 +18,5 @@ export const onExit = (fn: () => any) => {
 }
 
 export const hash = (str: string) => createHash('sha256').update(str).digest('hex')
+
+export const id = () => randomUUID()

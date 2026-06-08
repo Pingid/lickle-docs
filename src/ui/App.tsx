@@ -37,7 +37,6 @@ const PathRoute = () => {
   const params = useParams()
   const project = useProject()
   const route = createMemo(() => project().routes.get({ slug: params['slug'] ?? '' }))
-
   return (
     <Show when={route()} fallback={<Fallback slug={params['slug']} />}>
       {(r) => <Page route={r()} />}

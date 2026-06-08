@@ -6,13 +6,15 @@ export const file = <T>(p: { dir: string }) => {
     const pth = path.join(p.dir, `${key}.json`)
     try {
       if (await Node.Fs.exists(pth)) {
-        return JSON.parse(await Node.Fs.readFile(pth, 'utf-8')).data
+        return JSON.parse(await Node.Fs.readFile(pth, 'utf-8')).data as T
       }
     } catch {
-      const value = await f()
-      await Node.Fs.writeFile(pth, JSON.stringify({ data: value }))
-      return value
+      // ignore parse errors and fall through to update
     }
+    const value = await f()
+    await Node.Fs.ensureDir(p.dir)
+    await Node.Fs.writeFile(pth, JSON.stringify({ data: value }))
+    return value
   }
   return { getOrUpdate }
 }

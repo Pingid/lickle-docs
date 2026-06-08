@@ -8,5 +8,5 @@ export default defineConfig({
     if (sf.fileName.includes('solidjs/')) return false
     return d
   },
-  versions: await versions({ tags: ['1dfd97'], prepare: 'pnpm install' }),
+  versions: await versions({ tags: ['1dfd97'], prepare: 'pnpm install && pnpm build' }),
 })

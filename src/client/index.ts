@@ -6,9 +6,9 @@ import path from 'node:path'
 import { Node, Util } from '../_lib/index.ts'
 
 import { clientFiles, libRoot } from './env.ts'
-import * as Plugin from './plugins.ts'
-import * as Context from './contex.ts'
-import * as Ssg from './ssg.ts'
+import * as Context from './context/index.ts'
+import * as Plugin from './plugins/index.ts'
+import * as Ssg from './ssg/index.ts'
 
 export type ClientOptions = Context.ViteContextOptions & {
   dir: string
@@ -67,7 +67,7 @@ export const buildStatic = async (options: ClientOptions) => {
 
 const client = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
-  config.plugins!.push(Plugin.html(context), solid(), ...tailwindcss())
+  config.plugins = [Plugin.html(context), solid(), ...tailwindcss(), ...config.plugins]
 
   return Util.deepMerge(config, {
     resolve: { alias: devAlias() },

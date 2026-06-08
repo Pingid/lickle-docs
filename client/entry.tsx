@@ -6,11 +6,10 @@ import { type Types, App } from '@lickle/docs/ui'
 
 // @ts-ignore
 import initialDocs from 'virtual:lickle/docs.json'
-
-import '@lickle/docs/theme.css'
-
 // @ts-ignore
 import * as custom from 'virtual:lickle/custom-components'
+
+import '@lickle/docs/theme.css'
 
 const ROUTER_TYPE = import.meta.env['VITE_ROUTER_TYPE'] as 'hash' | 'browser'
 

@@ -1,13 +1,13 @@
-import path from 'node:path'
 import { execa } from 'execa'
+import path from 'node:path'
 
 import type { ProjectJson } from '../core/config/types.ts'
-import { Config, buildDocs } from '../core/index.ts'
+import { Config, Build } from '../core/index.ts'
 import { Git, Cache } from '../_lib/index.ts'
 
 export const versions = async (p: { tags: string[]; prepare?: string }) => {
   const cwd = process.cwd()
-  const cache = Cache.file<ProjectJson>({ dir: path.join(cwd, 'node_modules', '.lickle') })
+  const cache = Cache.file<ProjectJson>({ dir: path.resolve('node_modules', '.lickle') })
   const runner = Git.worktrees()
 
   const versions: ProjectJson[] = []
@@ -21,16 +21,7 @@ export const versions = async (p: { tags: string[]; prepare?: string }) => {
 }
 
 const build = async (p: { dir: string; prepare?: string }) => {
-  if (p.prepare) await execa(p.prepare, { cwd: p.dir, stdio: 'inherit' })
+  if (p.prepare) await execa({ cwd: p.dir, stdio: 'inherit', shell: true })`${p.prepare}`
   const load = await Config.load(p.dir)
-  const routes = await buildDocs(p.dir, load.config, load.ts)
-  const json: Config.ProjectJson = {
-    name: load.config.name,
-    version: load.config.version,
-    repository: load.config.repository,
-    links: load.config.links,
-    entrypoints: load.config.entrypoints,
-    routes,
-  }
-  return json
+  return Build.fromConfig(p.dir, load.config, load.ts)
 }

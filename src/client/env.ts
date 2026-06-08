@@ -5,6 +5,7 @@ export const libRoot = fileURLToPath(new URL('../../', import.meta.url))
 export const clientRoot = path.resolve(libRoot, 'client')
 
 export const clientFiles = {
+  lib: libRoot,
   root: clientRoot,
   htmlTemplate: path.resolve(clientRoot, 'index.template.html'),
   entry: {

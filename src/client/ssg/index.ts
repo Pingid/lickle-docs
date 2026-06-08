@@ -2,10 +2,10 @@ import * as vite from 'vite'
 import path from 'node:path'
 import pc from 'picocolors'
 
-import * as Core from '../core/index.ts'
-import { Node } from '../_lib/index.ts'
+import * as Core from '../../core/index.ts'
+import { Node } from '../../_lib/index.ts'
 
-import { htmlShellGenerator } from './contex.ts'
+import { htmlShellGenerator } from '../context/index.ts'
 
 type GenerateStaticOptions = {
   json: Core.Config.ProjectJson

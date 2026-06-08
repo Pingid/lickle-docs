@@ -23,9 +23,7 @@ export const worktrees = (opts?: { cwd?: string; treeDir?: string }) => {
     await Node.Fs.ensureDir(dir)
     await execa('git', ['worktree', 'add', dir, rev], { cwd }).catch(() => void 0)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 3_000))
-      console.log(dir, await Node.Fs.exists(dir))
-      return f(dir)
+      return await f(dir)
     } finally {
       await execa('git', ['worktree', 'remove', dir], { cwd }).catch(() => void 0)
       await Node.Fs.rm(dir, { recursive: true }).catch(() => void 0)
