@@ -1,18 +1,18 @@
 import pc from 'picocolors'
 
 import { createRouter, groupItems, type ClientRouter, type GroupedItems, type SidebarRoute } from '../client/index.ts'
-import * as reflect from '../../reflect/index.ts'
+import * as Reflect from '../../reflect/index.ts'
 import type { Route } from '../types.ts'
 
 export const printRoutes = (opts: {
-  index: reflect.Index
   prefix: { doc?: string; page?: string }
   items: Route[]
+  declarations: Reflect.Declaration[]
   sidebar?: boolean
   content?: boolean
   write?: (str: string) => void
 }) => {
-  const s = printer(opts.index, opts.items, opts.write)
+  const s = printer(opts.items, opts.declarations, opts.write)
   const router = createRouter(opts)
 
   if (opts.sidebar !== false) printSidebar(s, router)
@@ -82,7 +82,15 @@ const printSidebar = (s: Styler, router: ClientRouter) => {
   }
 }
 
-const printer = (index: reflect.Index, routes: Route[], write?: (value: string) => void, depth: number = 0) => {
+const printer = (
+  routes: Route[],
+  declarations: Reflect.Declaration[],
+  write?: (value: string) => void,
+  depth: number = 0,
+) => {
+  const byId = new Map<number, Reflect.Declaration>()
+  for (const declaration of declarations) byId.set(declaration.id, declaration)
+
   const writer = write ?? ((x: string) => process.stdout.write(x))
 
   type Arg = string | ((d: number) => string) | undefined
@@ -104,22 +112,21 @@ const printer = (index: reflect.Index, routes: Route[], write?: (value: string) 
   const section = (title: string) => (l(), l(pc.gray(pc.bold(title.toUpperCase()) + '-'.repeat(40))))
   const group = (group: string) => l(pc.yellow(group))
   const page = (id: number, alias: string, slug: string) =>
-    l(pc.bold(SHORTS[index.get(id)!.kind]!), padName(alias), pc.gray(slug))
+    l(pc.bold(SHORTS[byId.get(id)!.kind]!), padName(alias), pc.gray(slug))
 
   const tabSize = 2
   return {
-    index,
     l,
     page,
     group,
     section,
-    child: () => printer(index, routes, write, depth + 1),
+    child: () => printer(routes, declarations, write, depth + 1),
   }
 }
 
 type Styler = ReturnType<typeof printer>
 
-const SHORTS: Record<reflect.Declaration['kind'], string> = {
+const SHORTS: Record<Reflect.Declaration['kind'], string> = {
   module: 'M',
   namespace: 'N',
   variable: 'V',

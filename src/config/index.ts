@@ -21,3 +21,5 @@ export const defineConfig = (config: UserConfig | (() => UserConfig) | (() => Pr
   const c = typeof config === 'function' ? config() : config
   return Promise.resolve(c)
 }
+
+export * from './versions.ts'

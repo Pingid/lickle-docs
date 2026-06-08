@@ -1,7 +1,12 @@
+import { execFile, spawn as spawnRaw } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { promisify } from 'node:util'
 
 export * as Jiti from './jiti.ts'
 export * as Fs from './fs.ts'
+
+export const exec = promisify(execFile)
+export const spawn = promisify(spawnRaw)
 
 export const onExit = (fn: () => any) => {
   const cleanup = async () => {

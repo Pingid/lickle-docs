@@ -60,6 +60,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "cmd-ts": "^0.15.0",
     "codejar": "^4.3.0",
+    "execa": "^9.6.1",
     "fast-glob": "^3.3.3",
     "get-tsconfig": "^4.14.0",
     "hosted-git-info": "^10.1.1",

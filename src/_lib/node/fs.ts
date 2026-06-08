@@ -17,6 +17,7 @@ export const exists = async (path: string): Promise<boolean> => {
 export const ensureDir = async (pth: string) => {
   // Get the parent dir if its a file otherwise use path
   const dir = path.extname(pth) ? path.dirname(pth) : pth
+  if (await exists(dir)) return
   await fs.mkdir(dir, { recursive: true })
 }
 

@@ -10,7 +10,7 @@ export const buildDocs = async (
   dir: string = process.cwd(),
   config: Config.Config,
   tsConfig: TsConfig.ResolvedTsconfig,
-): Promise<{ index: Reflect.Index } & Config.ProjectRoutes> => {
+): Promise<Config.ProjectRoutes> => {
   const scanOptions: Reflect.ScanOptions = {
     dir,
     srcDir: config.srcDir,
@@ -26,5 +26,5 @@ export const buildDocs = async (
   for (const page of config.pages ?? []) builder.markdown(page)
   for (const decl of indexed.declarations()) builder.declare(decl)
 
-  return { ...builder.build(), index: indexed, prefix: { doc: config.name.replace(/^@/, ''), page: '' } }
+  return { ...builder.build(), prefix: { doc: config.name.replace(/^@/, ''), page: '' } }
 }

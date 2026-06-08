@@ -51,6 +51,8 @@ export interface Config {
   components?: string
   /** Languages used in example code blocks and markdown for syntax highlighting. Defaults to ['ts'] */
   languages?: string[]
+
+  versions?: ProjectJson[]
 }
 
 // Non serializable config

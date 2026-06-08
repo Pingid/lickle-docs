@@ -1,5 +1,6 @@
 export * as Workspace from './workspace/index.ts'
 export * as TsConfig from './tsconfig/index.ts'
+export * as Cache from './cache/index.ts'
 export * as Node from './node/index.ts'
 export * as Slug from './slug/index.ts'
 export * as Util from './util/index.ts'

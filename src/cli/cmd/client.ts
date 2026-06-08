@@ -104,7 +104,7 @@ const configLoader =
   async () => {
     const file = await Core.Config.findFile(dir)
     const load = await Core.Config.load(dir)
-    const { index, ...routes } = await Core.buildDocs(dir, load.config, load.ts)
+    const routes = await Core.buildDocs(dir, load.config, load.ts)
     const json: Config.ProjectJson = {
       name: load.config.name,
       version: load.config.version,
