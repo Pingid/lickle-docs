@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal } from 'solid-js'
+import { For, Show, createEffect, createSignal } from 'solid-js'
 import { A, useLocation } from '../context/router.tsx'
 
 import { createSlot, useProject, type Types } from '../context/index.tsx'
@@ -6,14 +6,14 @@ import { Type } from './Type.tsx'
 
 type Route = Types.Route
 
-export const Sidebar = createSlot('sidebar', (props: { onNavigate?: () => void; class?: string }) => {
+export const Sidebar = createSlot('sidebar', (props) => {
   const project = useProject()
-  const roots = createMemo(() => project().routes.sidebar)
-  // console.log('roots', roots())
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
       <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
-        <NavList routes={roots()} depth={0} onNavigate={props.onNavigate} />
+        <Show when={project()}>
+          {(project) => <NavList routes={project().routes.sidebar} depth={0} onNavigate={props.onNavigate} />}
+        </Show>
       </nav>
     </aside>
   )
@@ -133,7 +133,7 @@ const indent = (depth: number): string => `${depth * 0.75}rem`
 
 const KindCue = (props: { route: Route }) => {
   const project = useProject()
-  const kind = () => (props.route.kind === 'doc' ? project().byId(props.route.decl)?.kind : undefined)
+  const kind = () => (props.route.kind === 'doc' ? project()?.byId(props.route.decl)?.kind : undefined)
   return <Show when={kind()}>{(k) => <Type.KindBadge kind={k()} class="text-[0.7rem]! w-3.5 shrink-0" />}</Show>
 }
 

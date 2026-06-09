@@ -44,7 +44,7 @@
     "allowImportingTsExtensions": true /* Allow importing .ts files as modules. */,
     /* Completeness */
     "skipLibCheck": true /* Skip type checking all .d.ts files. */,
-    "verbatimModuleSyntax": true /* Enable verbatim module syntax. */,
+    "verbatimModuleSyntax": true /* Enable verbatim module syntax. */
   },
-  "include": ["src", "client"],
+  "include": ["src", "client"]
 }

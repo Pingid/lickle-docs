@@ -8,7 +8,7 @@ import * as Router from '../route/index.ts'
 
 export type BuildResult = {
   json: Config.ProjectJson
-  config: Config.Config
+  config: Config.ConfigJson
   file: string
   languages: string[]
 }

@@ -1,7 +1,8 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
 
-import { useProject, type Types } from '../context/index.tsx'
+import type { Project } from '../context/project/types.ts'
 import { routeToMarkdown } from '../util/markdown.ts'
+import { type Types } from '../context/index.tsx'
 import { useSlugFor } from '../hooks/index.ts'
 import { clientOnly } from '../util/solid.tsx'
 
@@ -13,8 +14,8 @@ const CHECK = 'm5 12 5 5 9-9'
  * module/namespace pages (which have members) it opens a small menu offering
  * to inline every member's documentation; elsewhere it copies on click.
  */
-export const CopyPageButton = clientOnly(() => (props: { route: Types.Route; class?: string }) => {
-  const project = useProject()
+export const CopyPageButton = clientOnly(() => (props: { route: Types.Route; class?: string; project: Project }) => {
+  const project = props.project
   const slugs = useSlugFor()
   const [copied, setCopied] = createSignal(false)
   const [open, setOpen] = createSignal(false)
@@ -23,7 +24,7 @@ export const CopyPageButton = clientOnly(() => (props: { route: Types.Route; cla
 
   let resetTimer: ReturnType<typeof setTimeout> | undefined
   const copy = (inlineMembers: boolean) => {
-    const md = routeToMarkdown(props.route, project(), (name) => slugs.byName(name), { inlineMembers })
+    const md = routeToMarkdown(props.route, project, (name) => slugs.byName(name), { inlineMembers })
     void navigator.clipboard?.writeText(md).catch(() => {})
     setOpen(false)
     setCopied(true)

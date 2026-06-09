@@ -19,6 +19,13 @@
   --text-font-size: 15px;
   --leading-line-height: 1.65;
   --tracking-letter-spacing: -0.005em;
+
+  /* Layout */
+  --header-height: 3.5rem;
+  --sidebar-height: calc(100vh - var(--header-height));
+  --sidebar-width: 12rem;
+  --sidebar-sm-width: 16rem;
+  --content-max-width: 1000px;
 }
 
 :root {
@@ -105,7 +112,8 @@
 }
 
 @layer components {
-  code, pre {
+  code,
+  pre {
     background: transparent !important;
     padding: 0;
     margin: 0;

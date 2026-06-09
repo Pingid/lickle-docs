@@ -1,8 +1,8 @@
 import { test, expect } from 'vitest'
 
 import { routesFixture, memberTitles, memberGroups } from './fixture.ts'
-import { type Adapter } from '../src/core/route/index.ts'
 import type { ClientRouter } from '../src/core/route/client/index.ts'
+import { type Adapter } from '../src/core/route/index.ts'
 
 /** The declaration id of the doc route at `slug`. */
 const idAt = (router: ClientRouter, slug: string): number => {

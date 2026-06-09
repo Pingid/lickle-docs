@@ -16,32 +16,35 @@ import { Type } from './Type.tsx'
  * A doc route renders its declaration (header + body), its member links and its
  * "referenced in" backlinks; a markdown page renders each `body` string as prose.
  */
-export const Page = createSlot('page', (props) => (
-  <article class="relative">
-    <div class="w-full flex justify-end">
-      <CopyPageButton route={props.route} />
-    </div>
-    <Switch>
-      <Match when={props.route.kind === 'doc' && props.route}>
-        {(route) => (
-          <>
-            <Statement route={route()} />
-            <Links links={route().links} />
-            <References referenced={route().referenced} />
-          </>
-        )}
-      </Match>
-      <Match when={props.route.kind === 'page' && props.route}>
-        {(route) => <For each={route().body}>{(md) => <Markdown source={md} />}</For>}
-      </Match>
-    </Switch>
-  </article>
-))
+export const Page = createSlot('page', (props) => {
+  const project = useProject()
+  return (
+    <article class="relative">
+      <div class="w-full flex justify-end">
+        <Show when={project()}>{(project) => <CopyPageButton route={props.route} project={project()} />}</Show>
+      </div>
+      <Switch>
+        <Match when={props.route.kind === 'doc' && props.route}>
+          {(route) => (
+            <>
+              <Statement route={route()} />
+              <Links links={route().links} />
+              <References referenced={route().referenced} />
+            </>
+          )}
+        </Match>
+        <Match when={props.route.kind === 'page' && props.route}>
+          {(route) => <For each={route().body}>{(md) => <Markdown source={md} />}</For>}
+        </Match>
+      </Switch>
+    </article>
+  )
+})
 
 /** A declaration page: header, the declaration itself, and its members. */
 const Statement = (props: { route: Types.DocRoute }) => {
   const project = useProject()
-  const decl = createMemo(() => project().byId(props.route.decl))
+  const decl = createMemo(() => project()?.byId(props.route.decl))
   return (
     <Show when={decl()}>
       {(d) => (
@@ -73,7 +76,7 @@ export const Source = (props: { decl: Types.Declaration }) => {
   const project = useProject()
   const sources = createMemo(() => {
     return (props.decl.sources ?? []).map((s) => ({
-      link: project().sourceLink(s),
+      link: project()?.sourceLink(s),
       text: props.decl.kind === 'module' ? `${s.file}` : `${s.file}:${s.line}`,
     }))
   })
@@ -123,8 +126,8 @@ const Links = (props: { links: Types.DocLink[] }) => {
 const LinkRow = (props: { link: Types.DocLink }) => {
   const project = useProject()
   const route = () => {
-    const route = project().routes.get({ id: props.link.target })
-    const decl = project().byId(props.link.target)
+    const route = project()?.routes.get({ id: props.link.target })
+    const decl = project()?.byId(props.link.target)
     if (!decl || !route) return undefined
     return { route, decl }
   }
@@ -196,8 +199,8 @@ export const References = (props: { referenced: Types.DocLink[] }) => {
 
 const ReferenceRow = (props: { typeRef: Types.DocLink }) => {
   const project = useProject()
-  const route = () => project().routes.get({ id: props.typeRef.target })
-  const decl = () => project().byId(props.typeRef.target)
+  const route = () => project()?.routes.get({ id: props.typeRef.target })
+  const decl = () => project()?.byId(props.typeRef.target)
   const qualified = () => props.typeRef.alias || route()?.title || ''
   const dot = () => qualified().lastIndexOf('.')
   const source = () => decl()?.sources?.[0]

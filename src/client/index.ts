@@ -68,13 +68,9 @@ export const buildStatic = async (options: ClientOptions) => {
 const client = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
   config.plugins = [Plugin.html(context), solid(), ...tailwindcss(), ...config.plugins]
-
   return Util.deepMerge(config, {
     resolve: { alias: devAlias() },
     define: { 'import.meta.env.VITE_ROUTER_TYPE': JSON.stringify(opts.router) },
-    build: {
-      rolldownOptions: { output: { advancedChunks: { groups: [{ name: 'docs', test: /lickle\/docs\.json/ }] } } },
-    },
   } satisfies vite.UserConfig)
 }
 
@@ -103,13 +99,7 @@ const shared = (opts: ClientOptions, context: Context.ViteContext) => {
   return {
     root: clientFiles.root,
     base: opts.baseUrl,
-    plugins: [
-      Plugin.project(context),
-      Plugin.components(context),
-      Plugin.shiki(context),
-      Plugin.resolve(context),
-      Plugin.versions(context),
-    ],
+    plugins: [Plugin.docs(context), Plugin.components(context), Plugin.shiki(context), Plugin.resolve(context)],
     build: { outDir: opts.outDir, emptyOutDir: true, assetsDir: 'lickle-doc-assets' },
     server: { port: opts.port, fs: { allow: [clientFiles.root] } },
     resolve: { alias: {} },

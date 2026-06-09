@@ -7,15 +7,18 @@ import { clientFiles } from '../env.ts'
 export type ViteContext = {
   dir: string
   json: () => Promise<Config.ProjectJson>
-  config: () => Promise<Config.Config>
   file: () => Promise<string | undefined>
   current: () => Promise<Build.BuildResult>
-  rebuild: () => Promise<Build.BuildResult>
+  rebuild: () => Promise<void>
   on: (cb: () => void) => () => void
 }
 
 export type ViteContextOptions = { dir: string }
-export const makeContext = (opts: { dir: string }): ViteContext => ({ ...Build.loadBuilder(opts.dir), dir: opts.dir })
+export const makeContext = (opts: { dir: string }): ViteContext => {
+  const builder = Build.loadBuilder(opts.dir)
+  builder.rebuild()
+  return { ...builder, dir: opts.dir }
+}
 
 export const htmlShellGenerator = async () => {
   const template = await Node.Fs.readFile(clientFiles.htmlTemplate, 'utf8')

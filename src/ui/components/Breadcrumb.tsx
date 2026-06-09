@@ -5,7 +5,7 @@ import { useProject } from '../context/index.tsx'
 
 export const Breadcrumb = (props: { id: number }) => {
   const project = useProject()
-  const crumbs = createMemo(() => project().routes.parts(props.id))
+  const crumbs = createMemo(() => project()?.routes.parts(props.id))
 
   return (
     <nav class="text-xs text-mute mb-3" aria-label="Breadcrumb">

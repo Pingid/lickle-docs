@@ -1,22 +1,25 @@
+import { createMemo, type Accessor } from 'solid-js'
 import { useParams } from '@solidjs/router'
-import { createMemo } from 'solid-js'
 
-import { useMarkup, useProject, type Types } from '../context/index.tsx'
+import { useHighlighter } from '../context/highlighter/index.tsx'
+import { useMarkdown } from '../context/markdown/index.tsx'
+
+import { useProject, type Types } from '../context/index.tsx'
 import { commentToMarkdown } from '../util/markdown.ts'
 
 export const useRoute = () => {
   const params = useParams()
   const project = useProject()
-  return createMemo(() => project().routes.get({ slug: params['slug'] ?? '' }))
+  return createMemo(() => project()?.routes.get({ slug: params['slug'] ?? '' }))
 }
 
-export const useDeclaration = () => {
+export const useDeclaration = (): Accessor<Types.Declaration | undefined> => {
   const route = useRoute()
   const project = useProject()
   return createMemo(() => {
     const r = route()
     if (!r) return undefined
-    if (r.kind === 'doc') return project().byId(r.decl)
+    if (r.kind === 'doc') return project()?.byId(r.decl)
     return undefined
   })
 }
@@ -30,11 +33,11 @@ export const useSlugFor = () => {
   const project = useProject()
   const d = useDeclaration()
   return {
-    byId: (id: number): string | undefined => project().routes.get({ id })?.slug,
+    byId: (id: number): string | undefined => project()?.routes.get({ id })?.slug,
     byName: (name: string): string | undefined => {
-      const decl = project().byName(name, d()?.id)
+      const decl = project()?.byName(name, d()?.id)
       if (!decl) return undefined
-      return project().routes.get({ id: decl.id })?.slug
+      return project()?.routes.get({ id: decl.id })?.slug
     },
   }
 }
@@ -45,13 +48,20 @@ export const useSlugFor = () => {
  */
 export const useSearch = (): (() => Promise<Types.SearchEngine>) => {
   const project = useProject()
-  return () => project().search
+  return () => project()?.search ?? Promise.resolve({ query: async () => [] })
+}
+
+export const useCodeHighlighter = () => useHighlighter()
+
+export const useCodeHighlight = (text: string, lang: string) => {
+  const highlighter = useCodeHighlighter()
+  return createMemo(() => highlighter().codeToHtml(text, { lang }))
 }
 
 export const useRenderMarkdown = (text: string) => {
-  const markup = useMarkup()
+  const markup = useMarkdown()
   const slugs = useSlugFor()
-  return createMemo(() => markup()?.markdown(text, (name) => slugs.byName(name) ?? name))
+  return createMemo(() => markup()(text, (name) => slugs.byName(name) ?? name))
 }
 
 export const useCommentMarkdown = (comment: () => Types.Comment | undefined) => {

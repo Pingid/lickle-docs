@@ -1,4 +1,5 @@
 import path from 'node:path'
+
 import { Node } from '../index.ts'
 
 export const file = <T>(p: { dir: string }) => {

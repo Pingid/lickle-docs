@@ -1,4 +1,4 @@
-import { createContext, createMemo, Show, useContext, type Accessor } from 'solid-js'
+import { createContext, createMemo, useContext, type Accessor } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
 
 import type { ProjectJson } from './types.ts'
@@ -7,25 +7,21 @@ import * as T from './types.ts'
 
 export * as Types from './types.ts'
 
-const ProjectContext = createContext<Accessor<T.Project>>()
+const ProjectContext = createContext<Accessor<T.Project | null>>()
 
 export const ProjectProvider = (props: {
   children: JSX.Element
+  base?: string
   json: Accessor<ProjectJson | null>
-  version?: Accessor<string>
 }) => {
-  const bag = createMemo<T.Project | undefined>(() => {
-    if (!props.json()) return undefined
-    return createProject(props.json()!, props.version?.())
+  const bag = createMemo<T.Project | null>(() => {
+    if (!props.json()) return null
+    return createProject(props.json()!, props.base)
   })
-  return (
-    <Show when={bag()} fallback={<div>Missing project json...</div>}>
-      {(bag) => <ProjectContext.Provider value={bag}>{props.children}</ProjectContext.Provider>}
-    </Show>
-  )
+  return <ProjectContext.Provider value={bag}>{props.children}</ProjectContext.Provider>
 }
 
-export const useProject = (): Accessor<T.Project> => {
+export const useProject = (): Accessor<T.Project | null> => {
   const fn = useContext(ProjectContext)
   if (!fn) throw new Error('useProject must be used within <ProjectProvider>')
   return fn

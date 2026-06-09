@@ -1,13 +1,15 @@
 import { test, expect } from 'vitest'
 
-import { scanFixture, byName } from './fixture.ts'
 import { declarationToMarkdown } from '../src/ui/util/markdown.ts'
 import type { Types } from '../src/ui/context/index.tsx'
+import { scanFixture, byName } from './fixture.ts'
 
 const noSlug = () => undefined
 const fenceCount = (md: string): number => (md.match(/```/g) ?? []).length
 const exampleTag = (decl: Types.Declaration): Types.CommentTagMap['@example'] =>
-  (decl as { comment?: Types.Comment }).comment!.tags!.find((t) => t.tag === '@example') as Types.CommentTagMap['@example']
+  (decl as { comment?: Types.Comment }).comment!.tags!.find(
+    (t) => t.tag === '@example',
+  ) as Types.CommentTagMap['@example']
 
 /** Scan a single declaration and render it to markdown. */
 const declMd = (code: string, name: string): { decl: Types.Declaration; md: string } => {

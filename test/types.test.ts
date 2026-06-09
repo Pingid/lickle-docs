@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest'
 
-import { scanFixture, byName } from './fixture.ts'
 import type * as T from '../src/core/reflect/types.ts'
+import { scanFixture, byName } from './fixture.ts'
 
 const alias = (code: string, name: string): T.Type => byName<'type-alias'>(scanFixture(code), name).type
 

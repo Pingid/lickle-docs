@@ -58,7 +58,7 @@ export type SlotComponent<K extends keyof Components> = Components[K]
  */
 export interface Components {
   home?: WithDefault<{}>
-  layout?: WithDefault<{ children: JSX.Element }>
+  layout?: WithDefault<{ children: JSX.Element; loading: Accessor<boolean> }>
   header?: WithDefault<{ onMenu?: () => void; onSearch?: () => void }>
   sidebar?: WithDefault<{ onNavigate?: () => void; class?: string }>
 

@@ -1,22 +1,31 @@
-import { For, Show, createMemo } from 'solid-js'
+import { For, Show, createEffect, createMemo } from 'solid-js'
+import cn from '@lickle/cn'
 
+import {
+  useDocVersions,
+  useDocActiveVersion,
+  createSlot,
+  type Version,
+  useProject,
+  useProjectName,
+  useLoadVersion,
+} from '../context/index.tsx'
 import { LinkButton, SearchIcon, ChevronIcon } from './icons.tsx'
-import { useProject, useProjectVersions, useActiveVersion, createSlot, type Version } from '../context/index.tsx'
+import { A, useNavigate } from '../context/router.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
 import { clientOnly } from '../util/solid.tsx'
-import { A } from '../context/router.tsx'
 
 const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
 
 /** id of the CSS-only drawer toggle checkbox; the mobile menu `<label>` targets it. */
 export const MENU_TOGGLE_ID = 'lickle-menu-toggle'
 
-export const Header = createSlot('header', (props: { onSearch?: () => void }) => {
+export const Header = createSlot('header', (props) => {
+  const name = useProjectName()
   const project = useProject()
-
   return (
     <header class="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur-md backdrop-saturate-150">
-      <div class="flex items-center h-14 px-4 lg:px-6 gap-4">
+      <div class="flex items-center h-(--header-height) px-4 lg:px-6 gap-4">
         <label
           for={MENU_TOGGLE_ID}
           aria-label="Toggle menu"
@@ -34,16 +43,26 @@ export const Header = createSlot('header', (props: { onSearch?: () => void }) =>
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         </label>
-        <A href="/" class="hover:opacity-70 transition-opacity">
-          <span class="font-semibold text-[0.95rem] tracking-tight">{project().name}</span>
-        </A>
+        <Show when={name()}>
+          {(name) => (
+            <A href="/" class="hover:opacity-70 transition-opacity">
+              <span class="font-semibold text-[0.95rem] tracking-tight">{name()}</span>
+            </A>
+          )}
+        </Show>
         <VersionSelect />
 
         <nav class="ml-auto flex items-center">
-          <div class="pr-4">
-            <SearchButton onSearch={props.onSearch} />
-          </div>
-          <For each={project().links}>{(link) => <LinkButton link={link} class="px-2 py-1 text-xs" />}</For>
+          <Show when={project()}>
+            {(project) => (
+              <>
+                <div class="pr-4">
+                  <SearchButton onSearch={props.onSearch} />
+                </div>
+                <For each={project().links}>{(link) => <LinkButton link={link} class="px-2 py-1 text-xs" />}</For>
+              </>
+            )}
+          </Show>
           <div class="ml-2">
             <ThemeToggle />
           </div>
@@ -55,37 +74,57 @@ export const Header = createSlot('header', (props: { onSearch?: () => void }) =>
 
 /** Current version label, upgraded to a switcher when more than one version exists. */
 const VersionSelect = () => {
-  const project = useProject()
-  const versions = useProjectVersions()
-  const active = useActiveVersion()
+  const versions = useDocVersions()
+  const active = useDocActiveVersion()
+  const load = useLoadVersion()
+  const nav = useNavigate()
+
   const aliasOf = (v?: Version) => v?.alias ?? v?.version
-  const label = () => `v${aliasOf(active()) ?? project().version ?? ''}`
+  const label = () => `v${aliasOf(active()) ?? versions()[0]?.version ?? ''}`
+
+  let details: HTMLDetailsElement | undefined
+  const close = () => details && (details.open = false)
+
+  createEffect(() => {
+    const j = load.json()
+    const v = load.version()
+    if (j && v) {
+      nav(v.slug)
+      close()
+    }
+  })
 
   return (
-    <Show when={project().version}>
-      <Show when={versions().length > 1} fallback={<span class="text-xs text-mute font-mono">{label()}</span>}>
-        <details class="relative group text-xs font-mono">
-          <summary class="list-none flex items-center gap-1 px-1.5 py-1 rounded-md text-mute hover:text-fg hover:bg-hover cursor-pointer">
-            {label()}
-            <ChevronIcon size={12} class="transition-transform group-open:rotate-180" />
-          </summary>
-          <ul class="absolute left-0 mt-1 min-w-28 py-1 rounded-md border border-line bg-bg shadow-lg">
-            <For each={versions()}>
-              {(v) => (
-                <li>
-                  <A
-                    href={v.slug}
-                    aria-current={v.slug === active()?.slug ? 'true' : undefined}
-                    class="block px-3 py-1.5 text-mute hover:text-fg hover:bg-hover aria-current:text-fg aria-current:font-semibold"
-                  >
-                    {aliasOf(v)}
-                  </A>
-                </li>
-              )}
-            </For>
-          </ul>
-        </details>
-      </Show>
+    <Show when={versions().length > 1} fallback={<span class="text-xs text-mute font-mono">{label()}</span>}>
+      <details ref={details} class="relative group text-xs font-mono">
+        <summary class="list-none flex items-center gap-1 px-1.5 py-1 rounded-md text-mute hover:text-fg hover:bg-hover cursor-pointer">
+          {label()}
+          <ChevronIcon size={12} class="transition-transform group-open:rotate-180" />
+        </summary>
+        <ul class="absolute left-0 mt-1 min-w-28 py-1 rounded-md border border-line bg-bg shadow-lg">
+          <For each={versions()}>
+            {(v) => (
+              <li>
+                <A
+                  href={v.slug}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    load.load(v)
+                  }}
+                  aria-current={v.slug === active()?.slug ? 'true' : undefined}
+                  class={cn(
+                    [load.loading() && load.version() === v, 'animate-pulse'],
+                    [load.loading() && load.version() !== v, 'opacity-50'],
+                    'block px-3 py-1.5 text-mute hover:text-fg hover:bg-hover aria-current:text-fg aria-current:font-semibold',
+                  )}
+                >
+                  {aliasOf(v)}
+                </A>
+              </li>
+            )}
+          </For>
+        </ul>
+      </details>
     </Show>
   )
 }

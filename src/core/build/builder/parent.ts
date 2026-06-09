@@ -1,6 +1,6 @@
 import { fork } from 'node:child_process'
 
-import { Node } from '../../../_lib/index.ts'
+import { Node, Util } from '../../../_lib/index.ts'
 
 import { on, send, type Result } from './types.ts'
 import { build } from '../build.ts'
@@ -52,30 +52,22 @@ export const spawnBuilder = (dir: string) => {
 
 export const loadBuilder = (dir: string) => {
   const subs = new Set<() => void>()
-  const init = Promise.withResolvers<Result>()
-  let current = init.promise
 
-  let abort = new AbortController()
-  const rebuild = async () => {
-    abort.abort()
-    abort = new AbortController()
-    await new Promise((resolve) => setTimeout(resolve, 10))
-    const result = await build(dir, abort.signal).catch((error) => {
-      if (error.message === 'Aborted') return
-      console.error(error)
-    })
-    if (!result) return current
+  let initial = Promise.withResolvers<Result>()
+  let current: Promise<Result> = initial.promise
+
+  const rebuild = Util.serial(async () => {
+    const c = await build(dir)
+    initial.resolve(c)
+    current = Promise.resolve(c)
     subs.forEach((cb) => cb())
-    init.resolve(result)
-    current = Promise.resolve(result)
-    return result
-  }
+    return c
+  })
 
   return {
     rebuild,
     current: () => current,
     json: () => current.then((c) => c.json),
-    config: () => current.then((c) => c.config),
     file: () => current.then((c) => c.file),
     on: (cb: () => void) => {
       subs.add(cb)

@@ -52,7 +52,7 @@
     "rewriteRelativeImportExtensions": true /* Rewrite relative import extensions to the specified module resolution. */,
     /* Completeness */
     "skipLibCheck": true /* Skip type checking all .d.ts files. */,
-    "verbatimModuleSyntax": true /* Enable verbatim module syntax. */,
+    "verbatimModuleSyntax": true /* Enable verbatim module syntax. */
   },
-  "include": ["./src/**/*"],
+  "include": ["./src/**/*"]
 }

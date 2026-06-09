@@ -2,11 +2,11 @@ import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-j
 import { isServer } from 'solid-js/web'
 import { cn } from '@lickle/cn'
 
-import { type MarkupContext, useMarkup } from '../../context/index.tsx'
+import { useHighlighter, type CodeHighlighter } from '../../context/highlighter/context.tsx'
+import { useCodeHighlight } from '../../hooks/index.ts'
 
 export const Code = (props: { code: string; lang?: string; class?: string }) => {
-  const markup = useMarkup()
-  const html = createMemo(() => markup()?.highlight({ text: props.code, lang: props.lang }) ?? '')
+  const html = useCodeHighlight(props.code, props.lang ?? 'text')
   return <Show when={html()}>{(h) => <div class={props.class} innerHTML={h()} />}</Show>
 }
 
@@ -44,7 +44,7 @@ type CodeJar = ReturnType<typeof import('codejar').CodeJar>
 
 const useCodeEditor = (props: CodeEditorProps) => {
   const [ready, setReady] = createSignal(false)
-  const markup = useMarkup()
+  const markup = useHighlighter()
   let _jar: CodeJar | null = null
   let _host: HTMLElement | null = null
   let initialized = false
@@ -52,7 +52,7 @@ const useCodeEditor = (props: CodeEditorProps) => {
 
   const [jar, setJar] = createSignal<CodeJar | null>(null)
 
-  const setup = (host: HTMLElement, c: MarkupContext) => {
+  const setup = (host: HTMLElement, c: CodeHighlighter) => {
     if (initialized && !isServer) return
     initialized = true
     import('codejar').then(({ CodeJar }) => {
@@ -60,7 +60,7 @@ const useCodeEditor = (props: CodeEditorProps) => {
         host,
         (el) => {
           try {
-            el.innerHTML = c.highlight({ text: el.textContent ?? '', lang: props.lang })
+            el.innerHTML = c.codeToHtml(el.textContent ?? '', { lang: props.lang ?? 'text' })
           } catch (err) {
             console.warn('[Editor] highlight failed', err)
           }

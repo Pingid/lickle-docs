@@ -1,7 +1,8 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
 import { useNavigate } from '../context/router.tsx'
 
-import { useProject, type Types } from '../context/index.tsx'
+import type { Project } from '../context/project/types.ts'
+import { type Types } from '../context/index.tsx'
 import { useSearch } from '../hooks/index.ts'
 import { SearchIcon } from './icons.tsx'
 import { Type } from './Type.tsx'
@@ -31,10 +32,9 @@ const saveRecents = (hits: Types.SearchHit[]): void => {
   }
 }
 
-export const SearchPalette = (props: { open: () => boolean; onClose: () => void }) => {
+export const SearchPalette = (props: { open: () => boolean; onClose: () => void; project: Project }) => {
   const navigate = useNavigate()
   const search = useSearch()
-  const project = useProject()
 
   const [engine] = createResource(props.open, async (isOpen) => (isOpen ? await search() : undefined))
 
@@ -75,7 +75,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
   // Recently selected items, persisted across sessions. Stale entries (routes
   // that no longer exist after a rebuild) are filtered out.
   const [recents, setRecents] = createSignal<Types.SearchHit[]>(loadRecents())
-  const validRecents = createMemo(() => recents().filter((h) => project().routes.get({ slug: h.slug })))
+  const validRecents = createMemo(() => recents().filter((h) => props.project.routes.get({ slug: h.slug })))
 
   const hasTerm = () => debounced().trim().length > 0
   const sectionLabel = () => (validRecents().length ? 'Recent' : '')

@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest'
 
-import { scanFixture, byName } from './fixture.ts'
 import type * as T from '../src/core/reflect/types.ts'
+import { scanFixture, byName } from './fixture.ts'
 
 /** All `export` declarations in the scanned module. */
 const exportsOf = (idx: ReturnType<typeof scanFixture>): T.Declaration<'export'>[] =>

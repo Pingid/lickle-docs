@@ -15,19 +15,18 @@ export interface ClientRouter {
   parts(id: number): { value: string; slug?: SlugPath }[]
 }
 
-export const createRouter = (p: { items: Route[]; prefix: RoutePrefix }): ClientRouter => {
-  // Version slug as a bare outermost prefix; '' (default version) adds nothing.
-  const version = (p.prefix?.version ?? '').replace(/^\/+|\/+$/g, '')
+export const createRouter = (p: { items: Route[]; prefix: RoutePrefix; base?: string }): ClientRouter => {
+  const prefix = Slug.join(p.base?.replace(/^\/+|\/+$/g, ''))
 
   let matchedHome = false
   const getSlug = (route: Route) => {
     if (!matchedHome && (route.slug === '/' || route.slug === '')) {
       matchedHome = true
-      return version || '/'
+      return prefix || '/'
     }
     const slug = Slug.normalize(route.slug)
     const kind = route.kind === 'doc' ? p.prefix?.doc : p.prefix?.page
-    return Slug.join(version || undefined, kind, slug)
+    return Slug.join(prefix || undefined, kind, slug)
   }
 
   const _byId = new Map<number, Route>()
@@ -82,7 +81,7 @@ export const createRouter = (p: { items: Route[]; prefix: RoutePrefix }): Client
       if (typeof old !== 'string') return []
       const segs = [p.prefix.doc, ...old.split('/')].filter((s) => s !== undefined)
       return segs.map((seg, i) => {
-        const s = Slug.join(version || undefined, segs.slice(0, i + 1).join('/'))
+        const s = Slug.join(prefix || undefined, segs.slice(0, i + 1).join('/'))
         return { value: seg, slug: _bySlug.has(s) ? s : undefined }
       })
     },

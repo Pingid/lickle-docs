@@ -1,4 +1,3 @@
-import { firstCodeBlock } from '../context/markup/util.ts'
 import { groupItems } from '../../core/client/index.ts'
 import type { Types } from '../context/index.tsx'
 import { withBaseUrl } from './base.ts'
@@ -334,3 +333,11 @@ const signature = (code: string, comment: Types.Comment | undefined, s: SlugOf):
 }
 
 const subsection = (title: string, body: string): string => (body.trim() ? `\n### ${title}\n\n${body}` : '')
+
+const CODE_BLOCK_RE = /```([^\n]*)\n([\s\S]*?)```/g
+const extractCodeBlocks = (input: string): { lang: string; code: string }[] => [
+  ...(input?.matchAll(CODE_BLOCK_RE)?.map((m) => ({ lang: m[1]!, code: m[2]! })) ?? []),
+]
+
+const firstCodeBlock = (input: string): { lang: string; code: string } =>
+  extractCodeBlocks(input)?.[0] ?? { lang: '', code: input }

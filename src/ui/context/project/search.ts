@@ -1,7 +1,7 @@
 import { create, insert, search } from '@orama/orama'
 
-import * as Types from './types.ts'
 import { commentToMarkdown } from '../../util/markdown.ts'
+import * as Types from './types.ts'
 
 export type SearchHit = { name: string; kind: Types.Any['kind']; slug: string; file: string; module: string }
 
@@ -51,7 +51,6 @@ export const createSearchEngine = async (
         tolerance: 1,
         limit,
       })
-      console.log(res.hits)
       return res.hits.map((h) => h.document as unknown as SearchHit)
     },
   }

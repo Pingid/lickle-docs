@@ -1,10 +1,8 @@
-import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import ts from 'typescript'
+import fs from 'node:fs'
+import os from 'node:os'
 
-import * as reflect from '../src/core/reflect/index.ts'
-import { builder, type Adapter } from '../src/core/route/index.ts'
 import {
   createRouter,
   type ClientRouter,
@@ -12,6 +10,8 @@ import {
   type Route,
   type SidebarRoute,
 } from '../src/core/route/client/index.ts'
+import { builder, type Adapter } from '../src/core/route/index.ts'
+import * as reflect from '../src/core/reflect/index.ts'
 
 /** Slug prefix applied to every fixture router, so doc slugs read as `l/...`. */
 const PREFIX = { doc: 'l', page: '' }
@@ -97,5 +97,4 @@ export const memberTitles = (router: ClientRouter, id: number): string[] =>
   childrenOf(router, id).flatMap((g) => g.items.map((r) => r.title))
 
 /** Group names (in resolved order) of a declaration's members. */
-export const memberGroups = (router: ClientRouter, id: number): string[] =>
-  childrenOf(router, id).map((g) => g.group)
+export const memberGroups = (router: ClientRouter, id: number): string[] => childrenOf(router, id).map((g) => g.group)

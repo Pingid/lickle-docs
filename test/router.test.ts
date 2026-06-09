@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest'
 
-import { createRouter, groupItems } from '../src/core/route/client/index.ts'
 import type { Route, DocLink, Group, Sidebar } from '../src/core/route/types.ts'
+import { createRouter, groupItems } from '../src/core/route/client/index.ts'
 
 test('groupItems buckets by group name and orders buckets by order', () => {
   const item = (id: number, group?: Group) => ({ id, group })

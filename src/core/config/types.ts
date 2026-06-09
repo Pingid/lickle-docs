@@ -2,6 +2,19 @@ import type ts from 'typescript'
 
 import type { Router, Reflect } from '../index.ts'
 
+type MaybeGetter<T> = (() => Promise<T> | T) | T
+
+export interface DocsJson {
+  versions: DocsVersion[]
+}
+
+export interface DocsVersion {
+  version: string
+  slug: string
+  alias?: string
+  get: MaybeGetter<ProjectJson>
+}
+
 /** Description of the project persisted to json used to generate the site */
 export interface ProjectJson {
   /** The name of the project. */
@@ -28,7 +41,23 @@ export interface ProjectRoutes {
 }
 
 /** Configuration used for generating the project json */
-export interface Config {
+export interface UserConfig extends Partial<Omit<Config, 'routes' | 'versions'>> {
+  /** The name of the project. default is the package name from package.json */
+  name: string
+  /** Path or glob to project json files */
+  versions?: string
+}
+
+// Non serializable config
+export interface Config extends ConfigJson {
+  /** Filter function to include or exclude files from the project */
+  include: (sf: ts.SourceFile, defaultValue: boolean) => boolean
+  /** Route generation adapter */
+  provider?: Router.Adapter
+}
+
+/** Configuration used for generating the project json */
+export interface ConfigJson {
   /** The name of the project. default is the package name from package.json */
   name: string
   /** The version of the project. default is the package version from package.json */
@@ -64,22 +93,6 @@ export interface ProjectVersion {
   alias?: string
   /** The slug of the version. */
   slug: string
-}
-
-// Non serializable config
-export interface Config {
-  /** Filter function to include or exclude files from the project */
-  include: (sf: ts.SourceFile, defaultValue: boolean) => boolean
-  /** Route generation adapter */
-  provider?: Router.Adapter
-}
-
-/** Configuration used for generating the project json */
-export interface UserConfig extends Partial<Omit<Config, 'routes' | 'versions'>> {
-  /** The name of the project. default is the package name from package.json */
-  name: string
-  /** Path or glob to project json files */
-  versions?: string
 }
 
 export interface Page {

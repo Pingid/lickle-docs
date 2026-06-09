@@ -1,8 +1,8 @@
 import type * as Reflect from '../../reflect/index.ts'
 import { memo1 } from '../../../_lib/util/index.ts'
 
-import type { DocRoute, Sidebar, DocLink } from '../types.ts'
 import { createFacade, type DeclarationFacade } from './facade.ts'
+import type { DocRoute, Sidebar, DocLink } from '../types.ts'
 
 /** A hook that can be used to customize page route generation. */
 export type Hook<V> = (value: V, id: DeclarationFacade, cx: RouteContext) => V

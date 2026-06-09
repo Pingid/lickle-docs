@@ -4,8 +4,8 @@ import { createSlot, type Types } from '../../context/index.tsx'
 import { useCommentMarkdown } from '../../hooks/index.ts'
 
 import { Markdown } from '../Markdown.tsx'
-import { Type } from '../Type.tsx'
 import { Tag, TagKind } from './Tag.tsx'
+import { Type } from '../Type.tsx'
 
 export * from './Tag.tsx'
 

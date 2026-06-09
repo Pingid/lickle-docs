@@ -1,5 +1,5 @@
+export * from './highlighter/index.tsx'
 export * from './project/index.tsx'
-export * from './markup/index.tsx'
 export * from './components.tsx'
-export * from './versions.tsx'
+export * from './doc/index.tsx'
 export * from './theme.tsx'
