@@ -1,15 +1,12 @@
 export {
-  useProject,
   useTheme,
   useComponents,
   ThemeProvider,
   ComponentsProvider,
-  ProjectProvider,
   DocsProvider,
-  useDocVersions as useProjectVersions,
+  useDocVersions,
   defineComponents,
   LanguagesProvider,
-  type Version,
   type Types,
 } from './context/index.tsx'
 export { BASE_URL, withBaseUrl as withBase } from './util/base.ts'

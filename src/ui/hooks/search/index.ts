@@ -1,13 +1,37 @@
 import { create, insert, search } from '@orama/orama'
+import { createMemo, createResource } from 'solid-js'
 
 import { commentToMarkdown } from '../../util/markdown.ts'
-import * as Types from './types.ts'
+import * as Types from '../../context/docs/types.ts'
+import { useDocRouter } from '../router/index.ts'
+import { useProject } from '../project/index.ts'
+
+export const useSearch = (): (() => SearchEngine) => {
+  const project = useProject()
+  const routes = useDocRouter()
+  const [engine] = createResource(
+    () => [routes(), project()] as const,
+    ([routes, project]) => {
+      const router = routes
+      const byId = project?.byId
+      if (!router || !byId) return undefined
+      const existing = INSTANCE.get(router)
+      if (existing) return existing
+      const engine = createSearchEngine(router, byId)
+      INSTANCE.set(router, engine)
+      return engine
+    },
+  )
+  return createMemo(() => engine() ?? { query: async () => [] })
+}
+
+const INSTANCE = new WeakMap<Types.ClientRouter, Promise<SearchEngine>>()
 
 export type SearchHit = { name: string; kind: Types.Any['kind']; slug: string; file: string; module: string }
 
 export type SearchEngine = { query: (term: string, limit?: number) => Promise<SearchHit[]> }
 
-export const createSearchEngine = async (
+const createSearchEngine = async (
   router: Types.ClientRouter,
   byId: (id: number) => Types.Declaration | undefined,
 ): Promise<SearchEngine> => {
@@ -55,23 +79,3 @@ export const createSearchEngine = async (
     },
   }
 }
-
-// /**
-//  * Split an identifier into lowercase words on separators and case boundaries:
-//  * `getHTMLParser` -> `get html parser`, `render-error` -> `render error`,
-//  * `a.b_c` -> `a b c`.
-//  */
-// const splitWords = (input: string | undefined | null): string[] => {
-//   if (!input) return []
-//   return input
-//     .split(/[\s._/\\-]+/)
-//     .flatMap((part) =>
-//       part
-//         .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-//         .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-//         .replace(/([A-Za-z])([0-9])/g, '$1 $2')
-//         .split(/\s+/),
-//     )
-//     .map((w) => w.toLowerCase())
-//     .filter(Boolean)
-// }

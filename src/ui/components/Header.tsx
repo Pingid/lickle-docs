@@ -2,18 +2,18 @@ import { For, Show, createEffect, createMemo } from 'solid-js'
 import cn from '@lickle/cn'
 
 import {
+  type Types,
   useDocVersions,
   useDocActiveVersion,
   createSlot,
-  type Version,
-  useProject,
   useProjectName,
   useLoadVersion,
 } from '../context/index.tsx'
 import { LinkButton, SearchIcon, ChevronIcon } from './icons.tsx'
-import { A, useNavigate } from '../context/router.tsx'
+import { A, useNavigate } from '../util/router.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
 import { clientOnly } from '../util/solid.tsx'
+import { useProject } from '../hooks/index.ts'
 
 const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
 
@@ -79,7 +79,7 @@ const VersionSelect = () => {
   const load = useLoadVersion()
   const nav = useNavigate()
 
-  const aliasOf = (v?: Version) => v?.alias ?? v?.version
+  const aliasOf = (v?: Types.DocsVersion) => v?.alias ?? v?.version
   const label = () => `v${aliasOf(active()) ?? versions()[0]?.version ?? ''}`
 
   let details: HTMLDetailsElement | undefined

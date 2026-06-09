@@ -1,9 +1,9 @@
 import { For, Match, Show, Switch, createMemo } from 'solid-js'
 
-import { createSlot, useProject, type Types } from '../context/index.tsx'
+import { createSlot, type Types } from '../context/index.tsx'
 import { groupItems } from '../../core/client/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
-import { A } from '../context/router.tsx'
+import { A } from '../util/router.tsx'
 import { labelOf } from '../util/kind.ts'
 
 import { CopyPageButton } from './CopyPage.tsx'
@@ -11,17 +11,17 @@ import { Declaration } from './Declaration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
+import { useDocRouter, useProject } from '../hooks/index.ts'
 
 /**
  * A doc route renders its declaration (header + body), its member links and its
  * "referenced in" backlinks; a markdown page renders each `body` string as prose.
  */
 export const Page = createSlot('page', (props) => {
-  const project = useProject()
   return (
     <article class="relative">
       <div class="w-full flex justify-end">
-        <Show when={project()}>{(project) => <CopyPageButton route={props.route} project={project()} />}</Show>
+        <CopyPageButton route={props.route} />
       </div>
       <Switch>
         <Match when={props.route.kind === 'doc' && props.route}>
@@ -125,8 +125,9 @@ const Links = (props: { links: Types.DocLink[] }) => {
 
 const LinkRow = (props: { link: Types.DocLink }) => {
   const project = useProject()
+  const router = useDocRouter()
   const route = () => {
-    const route = project()?.routes.get({ id: props.link.target })
+    const route = router()?.get({ id: props.link.target })
     const decl = project()?.byId(props.link.target)
     if (!decl || !route) return undefined
     return { route, decl }
@@ -199,7 +200,8 @@ export const References = (props: { referenced: Types.DocLink[] }) => {
 
 const ReferenceRow = (props: { typeRef: Types.DocLink }) => {
   const project = useProject()
-  const route = () => project()?.routes.get({ id: props.typeRef.target })
+  const router = useDocRouter()
+  const route = () => router()?.get({ id: props.typeRef.target })
   const decl = () => project()?.byId(props.typeRef.target)
   const qualified = () => props.typeRef.alias || route()?.title || ''
   const dot = () => qualified().lastIndexOf('.')

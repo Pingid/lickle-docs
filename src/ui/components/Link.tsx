@@ -1,7 +1,7 @@
 import { Show } from 'solid-js'
 
 import { useSlugFor } from '../hooks/index.ts'
-import { A } from '../context/router.tsx'
+import { A } from '../util/router.tsx'
 import { Syntax } from './Syntax.tsx'
 
 export const Link = (props: { href: string; children: string }) => {

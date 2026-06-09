@@ -1,16 +1,23 @@
 import { createMemo, type Accessor } from 'solid-js'
 import { useParams } from '@solidjs/router'
 
-import { useHighlighter } from '../context/highlighter/index.tsx'
+import { useHighlighter } from '../context/highlight/index.tsx'
 import { useMarkdown } from '../context/markdown/index.tsx'
 
-import { useProject, type Types } from '../context/index.tsx'
 import { commentToMarkdown } from '../util/markdown.ts'
+import type { Types } from '../context/index.tsx'
+
+import { useDocRouter } from './router/index.ts'
+import { useProject } from './project/index.ts'
+
+export * from './project/index.ts'
+export * from './search/index.ts'
+export * from './router/index.ts'
 
 export const useRoute = () => {
   const params = useParams()
-  const project = useProject()
-  return createMemo(() => project()?.routes.get({ slug: params['slug'] ?? '' }))
+  const router = useDocRouter()
+  return createMemo(() => router()?.get({ slug: params['slug'] ?? '' }))
 }
 
 export const useDeclaration = (): Accessor<Types.Declaration | undefined> => {
@@ -31,24 +38,16 @@ export const useDeclaration = (): Accessor<Types.Declaration | undefined> => {
  */
 export const useSlugFor = () => {
   const project = useProject()
+  const router = useDocRouter()
   const d = useDeclaration()
   return {
-    byId: (id: number): string | undefined => project()?.routes.get({ id })?.slug,
+    byId: (id: number): string | undefined => router()?.get({ id })?.slug,
     byName: (name: string): string | undefined => {
       const decl = project()?.byName(name, d()?.id)
       if (!decl) return undefined
-      return project()?.routes.get({ id: decl.id })?.slug
+      return router()?.get({ id: decl.id })?.slug
     },
   }
-}
-
-/**
- * Returns a thunk that builds (or returns the cached) search engine for the
- * current project. Callers wrap the thunk in their own resource/effect.
- */
-export const useSearch = (): (() => Promise<Types.SearchEngine>) => {
-  const project = useProject()
-  return () => project()?.search ?? Promise.resolve({ query: async () => [] })
 }
 
 export const useCodeHighlighter = () => useHighlighter()

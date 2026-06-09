@@ -8,13 +8,17 @@ import {
   type ParentComponent,
 } from 'solid-js'
 
-import type { DocsJson, ProjectJson, DocsVersion } from '../../../core/client/index.ts'
-import { useLocation } from '../router.tsx'
+import { useLocation } from '../../util/router.tsx'
 
-export type { DocsVersion as Version } from '../../../core/client/index.ts'
+import * as Types from './types.ts'
 
-export type DocsInput = MaybeAccessor<DocsJson | ProjectJson | null>
-const DocsContext = createContext<{ docs: Accessor<DocsJson | null>; cache: Map<DocsVersion, ProjectJson> }>()
+export type { Types }
+
+export type DocsInput = MaybeAccessor<Types.DocsJson | Types.ProjectJson | null>
+const DocsContext = createContext<{
+  docs: Accessor<Types.DocsJson | null>
+  cache: Map<Types.DocsVersion, Types.ProjectJson>
+}>()
 
 export const DocsProvider: ParentComponent<{ value: DocsInput }> = (p) => (
   <DocsContext.Provider value={{ docs: createMemo(() => resolveDocs(p.value)), cache: new Map() }}>
@@ -30,7 +34,7 @@ export const useDocs = () => {
   return { versions, active }
 }
 
-const useDocsProjectJson = (version: () => DocsVersion | undefined) => {
+const useDocsProjectJson = (version: () => Types.DocsVersion | undefined) => {
   const ctx = useContext(DocsContext)
 
   const [resource] = createResource(version, (v) => delay(v ? (typeof v.get === 'function' ? v.get() : v.get) : null))
@@ -56,10 +60,10 @@ const useDocsProjectJson = (version: () => DocsVersion | undefined) => {
 }
 
 /** All versions of the active docs. */
-export const useDocVersions = (): Accessor<DocsVersion[]> => useDocs().versions
+export const useDocVersions = (): Accessor<Types.DocsVersion[]> => useDocs().versions
 
 /** The version owning the current location. */
-export const useDocActiveVersion = (): Accessor<DocsVersion | undefined> => {
+export const useDocActiveVersion = (): Accessor<Types.DocsVersion | undefined> => {
   const docs = useDocs()
   const loc = useLocation()
   return createMemo(() => docs.active(loc.pathname))
@@ -80,12 +84,12 @@ export const useProjectName = () => {
 }
 
 export const useLoadVersion = () => {
-  const [v, load] = createSignal<DocsVersion | undefined>(undefined)
+  const [v, load] = createSignal<Types.DocsVersion | undefined>(undefined)
   const d = useDocsProjectJson(() => v())
   return { ...d, load }
 }
 
-const resolveDocs = (input: DocsInput): DocsJson | null => {
+const resolveDocs = (input: DocsInput): Types.DocsJson | null => {
   const s = typeof input === 'function' ? input() : input
   if (!s) return null
   if ('versions' in s) return s
@@ -94,7 +98,7 @@ const resolveDocs = (input: DocsInput): DocsJson | null => {
 
 type MaybeAccessor<T> = (() => T) | T
 
-const resolveActive = (path: string, versions: DocsVersion[]): DocsVersion | undefined => {
+const resolveActive = (path: string, versions: Types.DocsVersion[]): Types.DocsVersion | undefined => {
   const head = trim(path).split('/')[0] ?? ''
   return (
     versions.find((v) => v.slug !== '/' && trim(v.slug) === head) ?? versions.find((v) => v.slug === '/') ?? versions[0]

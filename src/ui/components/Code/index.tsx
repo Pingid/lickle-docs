@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-j
 import { isServer } from 'solid-js/web'
 import { cn } from '@lickle/cn'
 
-import { useHighlighter, type CodeHighlighter } from '../../context/highlighter/context.tsx'
+import { useHighlighter, type CodeHighlighter } from '../../context/highlight/context.tsx'
 import { useCodeHighlight } from '../../hooks/index.ts'
 
 export const Code = (props: { code: string; lang?: string; class?: string }) => {

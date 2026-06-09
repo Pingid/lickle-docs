@@ -1,5 +1,7 @@
 import { groupItems } from '../../core/client/index.ts'
+
 import type { Types } from '../context/index.tsx'
+import type { Project } from '../hooks/index.ts'
 import { withBaseUrl } from './base.ts'
 import { labelOf } from './kind.ts'
 
@@ -11,7 +13,7 @@ export interface MarkdownOptions {
   inlineMembers?: boolean
 }
 
-type Ctx = { project: Types.Project; slugOf: SlugOf; inline: boolean; seen: Set<number> }
+type Ctx = { project: Project; slugOf: SlugOf; inline: boolean; seen: Set<number>; router: Types.ClientRouter }
 
 /**
  * Serialize a route's main content to markdown: the title, declaration body
@@ -22,11 +24,12 @@ type Ctx = { project: Types.Project; slugOf: SlugOf; inline: boolean; seen: Set<
  * full docs, recursively) instead of listed as links.
  */
 export const routeToMarkdown = (
+  router: Types.ClientRouter,
   route: Types.Route,
-  project: Types.Project,
+  project: Project,
   slugOf: SlugOf,
   opts: MarkdownOptions = {},
-): string => renderRoute(route, { project, slugOf, inline: !!opts.inlineMembers, seen: new Set() }, 1)
+): string => renderRoute(route, { project, slugOf, router, inline: !!opts.inlineMembers, seen: new Set() }, 1)
 
 const renderRoute = (route: Types.Route, ctx: Ctx, depth: number): string => {
   if (route.kind === 'page') return route.body.join('\n\n').trimEnd() + '\n'
@@ -58,7 +61,7 @@ const childrenMd = (route: Types.DocRoute, ctx: Ctx, depth: number): string => {
   for (const g of groupItems(route.links, (l) => l.group)) {
     if (ctx.inline) {
       for (const item of g.items) {
-        const child = ctx.project.routes.get({ id: item.target })
+        const child = ctx.router.get({ id: item.target })
         if (child?.kind !== 'doc') continue
         const md = renderRoute(child, ctx, depth + 1)
         if (md.trim()) out += `\n${md}`
@@ -66,7 +69,7 @@ const childrenMd = (route: Types.DocRoute, ctx: Ctx, depth: number): string => {
     } else {
       out += `\n${'#'.repeat(Math.min(depth + 1, 6))} ${g.group || 'Members'}\n\n`
       for (const item of g.items) {
-        const child = ctx.project.routes.get({ id: item.target })
+        const child = ctx.router.get({ id: item.target })
         const d = child?.kind === 'doc' ? ctx.project.byId(child.decl) : undefined
         out += `- \`${child?.title ?? item.alias}\`${inlineComment(d?.comment, ctx.slugOf)}\n`
       }

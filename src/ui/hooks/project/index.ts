@@ -1,9 +1,28 @@
-import { createRouter, type ProjectJson } from '../../../core/client/index.ts'
-import * as Types from './types.ts'
+import { createMemo, type Accessor } from 'solid-js'
 
-import { createSearchEngine } from './search.ts'
+import { useDocActiveProject, type Types } from '../../context/index.tsx'
 
-export const createProject = (project: ProjectJson, base?: string): Types.Project => {
+export interface Project extends Omit<Types.ProjectJson, 'routes'> {
+  byId(id: number): Types.Declaration | undefined
+  byName(name: string, scope: number | undefined): Types.Declaration | undefined
+  sourceLink(src: Types.Source): string | undefined
+}
+
+const INSTANCE = new WeakMap<Types.ProjectJson, Project>()
+
+export const useProject = (): Accessor<Project | undefined> => {
+  const doc = useDocActiveProject()
+  return createMemo(() => {
+    const prj = doc.current()
+    if (!prj) return undefined
+    if (INSTANCE.has(prj)) return INSTANCE.get(prj)!
+    const r = createProject(prj)
+    INSTANCE.set(prj, r)
+    return r
+  })
+}
+
+export const createProject = (project: Types.ProjectJson): Project => {
   const json = { ...project }
   const _byId = new Map<number, Types.Declaration>()
   const _byName = new Map<string, Types.Declaration>()
@@ -20,8 +39,6 @@ export const createProject = (project: ProjectJson, base?: string): Types.Projec
     if (!_children.has(declaration.parent)) _children.set(declaration.parent, [])
     _children.get(declaration.parent)?.push(declaration)
   }
-
-  const _router = createRouter({ ...project.routes, base })
 
   const byId = (id: number): Types.Declaration | undefined => _byId.get(id)
 
@@ -40,13 +57,11 @@ export const createProject = (project: ProjectJson, base?: string): Types.Projec
     return _byName.get(name)
   }
 
-  const p: Types.Project = json as any as Types.Project
+  const p: Project = json as any as Project
 
   hide(p, 'byId', byId)
   hide(p, 'byName', byName)
   hide(p, 'sourceLink', sourceLink)
-  hide(p, 'routes', _router)
-  hide(p, 'search', createSearchEngine(_router, byId))
   return p
 }
 

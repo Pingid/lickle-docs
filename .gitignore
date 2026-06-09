@@ -7,7 +7,7 @@ lib-ui
 lib-core
 lib-cli
 tsconfig.base.json
-docs
+/docs
 temp
 demo
 client/custom.tsx

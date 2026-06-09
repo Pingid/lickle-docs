@@ -1,7 +1,7 @@
 import { createContext, createMemo, type ParentComponent, useContext, type Accessor } from 'solid-js'
 import { Marked, type Tokens } from 'marked'
 
-import { useHighlighter } from '../highlighter/index.tsx'
+import { useHighlighter } from '../highlight/index.tsx'
 import { withBaseUrl } from '../../util/base.ts'
 
 export type MarkdownParser = (x: string, lookup: (raw: string) => string | undefined) => string

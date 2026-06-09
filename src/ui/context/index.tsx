@@ -1,5 +1,4 @@
-export * from './highlighter/index.tsx'
-export * from './project/index.tsx'
+export * from './highlight/index.tsx'
 export * from './components.tsx'
-export * from './doc/index.tsx'
+export * from './docs/index.tsx'
 export * from './theme.tsx'

@@ -1,19 +1,15 @@
-import { createSignal, onCleanup, onMount, Show, type Accessor } from 'solid-js'
-
-import { createEffect } from 'solid-js'
+import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { cn } from '@lickle/cn'
 
 import { createSlot } from '../context/components.tsx'
-import { useLocation } from '../context/router.tsx'
+import { useLocation } from '../util/router.tsx'
 
 import { Header, MENU_TOGGLE_ID } from './Header.tsx'
 import { SearchPalette } from './SearchPalette.tsx'
-import { useProject } from '../context/index.tsx'
 import { Sidebar } from './Sidebar.tsx'
-import { cn } from '@lickle/cn'
 
 export const Layout = createSlot('layout', (props) => {
   const [searchOpen, setSearchOpen] = createSignal(false)
-  const project = useProject()
   const loc = useLocation()
   let menuToggle: HTMLInputElement | undefined
 
@@ -48,7 +44,6 @@ export const Layout = createSlot('layout', (props) => {
 
         <Sidebar
           class={cn(
-            loadingFreeze(props.loading),
             'hidden lg:block border-r border-line sticky top-(--header-height) self-start h-(--sidebar-height) overflow-y-auto',
           )}
         />
@@ -60,29 +55,18 @@ export const Layout = createSlot('layout', (props) => {
         />
         <aside
           class={cn(
-            loadingFreeze(props.loading),
             'lg:hidden fixed inset-y-0 left-0 z-50 w-(--sidebar-sm-width) bg-bg border-r border-line overflow-y-auto pt-14 -translate-x-full transition-transform duration-200 ease-out peer-checked:translate-x-0',
           )}
         >
           <Sidebar />
         </aside>
 
-        <main
-          class={cn(
-            loadingFreeze(props.loading),
-            'min-w-0 px-6 lg:px-12 pt-8 pb-20 max-w-(--content-max-width) wrap-break-word',
-          )}
-        >
+        <main class={cn('min-w-0 px-6 lg:px-12 pt-8 pb-20 max-w-(--content-max-width) wrap-break-word')}>
           {props.children}
         </main>
       </div>
 
-      <Show when={project()}>
-        {(project) => <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} project={project()} />}
-      </Show>
+      <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 })
-
-const loadingFreeze = (loading: Accessor<boolean>, cls?: string) =>
-  cn(cls, [loading(), 'animate-pulse pointer-events-none'])

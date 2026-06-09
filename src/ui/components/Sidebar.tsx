@@ -1,19 +1,18 @@
 import { For, Show, createEffect, createSignal } from 'solid-js'
-import { A, useLocation } from '../context/router.tsx'
+import { A, useLocation } from '../util/router.tsx'
 
-import { createSlot, useProject, type Types } from '../context/index.tsx'
+import { createSlot, type Types } from '../context/index.tsx'
+import { useDocRouter, useProject } from '../hooks/index.ts'
 import { Type } from './Type.tsx'
 
 type Route = Types.Route
 
 export const Sidebar = createSlot('sidebar', (props) => {
-  const project = useProject()
+  const router = useDocRouter()
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
       <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
-        <Show when={project()}>
-          {(project) => <NavList routes={project().routes.sidebar} depth={0} onNavigate={props.onNavigate} />}
-        </Show>
+        <NavList routes={router()?.sidebar ?? []} depth={0} onNavigate={props.onNavigate} />
       </nav>
     </aside>
   )

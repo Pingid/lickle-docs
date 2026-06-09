@@ -2,12 +2,13 @@ import { Match, Show, Switch, createMemo, type Component } from 'solid-js'
 import type { RouteSectionProps } from '@solidjs/router'
 import type { JSX } from 'solid-js/jsx-runtime'
 
-import { ComponentsProvider, ProjectProvider, ThemeProvider, useProject, type Components } from './context/index.tsx'
-import { DocsProvider, useDocActiveProject, type DocsInput } from './context/doc/index.tsx'
-import { Route, useParams, Navigate, HashRouter } from './context/router.tsx'
+import { ComponentsProvider, ThemeProvider, type Components } from './context/index.tsx'
+import { DocsProvider, useDocActiveProject, type DocsInput } from './context/docs/index.tsx'
+import { Route, useParams, Navigate, HashRouter } from './util/router.tsx'
 import { MarkdownProvider } from './context/markdown/index.tsx'
 import { Link, Page, Layout } from './components/index.ts'
 import { Loading } from './components/Loading.tsx'
+import { useDocRouter } from './hooks/index.ts'
 
 import { BASE_URL } from './util/base.ts'
 
@@ -36,22 +37,20 @@ const AppRoutes: Component<RouteSectionProps> = () => {
   return (
     <MarkdownProvider>
       <ThemeProvider>
-        <ProjectProvider json={() => doc.current() ?? null} base={doc.version()?.slug}>
-          <Layout loading={doc.loading}>
-            <Switch>
-              <Match when={doc.current() !== null}>
-                <ProjectPage />
-              </Match>
-              <Match when={doc.loading()}>
-                <Loading />
-              </Match>
-              <Match when={doc.error()}>Error: {doc.error().message}</Match>
-              <Match when={doc.current() === null}>
-                <NotFound />
-              </Match>
-            </Switch>
-          </Layout>
-        </ProjectProvider>
+        <Layout loading={doc.loading}>
+          <Switch>
+            <Match when={doc.current() !== null}>
+              <ProjectPage />
+            </Match>
+            <Match when={doc.loading()}>
+              <Loading />
+            </Match>
+            <Match when={doc.error()}>Error: {doc.error().message}</Match>
+            <Match when={doc.current() === null}>
+              <NotFound />
+            </Match>
+          </Switch>
+        </Layout>
       </ThemeProvider>
     </MarkdownProvider>
   )
@@ -60,8 +59,8 @@ const AppRoutes: Component<RouteSectionProps> = () => {
 /** Resolve the current `/*slug` path to a route and render its page. */
 const ProjectPage = () => {
   const params = useParams()
-  const project = useProject()
-  const route = createMemo(() => project()?.routes.get({ slug: params['slug'] ?? '' }))
+  const router = useDocRouter()
+  const route = createMemo(() => router()?.get({ slug: params['slug'] ?? '' }))
   return (
     <Show when={route()} fallback={<Fallback slug={params['slug']} />}>
       {(r) => <Page route={r()} />}
@@ -71,8 +70,8 @@ const ProjectPage = () => {
 
 /** Empty path redirects to the first sidebar route; anything else is a miss. */
 const Fallback = (props: { slug?: string }) => {
-  const project = useProject()
-  const first = createMemo(() => project()?.routes.sidebar[0]?.items?.[0]?.slug)
+  const router = useDocRouter()
+  const first = createMemo(() => router()?.sidebar[0]?.items?.[0]?.slug)
   return (
     <Show when={!props.slug && first()} fallback={<NotFound />}>
       {(slug) => <Navigate href={slug()} />}

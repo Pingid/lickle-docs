@@ -1,9 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
-import { useNavigate } from '../context/router.tsx'
+import { useNavigate } from '../util/router.tsx'
 
-import type { Project } from '../context/project/types.ts'
-import { type Types } from '../context/index.tsx'
-import { useSearch } from '../hooks/index.ts'
+import { useDocRouter, useSearch, type SearchHit } from '../hooks/index.ts'
 import { SearchIcon } from './icons.tsx'
 import { Type } from './Type.tsx'
 
@@ -13,17 +11,17 @@ const RECENTS_KEY = 'lickle:recent-search'
 const RECENTS_MAX = 8
 
 /** Read the persisted recent selections, tolerating SSR and corrupt storage. */
-const loadRecents = (): Types.SearchHit[] => {
+const loadRecents = (): SearchHit[] => {
   if (typeof localStorage === 'undefined') return []
   try {
     const parsed = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')
-    return Array.isArray(parsed) ? (parsed as Types.SearchHit[]) : []
+    return Array.isArray(parsed) ? (parsed as SearchHit[]) : []
   } catch {
     return []
   }
 }
 
-const saveRecents = (hits: Types.SearchHit[]): void => {
+const saveRecents = (hits: SearchHit[]): void => {
   if (typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(RECENTS_KEY, JSON.stringify(hits))
@@ -32,8 +30,9 @@ const saveRecents = (hits: Types.SearchHit[]): void => {
   }
 }
 
-export const SearchPalette = (props: { open: () => boolean; onClose: () => void; project: Project }) => {
+export const SearchPalette = (props: { open: () => boolean; onClose: () => void }) => {
   const navigate = useNavigate()
+  const router = useDocRouter()
   const search = useSearch()
 
   const [engine] = createResource(props.open, async (isOpen) => (isOpen ? await search() : undefined))
@@ -74,14 +73,12 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void;
 
   // Recently selected items, persisted across sessions. Stale entries (routes
   // that no longer exist after a rebuild) are filtered out.
-  const [recents, setRecents] = createSignal<Types.SearchHit[]>(loadRecents())
-  const validRecents = createMemo(() => recents().filter((h) => props.project.routes.get({ slug: h.slug })))
+  const [recents, setRecents] = createSignal<SearchHit[]>(loadRecents())
+  const validRecents = createMemo(() => recents().filter((h) => router()?.get({ slug: h.slug })))
 
   const hasTerm = () => debounced().trim().length > 0
   const sectionLabel = () => (validRecents().length ? 'Recent' : '')
-  const list = createMemo<Types.SearchHit[]>(() =>
-    hasTerm() ? (hits() ?? []) : validRecents().length ? validRecents() : [],
-  )
+  const list = createMemo<SearchHit[]>(() => (hasTerm() ? (hits() ?? []) : validRecents().length ? validRecents() : []))
 
   createEffect(
     on(list, (l) => {
@@ -89,7 +86,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void;
     }),
   )
 
-  const choose = (hit: Types.SearchHit) => {
+  const choose = (hit: SearchHit) => {
     const next = [hit, ...recents().filter((h) => h.slug !== hit.slug)].slice(0, RECENTS_MAX)
     setRecents(next)
     saveRecents(next)

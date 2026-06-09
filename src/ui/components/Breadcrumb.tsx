@@ -1,11 +1,11 @@
 import { For, Show, createMemo } from 'solid-js'
-import { A } from '../context/router.tsx'
+import { A } from '../util/router.tsx'
 
-import { useProject } from '../context/index.tsx'
+import { useDocRouter } from '../hooks/index.ts'
 
 export const Breadcrumb = (props: { id: number }) => {
-  const project = useProject()
-  const crumbs = createMemo(() => project()?.routes.parts(props.id))
+  const router = useDocRouter()
+  const crumbs = createMemo(() => router()?.parts(props.id))
 
   return (
     <nav class="text-xs text-mute mb-3" aria-label="Breadcrumb">
