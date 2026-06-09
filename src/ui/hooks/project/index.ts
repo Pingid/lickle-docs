@@ -2,27 +2,28 @@ import { createMemo, type Accessor } from 'solid-js'
 
 import { useDocActiveProject, type Types } from '../../context/index.tsx'
 
-export interface Project extends Omit<Types.ProjectJson, 'routes'> {
+export interface Project extends Omit<Types.ProjectVersion, 'routes'> {
   byId(id: number): Types.Declaration | undefined
   byName(name: string, scope: number | undefined): Types.Declaration | undefined
   sourceLink(src: Types.Source): string | undefined
 }
 
-const INSTANCE = new WeakMap<Types.ProjectJson, Project>()
+const INSTANCE = new WeakMap<Types.DocsVersion, Project>()
 
 export const useProject = (): Accessor<Project | undefined> => {
   const doc = useDocActiveProject()
   return createMemo(() => {
-    const prj = doc.current()
-    if (!prj) return undefined
-    if (INSTANCE.has(prj)) return INSTANCE.get(prj)!
+    const prj = doc.json()
+    const active = doc.version()
+    if (!prj || !active) return undefined
+    if (INSTANCE.has(active)) return INSTANCE.get(active)!
     const r = createProject(prj)
-    INSTANCE.set(prj, r)
+    INSTANCE.set(active, r)
     return r
   })
 }
 
-export const createProject = (project: Types.ProjectJson): Project => {
+export const createProject = (project: Types.ProjectVersion): Project => {
   const json = { ...project }
   const _byId = new Map<number, Types.Declaration>()
   const _byName = new Map<string, Types.Declaration>()
@@ -33,7 +34,7 @@ export const createProject = (project: Types.ProjectJson): Project => {
     return json.repository.fileUrl.replace('{PATH}', `/${src.file}`).replace('{LINE}', src.line.toString())
   }
 
-  for (const declaration of json.routes.declarations) {
+  for (const declaration of json.declarations) {
     _byId.set(declaration.id, declaration)
     _byName.set(declaration.name, declaration)
     if (!_children.has(declaration.parent)) _children.set(declaration.parent, [])

@@ -1,30 +1,35 @@
 import * as vite from 'vite'
 import pc from 'picocolors'
 
+import type { DocsJson, DocsVersion } from '../../ui/context/docs/types.ts'
+
 import type { Build } from '../../core/index.ts'
 
 import type { ViteContext } from '../context/index.ts'
-import { virtualFile } from './util/index.ts'
+import { virtualFile, Coder } from './util/index.ts'
 import { clientFiles } from '../env.ts'
 
 export const docs = (config: ViteContext): vite.Plugin => {
-  const docs = virtualFile({
-    id: 'virtual:lickle/docs.ts',
-    path: clientFiles.virtuals.docs,
-    content: async () => {
-      const c = await config.current()
-      const others = (c.config.versions ?? []).map((v) => {
-        const alias = v.alias ? `alias: ${JSON.stringify(v.alias)}, ` : ''
-        return `{ version: ${JSON.stringify(v.version)}, slug: ${JSON.stringify(v.slug)}, ${alias} get: () => import(${JSON.stringify(v.path)}).then((m) => m.default) }`
-      })
+  const content = async () => {
+    const c = await config.current()
+    const d: DocsJson = {
+      name: c.config.name,
+      links: Coder.json(c.config.links),
+      versions: [
+        { version: c.config.version!, slug: '/', get: Coder.json(c.json) },
+        ...(c.config.versions ?? []).map(
+          (v): DocsVersion => ({
+            version: v.version!,
+            slug: v.slug!,
+            get: Coder.inline(`() => import(${JSON.stringify(v.path)}).then((m) => m.default)`),
+          }),
+        ),
+      ],
+    }
+    return `export default (${Coder.toCode(JSON.stringify(d))})`
+  }
 
-      return `
-        const current = { version: ${JSON.stringify(c.config.version)}, slug: "/", get: ${JSON.stringify(c.json)} };
-        const versions = [current, ${others.join(',')}];
-        export default { versions };
-      `
-    },
-  })
+  const docs = virtualFile({ id: 'virtual:lickle/docs.ts', path: clientFiles.virtuals.docs, content })
 
   let logger: vite.Logger | undefined = undefined
 
@@ -46,9 +51,10 @@ export const docs = (config: ViteContext): vite.Plugin => {
         const c = await config.current()
         s.watcher.add(c.file)
         if (!hasChanged(c)) return logger?.info(pc.green('No changes'), { timestamp: true })
-        logger?.info(pc.green(`Built ${c.json.routes.items.length} pages`), { timestamp: true })
-        s.ws.send({ type: 'custom', event: 'docs-update', data: c.json })
+        logger?.info(pc.green(`Built ${c.json.routes.length} pages`), { timestamp: true })
+        // s.ws.send({ type: 'custom', event: 'docs-update', data: c.json })
         docs.invalidate(s)
+        s.ws.send({ type: 'full-reload', path: clientFiles.virtuals.docs })
       })
 
       const isProjectFile = (path: string) => {

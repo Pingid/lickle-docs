@@ -24,7 +24,7 @@ export const json = cmd.command({
   },
   handler: async (args) => {
     const p = await Build.build(process.cwd())
-    if (args.print) Router.printRoutes(p.json.routes)
+    if (args.print) Router.printRoutes(p.json)
     await Node.Fs.ensureDir(args.file)
     await Node.Fs.writeFile(args.file, JSON.stringify(p.json))
   },

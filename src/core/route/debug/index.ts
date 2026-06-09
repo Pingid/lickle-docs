@@ -5,14 +5,14 @@ import * as Reflect from '../../reflect/index.ts'
 import type { Route } from '../types.ts'
 
 export const printRoutes = (opts: {
-  prefix: { doc?: string; page?: string }
-  items: Route[]
+  prefix?: { doc?: string; page?: string }
+  routes: Route[]
   declarations: Reflect.Declaration[]
   sidebar?: boolean
   content?: boolean
   write?: (str: string) => void
 }) => {
-  const s = printer(opts.items, opts.declarations, opts.write)
+  const s = printer(opts.routes, opts.declarations, opts.write)
   const router = createRouter(opts)
 
   if (opts.sidebar !== false) printSidebar(s, router)

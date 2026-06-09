@@ -3,7 +3,7 @@ import path from 'node:path'
 import mm from 'micromatch'
 import fg from 'fast-glob'
 
-import type { Config, UserConfig, ProjectJson } from './types.ts'
+import type { Config, UserConfig, ProjectVersion } from './types.ts'
 
 import { Node, Pkg, Workspace, TsConfig, Slug } from '../../_lib/index.ts'
 
@@ -55,7 +55,7 @@ export const populate = async (
   const resolvedVersions = await Promise.all(
     versions.map(async (v) => {
       const content = await Node.Fs.readFile(v, 'utf-8')
-      const version = JSON.parse(content) as ProjectJson
+      const version = JSON.parse(content) as ProjectVersion
       if (!version.version) return null
       return { path: v, version: version.version, slug: Slug.normalize(Slug.toSlug(version.version)) }
     }),

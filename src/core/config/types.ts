@@ -2,40 +2,15 @@ import type ts from 'typescript'
 
 import type { Router, Reflect } from '../index.ts'
 
-type MaybeGetter<T> = (() => Promise<T> | T) | T
-
-export interface DocsJson {
-  versions: DocsVersion[]
-}
-
-export interface DocsVersion {
-  version: string
-  slug: string
-  alias?: string
-  get: MaybeGetter<ProjectJson>
-}
-
-/** Description of the project persisted to json used to generate the site */
-export interface ProjectJson {
-  /** The name of the project. */
+export interface ProjectVersion {
+  /** The name of the version. */
   name: string
   /** The version of the project. */
-  version?: string
+  version: string
   /** Repository information */
   repository?: Repo
-  /** Links for the project. */
-  links: Link[]
-  /** Entrypoints — relative source paths reachable from `main` / `exports`. */
-  entrypoints: Entry[]
   /** Routes of the project. */
-  routes: ProjectRoutes
-}
-
-export interface ProjectRoutes {
-  /** Routes of the project. */
-  items: Router.Route[]
-  /** Route prefix for documentation and pages. */
-  prefix: Router.RoutePrefix
+  routes: Router.Route[]
   /** Flat list of every declaration in the project, source order. */
   declarations: Reflect.Declaration[]
 }
@@ -81,10 +56,10 @@ export interface ConfigJson {
   /** Languages used in example code blocks and markdown for syntax highlighting. Defaults to ['ts'] */
   languages?: string[]
   /** Path to versions file */
-  versions?: ProjectVersion[]
+  versions?: ConfigVersion[]
 }
 
-export interface ProjectVersion {
+export interface ConfigVersion {
   /** The path to the project json file. */
   path: string
   /** The version of the project. */

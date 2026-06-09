@@ -8,7 +8,7 @@ import languages from './virtuals/languages.ts'
 
 import '@lickle/docs/theme.css'
 
-export const renderPage = async (json: Types.ProjectJson, url: string): Promise<{ body: string; head: string }> => {
+export const renderPage = async (json: Types.DocsJson, url: string): Promise<{ body: string; head: string }> => {
   const body = await renderToStringAsync(() => (
     <LanguagesProvider langs={() => languages}>
       <App docs={json} components={components} Router={(p) => <StaticRouter {...p} url={url} />} />

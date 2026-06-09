@@ -14,10 +14,10 @@ import * as Types from './types.ts'
 
 export type { Types }
 
-export type DocsInput = MaybeAccessor<Types.DocsJson | Types.ProjectJson | null>
+export type DocsInput = MaybeAccessor<Types.DocsJson | Types.ProjectVersion | null>
 const DocsContext = createContext<{
   docs: Accessor<Types.DocsJson | null>
-  cache: Map<Types.DocsVersion, Types.ProjectJson>
+  cache: Map<Types.DocsVersion, Types.ProjectVersion>
 }>()
 
 export const DocsProvider: ParentComponent<{ value: DocsInput }> = (p) => (
@@ -31,7 +31,9 @@ export const useDocs = () => {
   if (!ctx) throw new Error('useDocs must be used within a <DocsProvider>')
   const versions = () => ctx.docs()?.versions ?? []
   const active = (path: string) => resolveActive(path, versions())
-  return { versions, active }
+  const name = () => ctx.docs()?.name ?? ''
+  const links = () => ctx.docs()?.links ?? []
+  return { versions, active, name, links }
 }
 
 const useDocsProjectJson = (version: () => Types.DocsVersion | undefined) => {
@@ -43,10 +45,7 @@ const useDocsProjectJson = (version: () => Types.DocsVersion | undefined) => {
     const r = resource()
     const v = version()
     if (!v) return null
-    if (r && r?.version === v?.version) {
-      ctx?.cache.set(v, r)
-      return r
-    }
+    if (r && r?.version === v?.version) ctx?.cache.set(v, r)
     if (ctx?.cache.has(v)) return ctx.cache.get(v)!
     return null
   })
@@ -76,13 +75,6 @@ export const useDocActiveProject = () => {
   return useDocsProjectJson(() => docs.active(loc.pathname))
 }
 
-export const useProjectName = () => {
-  const docs = useDocs()
-  const active = useDocActiveProject()
-  const doc = useDocsProjectJson(() => docs.versions()[0])
-  return createMemo(() => active.json()?.name ?? doc.json()?.name)
-}
-
 export const useLoadVersion = () => {
   const [v, load] = createSignal<Types.DocsVersion | undefined>(undefined)
   const d = useDocsProjectJson(() => v())
@@ -93,7 +85,7 @@ const resolveDocs = (input: DocsInput): Types.DocsJson | null => {
   const s = typeof input === 'function' ? input() : input
   if (!s) return null
   if ('versions' in s) return s
-  return { versions: [{ version: s.version ?? '', slug: '', alias: s.name, get: s }] }
+  return { name: s.name, links: [], versions: [{ version: s.version ?? '', slug: '', alias: s.name, get: s }] }
 }
 
 type MaybeAccessor<T> = (() => T) | T

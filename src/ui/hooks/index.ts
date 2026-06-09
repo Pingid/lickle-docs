@@ -54,7 +54,7 @@ export const useCodeHighlighter = () => useHighlighter()
 
 export const useCodeHighlight = (text: string, lang: string) => {
   const highlighter = useCodeHighlighter()
-  return createMemo(() => highlighter().codeToHtml(text, { lang }))
+  return createMemo(() => highlighter()?.codeToHtml(text, { lang }))
 }
 
 export const useRenderMarkdown = (text: string) => {

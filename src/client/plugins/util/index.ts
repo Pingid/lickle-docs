@@ -29,3 +29,19 @@ export const virtualFile = (opts: { id: string; path: string; content: () => Pro
 
   return { plugin, Id, ResolvedId, invalidate }
 }
+
+export const Coder = {
+  MARK_START: '__CODE_START__',
+  MARK_END: '__CODE_END__',
+  inline<T>(d: string) {
+    return `${this.MARK_START}${d}${this.MARK_END}` as T
+  },
+  json<T>(d: T) {
+    return this.inline<T>(JSON.stringify(d)) as T
+  },
+  toCode(d: string) {
+    return d.replace(new RegExp(`"${this.MARK_START}(.*?)${this.MARK_END}"`, 'gs'), (_, codeInside) =>
+      JSON.parse(`"${codeInside}"`),
+    )
+  },
+}

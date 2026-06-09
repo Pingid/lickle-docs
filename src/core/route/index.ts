@@ -10,7 +10,7 @@ export type * from './provider/index.ts'
 export * from './debug/index.ts'
 export type * from './types.ts'
 
-export type DocRoutes = { items: Route[]; declarations: Reflect.Declaration[] }
+export type DocRoutes = { routes: Route[]; declarations: Reflect.Declaration[] }
 
 export const builder = (opts: ContextOptions) => {
   const cx = makeContext(opts, (c) => withMemo(provide(c, compose(groupByKind, opts.adapter))))
@@ -41,7 +41,7 @@ export const builder = (opts: ContextOptions) => {
     },
     build: (): DocRoutes => {
       return {
-        items: routes.filter((r) => r.kind !== 'doc' || navigable.has(r.decl)),
+        routes: routes.filter((r) => r.kind !== 'doc' || navigable.has(r.decl)),
         declarations: declarations.filter((d) => navigable.has(d.id)),
       }
     },

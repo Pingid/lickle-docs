@@ -16,8 +16,8 @@ export const MarkdownProvider: ParentComponent = (p) => {
   const highligher = useHighlighter()
   const code = createMemo(() => {
     const hltr = highligher()
-    const highlight = (x: { text: string; lang: string }) => hltr.codeToHtml(x.text, { lang: x.lang })
-    return codeBlockRenderer(hltr.available, highlight)
+    const highlight = (x: { text: string; lang: string }) => hltr?.codeToHtml(x.text, { lang: x.lang }) ?? x.text
+    return codeBlockRenderer(hltr?.available ?? new Set(), highlight)
   })
   const marked = createMemo(() => new Marked({ gfm: true, breaks: false, renderer: { code: code() } }))
 

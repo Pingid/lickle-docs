@@ -20,7 +20,7 @@ const HmrApp = () => {
     () =>
       import.meta.hot &&
       import.meta.hot.on('docs-update', (payload) => {
-        const data = payload as Types.ProjectJson
+        const data = payload as Types.ProjectVersion
         const current = d().versions.findIndex((v) => v.version === data.version!)
         const next = { version: data.version!, slug: '/', get: data }
         if (current === -1) setDocs({ ...d(), versions: [next, ...d().versions] })

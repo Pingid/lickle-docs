@@ -7,7 +7,7 @@ import * as Config from '../config/index.ts'
 import * as Router from '../route/index.ts'
 
 export type BuildResult = {
-  json: Config.ProjectJson
+  json: Config.ProjectVersion
   config: Config.ConfigJson
   file: string
   languages: string[]
@@ -43,13 +43,11 @@ export const fromConfig = async (
 
   const routes = builder.build()
 
-  const json: Config.ProjectJson = {
+  const json: Config.ProjectVersion = {
     name: config.name,
-    version: config.version,
+    version: config.version!,
     repository: config.repository,
-    links: config.links,
-    entrypoints: config.entrypoints,
-    routes: { ...routes, prefix: { doc: config.name.replace(/^@/, ''), page: '' } },
+    ...routes,
   }
 
   return { json, config, languages: Array.from(scanned.langs) }

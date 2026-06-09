@@ -2,7 +2,7 @@ import { type Accessor, createContext, createMemo, createResource, type Resource
 import type { JSX } from 'solid-js/jsx-runtime'
 
 import { createHighlighterCore, type LanguageInput } from 'shiki/core'
-import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
+import { createOnigurumaEngine } from 'shiki/engine/oniguruma'
 import githubLight from 'shiki/dist/themes/github-light.mjs'
 import githubDark from 'shiki/dist/themes/github-dark.mjs'
 
@@ -22,7 +22,7 @@ export function LanguagesProvider(props: {
 
   const resource = createResource(props.langs, async (langs) => {
     const h = await createHighlighterCore({
-      engine: createJavaScriptRegexEngine(),
+      engine: createOnigurumaEngine(() => import('shiki/wasm')),
       themes: [githubDark, githubLight],
       langs: langs.map((l) => l.import),
     })
@@ -43,7 +43,7 @@ export function LanguagesProvider(props: {
 export const useHighlighter = () => {
   const resource = useContext(HighlightingContext)
   const h = resource?.[0]
-  return createMemo<CodeHighlighter>(() => h?.() ?? { codeToHtml: (t) => t, available: new Set() })
+  return createMemo<CodeHighlighter | undefined>(() => h?.())
 }
 
 // ---------------- LANGUAGE LOOKUP ----------------

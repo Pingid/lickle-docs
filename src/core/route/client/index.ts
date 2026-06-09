@@ -15,7 +15,7 @@ export interface ClientRouter {
   parts(id: number): { value: string; slug?: SlugPath }[]
 }
 
-export const createRouter = (p: { items: Route[]; prefix: RoutePrefix; base?: string }): ClientRouter => {
+export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: string }): ClientRouter => {
   const prefix = Slug.join(p.base?.replace(/^\/+|\/+$/g, ''))
 
   let matchedHome = false
@@ -37,7 +37,7 @@ export const createRouter = (p: { items: Route[]; prefix: RoutePrefix; base?: st
   const allRoutes: Route[] = []
   const _sidebarRoot: Route[] = []
 
-  for (const route of p.items) {
+  for (const route of p.routes) {
     const next = { ...route, slug: getSlug(route) }
     allRoutes.push(next)
     _bySlug.set(next.slug, next)
@@ -79,7 +79,7 @@ export const createRouter = (p: { items: Route[]; prefix: RoutePrefix; base?: st
       if (!route) return []
       const old = _byNextSlug.get(route.slug)
       if (typeof old !== 'string') return []
-      const segs = [p.prefix.doc, ...old.split('/')].filter((s) => s !== undefined)
+      const segs = [p?.prefix?.doc, ...old.split('/')].filter((s) => s !== undefined)
       return segs.map((seg, i) => {
         const s = Slug.join(prefix || undefined, segs.slice(0, i + 1).join('/'))
         return { value: seg, slug: _bySlug.has(s) ? s : undefined }

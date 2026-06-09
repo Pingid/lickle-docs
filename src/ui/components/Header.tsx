@@ -6,14 +6,13 @@ import {
   useDocVersions,
   useDocActiveVersion,
   createSlot,
-  useProjectName,
   useLoadVersion,
+  useDocs,
 } from '../context/index.tsx'
 import { LinkButton, SearchIcon, ChevronIcon } from './icons.tsx'
 import { A, useNavigate } from '../util/router.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
 import { clientOnly } from '../util/solid.tsx'
-import { useProject } from '../hooks/index.ts'
 
 const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
 
@@ -21,8 +20,7 @@ const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.pl
 export const MENU_TOGGLE_ID = 'lickle-menu-toggle'
 
 export const Header = createSlot('header', (props) => {
-  const name = useProjectName()
-  const project = useProject()
+  const docs = useDocs()
   return (
     <header class="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur-md backdrop-saturate-150">
       <div class="flex items-center h-(--header-height) px-4 lg:px-6 gap-4">
@@ -43,7 +41,7 @@ export const Header = createSlot('header', (props) => {
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         </label>
-        <Show when={name()}>
+        <Show when={docs.name()}>
           {(name) => (
             <A href="/" class="hover:opacity-70 transition-opacity">
               <span class="font-semibold text-[0.95rem] tracking-tight">{name()}</span>
@@ -53,16 +51,10 @@ export const Header = createSlot('header', (props) => {
         <VersionSelect />
 
         <nav class="ml-auto flex items-center">
-          <Show when={project()}>
-            {(project) => (
-              <>
-                <div class="pr-4">
-                  <SearchButton onSearch={props.onSearch} />
-                </div>
-                <For each={project().links}>{(link) => <LinkButton link={link} class="px-2 py-1 text-xs" />}</For>
-              </>
-            )}
-          </Show>
+          <div class="pr-4">
+            <SearchButton onSearch={props.onSearch} />
+          </div>
+          <For each={docs.links()}>{(link) => <LinkButton link={link} class="px-2 py-1 text-xs" />}</For>
           <div class="ml-2">
             <ThemeToggle />
           </div>

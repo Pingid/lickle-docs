@@ -6,7 +6,7 @@ import { clientFiles } from '../env.ts'
 
 export type ViteContext = {
   dir: string
-  json: () => Promise<Config.ProjectJson>
+  json: () => Promise<Config.ProjectVersion>
   file: () => Promise<string | undefined>
   current: () => Promise<Build.BuildResult>
   rebuild: () => Promise<void>

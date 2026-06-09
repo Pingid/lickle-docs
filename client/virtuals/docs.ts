@@ -1,6 +1,8 @@
-import type { DocsJson } from '@lickle/docs/config'
+import type { Types } from '@lickle/docs/ui'
 
-const schema: DocsJson = {
+const schema: Types.DocsJson = {
+  name: '',
+  links: [],
   versions: [],
 }
 

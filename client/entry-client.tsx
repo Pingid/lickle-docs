@@ -9,7 +9,7 @@ import languages from './virtuals/languages.ts'
 import '@lickle/docs/theme.css'
 
 // json is inlined into the HTML by the shell (Step 3) — read it back
-const json = (window as any).__LICKLE_JSON__ as Types.ProjectJson
+const json = (window as any).__LICKLE_JSON__ as Types.DocsJson
 
 hydrate(
   () => (

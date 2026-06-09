@@ -8,7 +8,7 @@ import { Node } from '../../_lib/index.ts'
 import { htmlShellGenerator } from '../context/index.ts'
 
 type GenerateStaticOptions = {
-  json: Core.Config.ProjectJson
+  json: Core.Config.ProjectVersion
   outDir: string
   baseUrl: string
   assetsDir: string
@@ -19,7 +19,7 @@ type GenerateStaticOptions = {
   noJavascript?: boolean
 }
 
-type RenderPage = (json: Core.Config.ProjectJson, url: string) => Promise<{ body: string; head: string }>
+type RenderPage = (json: Core.Config.ProjectVersion, url: string) => Promise<{ body: string; head: string }>
 
 export const generateStatic = async (opts: GenerateStaticOptions) => {
   opts.logger.info(`\nGenerating static routes...\n`)
@@ -45,7 +45,7 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const { renderPage } = await Node.Jiti.importModule<{ renderPage: RenderPage }>(serverSrc)
   const htmlShell = await htmlShellGenerator()
 
-  for (const route of opts.json.routes.items) {
+  for (const route of opts.json.routes) {
     // The base route (`/` or empty) owns `index.html`; others map their slug to
     // a `<slug>.html` file (a leading slash would break the filename).
     const rel = route.slug.replace(/^\/+/, '')
