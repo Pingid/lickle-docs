@@ -21,6 +21,9 @@ export const useSearch = (): (() => SearchEngine) => {
       INSTANCE.set(router, engine)
       return engine
     },
+    // Search is client-only; skip building on the server so the engine's
+    // `query` function is never serialized into the hydration payload.
+    { ssrLoadFrom: 'initial' },
   )
   return createMemo(() => engine() ?? { query: async () => [] })
 }
