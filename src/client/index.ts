@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { Node, Util } from '../_lib/index.ts'
 
-import { clientFiles, libRoot } from './env.ts'
+import { clientFiles, libRoot, resolveFile } from './env.ts'
 import * as Context from './context/index.ts'
 import * as Plugin from './plugins/index.ts'
 import * as Ssg from './ssg/index.ts'
@@ -29,7 +29,11 @@ export const dev = async (options: ClientOptions) => {
 }
 
 export const preview = async (options: ClientOptions) => {
-  const server = await vite.preview({ build: { outDir: options.outDir }, server: { port: options.port } })
+  const server = await vite.preview({
+    base: options.baseUrl,
+    build: { outDir: options.outDir },
+    server: { port: options.port },
+  })
   server.printUrls()
   Node.onExit(() => server.close())
   return server
@@ -70,7 +74,7 @@ const client = (opts: ClientOptions, context: Context.ViteContext) => {
   config.plugins = [Plugin.html(context), solid(), ...tailwindcss(), ...config.plugins]
   return Util.deepMerge(config, {
     define: { 'import.meta.env.VITE_ROUTER_TYPE': JSON.stringify(opts.router) },
-    resolve: { alias: devAlias() },
+    resolve: { alias: libAlias() },
   } satisfies vite.UserConfig)
 }
 
@@ -102,15 +106,35 @@ const shared = (opts: ClientOptions, context: Context.ViteContext) => {
     plugins: [Plugin.docs(context), Plugin.components(context), Plugin.shiki(context), Plugin.resolve(context)],
     build: { outDir: opts.outDir, emptyOutDir: true, assetsDir: 'lickle-doc-assets' },
     server: { port: opts.port, fs: { allow: [clientFiles.root] } },
-    resolve: { alias: devAlias() },
+    resolve: { alias: libAlias() },
+    // When installed in a consumer, Vite's dep scanner can't crawl the docs
+    // app's graph (virtual modules + an entry outside `root`), so it skips
+    // pre-bundling and serves deps raw. That breaks CJS/UMD interop — notably
+    // sucrase -> @jridgewell/trace-mapping -> resolve-uri (UMD). Force-include
+    // the browser deps so they're always optimized to ESM.
+    optimizeDeps: { include: BROWSER_DEPS },
     clearScreen: false,
   } satisfies vite.UserConfig
 }
 
-const devAlias = () => {
-  const LIB_UI_PATH = path.resolve(libRoot, './src/ui/index.ts')
+// `@solidjs/router` and `solid-js` are intentionally omitted: they ship as raw
+// JSX/are handled by `vite-plugin-solid`, and can't be esbuild pre-bundled.
+/** Runtime dependencies the docs client loads in the browser. */
+const BROWSER_DEPS = [
+  '@lickle/cn',
+  'sucrase',
+  '@orama/orama',
+  'marked',
+  'shiki',
+  'shiki/core',
+  'shiki/langs',
+  'shiki/engine/oniguruma',
+]
+
+const libAlias = () => {
+  const LIB_UI_PATH = resolveFile('ui/index.ts')
   const LIB_THEME_CSS_PATH = path.resolve(libRoot, 'theme.css')
-  const LIB_SOLIDJS_PATH = path.resolve(libRoot, './src/solidjs/index.ts')
+  const LIB_SOLIDJS_PATH = resolveFile('solidjs/index.ts')
 
   return {
     '@lickle/docs/ui': LIB_UI_PATH,

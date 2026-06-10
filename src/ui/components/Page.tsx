@@ -1,17 +1,18 @@
 import { For, Match, Show, Switch, createMemo } from 'solid-js'
 
 import { createSlot, type Types } from '../context/index.tsx'
+import { useDocRouter, useProject } from '../hooks/index.ts'
 import { groupItems } from '../../core/client/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
-import { A } from '../util/router.tsx'
+import { staticComponent } from '../util/solid.tsx'
 import { labelOf } from '../util/kind.ts'
+import { A } from '../util/router.tsx'
 
 import { CopyPageButton } from './CopyPage.tsx'
 import { Declaration } from './Declaration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Type } from './Type.tsx'
-import { useDocRouter, useProject } from '../hooks/index.ts'
 
 /**
  * A doc route renders its declaration (header + body), its member links and its
@@ -72,7 +73,7 @@ export const PageHeader = createSlot('page.header', (props: { decl: Types.Declar
 ))
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
-export const Source = (props: { decl: Types.Declaration }) => {
+export const Source = staticComponent((props: { decl: Types.Declaration }) => {
   const project = useProject()
   const sources = createMemo(() => {
     return (props.decl.sources ?? []).map((s) => ({
@@ -98,7 +99,7 @@ export const Source = (props: { decl: Types.Declaration }) => {
       )}
     </For>
   )
-}
+})
 
 /**
  * Member listing for a declaration page: the route's children grouped by kind,
@@ -115,7 +116,7 @@ const Links = (props: { links: Types.DocLink[] }) => {
             <h2 class="text-sm font-semibold mb-3 pb-1.5 border-b border-line capitalize">{group.group}</h2>
           </Show>
           <ul class="space-y-3">
-            <For each={group.items}>{(l) => <LinkRow link={l} />}</For>
+            <For each={group.items.sort((a, b) => a.alias.localeCompare(b.alias))}>{(l) => <LinkRow link={l} />}</For>
           </ul>
         </section>
       )}
@@ -175,7 +176,7 @@ const Signature = (props: { decl: Types.Declaration }) => {
  * "Referenced In" backlinks from the route's `referenced` refs, grouped and
  * ordered with the same {@link groupItems} the sidebar and member lists use.
  */
-export const References = (props: { referenced: Types.DocLink[] }) => {
+export const References = staticComponent((props: { referenced: Types.DocLink[] }) => {
   const groups = createMemo(() => groupItems(props.referenced, (r) => r.group))
   return (
     <Show when={props.referenced.length}>
@@ -196,7 +197,7 @@ export const References = (props: { referenced: Types.DocLink[] }) => {
       </section>
     </Show>
   )
-}
+})
 
 const ReferenceRow = (props: { typeRef: Types.DocLink }) => {
   const project = useProject()

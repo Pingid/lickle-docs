@@ -2,8 +2,9 @@ import { createMemo, For, Show } from 'solid-js'
 
 import { createSlot, type Types } from '../../context/index.tsx'
 import { useCommentMarkdown } from '../../hooks/index.ts'
+import { staticComponent } from '../../util/solid.tsx'
 
-import { Markdown } from '../Markdown.tsx'
+import { Markdown, MarkdownInline } from '../Markdown.tsx'
 import { Tag, TagKind } from './Tag.tsx'
 import { Type } from '../Type.tsx'
 
@@ -38,45 +39,46 @@ export const Comment = createSlot('comment', (props) => {
   )
 })
 
-const NamedTable = (props: {
-  title: string
-  tags: Types.CommentTagMap['@property'][] | Types.CommentTagMap['@param'][]
-}) => {
-  return (
-    <section class="mt-6">
-      <div class="flex items-baseline gap-2 mb-2">
-        <TagKind kind={props.title} />
-      </div>
-      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
-        <For each={props.tags}>{(it) => <NamedRow item={it} />}</For>
-      </dl>
-    </section>
-  )
-}
+const NamedTable = staticComponent(
+  (props: { title: string; tags: Types.CommentTagMap['@property'][] | Types.CommentTagMap['@param'][] }) => {
+    return (
+      <section class="mt-6">
+        <div class="flex items-baseline gap-2 mb-2">
+          <TagKind kind={props.title} />
+        </div>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
+          <For each={props.tags}>{(it) => <NamedRow item={it} />}</For>
+        </dl>
+      </section>
+    )
+  },
+)
 
-const NamedRow = (props: { item: Types.CommentTagMap['@property'] | Types.CommentTagMap['@param'] }) => (
-  <>
-    <dt class="font-mono text-sm whitespace-nowrap">
-      <span class="font-semibold">{props.item.name}</span>
-      <Show when={props.item.optional}>
-        <span class="text-mute">?</span>
-      </Show>
-      <Show when={props.item.type}>
-        <>
-          <span class="text-mute">: </span>
-          <Type type={props.item.type!} />
-        </>
-      </Show>
-      <Show when={props.item.default}>
-        <span class="text-mute"> = {props.item.default}</span>
-      </Show>
-    </dt>
-    <dd class="text-sm text-mute min-w-0">
-      <Show when={trimLead(props.item.text)}>
-        <Markdown.Inline source={trimLead(props.item.text)} />
-      </Show>
-    </dd>
-  </>
+const NamedRow = staticComponent(
+  (props: { item: Types.CommentTagMap['@property'] | Types.CommentTagMap['@param'] }) => (
+    <>
+      <dt class="font-mono text-sm whitespace-nowrap">
+        <span class="font-semibold">{props.item.name}</span>
+        <Show when={props.item.optional}>
+          <span class="text-mute">?</span>
+        </Show>
+        <Show when={props.item.type}>
+          <>
+            <span class="text-mute">: </span>
+            <Type type={props.item.type!} />
+          </>
+        </Show>
+        <Show when={props.item.default}>
+          <span class="text-mute"> = {props.item.default}</span>
+        </Show>
+      </dt>
+      <dd class="text-sm text-mute min-w-0">
+        <Show when={trimLead(props.item.text)}>
+          <MarkdownInline source={trimLead(props.item.text)} />
+        </Show>
+      </dd>
+    </>
+  ),
 )
 
 type Named = Types.CommentTagMap['@property'] | Types.CommentTagMap['@param']

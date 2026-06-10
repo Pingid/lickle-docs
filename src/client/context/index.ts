@@ -21,16 +21,25 @@ export const makeContext = (opts: { dir: string }): ViteContext => {
   return { ...builder, dir: opts.dir }
 }
 
+/** Prefix root-absolute `href`/`src` URLs (not `//` or protocols) with `base`. */
+const withBaseHtml = (html: string, baseUrl: string): string => {
+  const base = baseUrl.replace(/\/+$/, '')
+  return base ? html.replace(/\b(href|src)="\/(?!\/)/g, `$1="${base}/`) : html
+}
+
 export const htmlShellGenerator = async () => {
   const template = await Node.Fs.readFile(clientFiles.htmlTemplate, 'utf8')
   return (opts: { body: string; head: string; title: string }) =>
     template.replace('{{TITLE}}', opts.title).replace('{{BODY}}', opts.body).replace('{{HEAD}}', opts.head)
 }
 
-export const createShellStreamer = async () => {
+export const createShellStreamer = async (baseUrl = '/') => {
   const template = await Node.Fs.readFile(clientFiles.htmlTemplate, 'utf8')
-  // Split the template exactly at the {{BODY}} placeholder
-  const [beforeBody, afterBody] = template.split('{{BODY}}') as [string, string]
+  // Split the template exactly at the {{BODY}} placeholder. Rewrite the
+  // template's own root-absolute assets (e.g. favicons) against `base` — the
+  // injected head/css are already prefixed, and {{...}} placeholders have no
+  // href/src so they're untouched.
+  const [beforeBody, afterBody] = withBaseHtml(template, baseUrl).split('{{BODY}}') as [string, string]
 
   return (filePath: string, opts: { title?: string; head?: string; script?: string }) => {
     // Prepare the header chunk
@@ -81,7 +90,7 @@ export const createShellStreamer = async () => {
 
       // Inject the script tag after the root div, inside the body
       if (opts.script) {
-        this.write(`<script>${opts.script}</script>`)
+        this.write(opts.script)
       }
 
       // Append the closing HTML tags right before sealing the file

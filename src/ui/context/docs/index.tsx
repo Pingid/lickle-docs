@@ -85,7 +85,7 @@ const resolveDocs = (input: DocsInput): Types.DocsJson | null => {
   const s = typeof input === 'function' ? input() : input
   if (!s) return null
   if ('versions' in s) return s
-  return { name: s.name, links: [], versions: [{ version: s.version ?? '', slug: '', alias: s.name, get: s }] }
+  return { name: s.name, links: [], versions: [{ version: s.version ?? '', slug: '', get: s }] }
 }
 
 type MaybeAccessor<T> = (() => T) | T

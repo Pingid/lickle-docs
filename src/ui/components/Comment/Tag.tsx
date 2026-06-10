@@ -4,7 +4,7 @@ import { Dynamic } from 'solid-js/web'
 
 import { createSlot, type Types } from '../../context/index.tsx'
 import { CodeBlock } from '../Code/index.tsx'
-import { Markdown } from '../Markdown.tsx'
+import { Markdown, MarkdownInline } from '../Markdown.tsx'
 import { Type } from '../Type.tsx'
 import { Link } from '../Link.tsx'
 
@@ -22,7 +22,7 @@ export const TagSection = (props: { tag: Types.CommentTag; description?: string;
         <Show when={props.description}>
           {(description) => (
             <div class="text-xs text-mute min-w-0">
-              <Markdown.Inline source={description()} />
+              <MarkdownInline source={description()} />
             </div>
           )}
         </Show>
@@ -97,7 +97,7 @@ const TagTemplate = (props: { tag: Types.CommentTagMap['@template'] }) => (
     </dl>
     <Show when={props.tag.text?.trim()}>
       <div class="mt-2">
-        <Markdown.Inline source={props.tag.text} />
+        <MarkdownInline source={props.tag.text} />
       </div>
     </Show>
   </TagSection>

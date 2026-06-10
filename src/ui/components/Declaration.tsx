@@ -2,9 +2,9 @@ import { For, Show, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
 import { createSlot, type Types } from '../context/index.tsx'
+import { Type, TypeSignature } from './Type.tsx'
 import { Comment } from './Comment/index.tsx'
 import { Syntax } from './Syntax.tsx'
-import { Type } from './Type.tsx'
 
 /**
  * Dispatch a declaration to its per-kind renderer. Implemented via `Dynamic`
@@ -146,7 +146,7 @@ const Members = (props: {
 }) => (
   <>
     <MemberSection title="Constructors" when={props.constructors?.length}>
-      <For each={props.constructors}>{(sig) => <Type.Signature sig={sig} name="constructor" kind="constructor" />}</For>
+      <For each={props.constructors}>{(sig) => <TypeSignature sig={sig} name="constructor" kind="constructor" />}</For>
     </MemberSection>
     <MemberSection title="Properties" when={props.properties?.length || props.indexSignature}>
       <For each={props.properties}>{(p) => <PropertyRow prop={p} />}</For>
@@ -154,14 +154,14 @@ const Members = (props: {
     </MemberSection>
     <MemberSection title="Methods" when={props.methods?.length}>
       <For each={props.methods}>
-        {(m) => <For each={m.signatures}>{(sig) => <Type.Signature sig={sig} name={m.name} kind="method" />}</For>}
+        {(m) => <For each={m.signatures}>{(sig) => <TypeSignature sig={sig} name={m.name} kind="method" />}</For>}
       </For>
     </MemberSection>
     <MemberSection title="Call Signatures" when={props.callSignatures?.length}>
-      <For each={props.callSignatures}>{(sig) => <Type.Signature sig={sig} />}</For>
+      <For each={props.callSignatures}>{(sig) => <TypeSignature sig={sig} />}</For>
     </MemberSection>
     <MemberSection title="Construct Signatures" when={props.constructSignatures?.length}>
-      <For each={props.constructSignatures}>{(sig) => <Type.Signature sig={sig} kind="constructor" />}</For>
+      <For each={props.constructSignatures}>{(sig) => <TypeSignature sig={sig} kind="constructor" />}</For>
     </MemberSection>
   </>
 )

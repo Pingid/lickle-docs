@@ -1,4 +1,4 @@
-import { renderToStringAsync, generateHydrationScript, renderToStream } from 'solid-js/web'
+import { generateHydrationScript, renderToStream } from 'solid-js/web'
 import { StaticRouter } from '@solidjs/router'
 
 import { App, LanguagesProvider, loadHighlighter } from '../../ui/index.ts'
@@ -18,8 +18,7 @@ const root = (json: DocsInput, url: string) => (
 )
 
 const Server = {
-  hydrationScript: generateHydrationScript(),
-  renderToString: (json: DocsInput, url: string) => renderToStringAsync(() => root(json, url)),
+  hydrationScript: () => generateHydrationScript(),
   renderToStream: (
     json: DocsInput,
     url: string,

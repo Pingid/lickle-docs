@@ -41,7 +41,12 @@ export const builder = (opts: ContextOptions) => {
     },
     build: (): DocRoutes => {
       return {
-        routes: routes.filter((r) => r.kind !== 'doc' || navigable.has(r.decl)),
+        routes: routes
+          .filter((r) => r.kind !== 'doc' || navigable.has(r.decl))
+          .sort((a, b) => {
+            if (a.kind === 'page') return -1
+            return a.title.localeCompare(b.title)
+          }),
         declarations: declarations.filter((d) => navigable.has(d.id)),
       }
     },

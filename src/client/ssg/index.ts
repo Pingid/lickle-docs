@@ -37,10 +37,10 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
 
   // Server script
   const serverManifest = await readManifest(opts.serverOutDir, opts.baseUrl)
-  const serverModule = await Node.Jiti.importModule<ServerEntry>(serverManifest.entry()!.filePath)
+  const serverModule = await Node.Jiti.importModule<{ default: ServerEntry }>(serverManifest.entry()!.filePath)
 
   const router = createRouter({ routes: opts.json.routes, prefix: { doc: opts.json.name.replace(/^@/, ''), page: '' } })
-  const shellStreamer = await createShellStreamer()
+  const shellStreamer = await createShellStreamer(opts.baseUrl)
 
   const gen = async (route: Core.Router.Route) => {
     const rel = route.slug.replace(/^\/+/, '')
@@ -56,7 +56,7 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
     if (!opts.noJavascript) bodyHtml.push(`<script type="module" src="${clientManifest.entry()?.href}"></script>`)
 
     const css = clientManifest.css().map((c) => `<link rel="stylesheet" href="${c.href}" />`)
-    const head = [...css, serverModule.hydrationScript].join('\n')
+    const head = [...css, serverModule.default.hydrationScript()].join('\n')
 
     const fileStream = shellStreamer(outPath, {
       title: isHome ? opts.json.name : route.title,
@@ -64,8 +64,12 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
       script: bodyHtml.join('\n'),
     })
 
+    // The server Router is mounted with `base`, so route patterns are
+    // `${base}/*slug`. Feed it a base-prefixed URL or nothing matches.
+    const url = prefixSlash(path.join(opts.baseUrl, route.slug))
+
     await new Promise<void>((resolve) => {
-      const body = serverModule.renderToStream(opts.json, prefixSlash(route.slug), {
+      const body = serverModule.default.renderToStream(opts.json, url, {
         onCompleteAll: () => resolve(),
       })
       body.pipe(fileStream)

@@ -7,12 +7,36 @@ import { type Types } from '../context/index.tsx'
 import { type Kind, labelOf, shortOf } from '../util/kind.ts'
 import { useSlugFor } from '../hooks/index.ts'
 
+import { staticComponent } from '../util/solid.tsx'
+import { MarkdownInline } from './Markdown.tsx'
 import { Comment } from './Comment/index.tsx'
-import { Markdown } from './Markdown.tsx'
 import { Syntax } from './Syntax.tsx'
 import { Link } from './Link.tsx'
 
 type T = Types.Type
+
+/**
+ * Type signature + its doc block. Parameter descriptions come from the
+ * `@param` tags inside `sig.comment` and are rendered by `<Comment>` itself,
+ * so there's no separate parameter table here.
+ */
+export const TypeSignature = (props: {
+  sig: Types.Part<'signature'>
+  name?: string
+  id?: number
+  kind?: 'function' | 'method' | 'constructor'
+}) => {
+  return (
+    <div class="mb-8">
+      <Type.SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
+      <Show when={props.sig.comment}>
+        <div class="mt-2">
+          <Comment comment={props.sig.comment} />
+        </div>
+      </Show>
+    </div>
+  )
+}
 
 /**
  * Render an arbitrary type. The body re-evaluates when `props.type` changes
@@ -21,7 +45,9 @@ type T = Types.Type
  * pitfall where a top-level `switch` in a component runs only on mount).
  */
 export const Type = (props: { type: T | undefined }) => {
-  const renderer = createMemo(() => (props.type ? (RENDERERS[props.type.kind] ?? Type.Unknown) : null))
+  const renderer = createMemo(() =>
+    staticComponent(props.type ? (RENDERERS[props.type.kind] ?? Type.Unknown) : () => null),
+  )
   return (
     <Show when={props.type && renderer()}>
       {(r) => <Dynamic component={r() as Component<{ type: T }>} type={props.type!} />}
@@ -492,7 +518,7 @@ Type.Inline = (props: { type?: Types.Type; text: string }) => (
       </div>
     </Show>
     <Show when={props.text?.trim()}>
-      <Markdown.Inline source={props.text} />
+      <MarkdownInline source={props.text} />
     </Show>
   </>
 )
@@ -574,39 +600,4 @@ Type.SignatureLine = (props: {
     <Syntax.Punct>: </Syntax.Punct>
     <Type type={props.sig.return} />
   </div>
-)
-
-/**
- * Type signature + its doc block. Parameter descriptions come from the
- * `@param` tags inside `sig.comment` and are rendered by `<Comment>` itself,
- * so there's no separate parameter table here.
- */
-Type.Signature = (props: {
-  sig: Types.Part<'signature'>
-  name?: string
-  id?: number
-  kind?: 'function' | 'method' | 'constructor'
-}) => {
-  return (
-    <div class="mb-8">
-      <Type.SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
-      <Show when={props.sig.comment}>
-        <div class="mt-2">
-          <Comment comment={props.sig.comment} />
-        </div>
-      </Show>
-    </div>
-  )
-}
-
-Type.SignatureCompact = (props: {
-  sig: Types.Part<'signature'>
-  name?: string
-  id?: number
-  kind?: 'function' | 'method' | 'constructor'
-}) => (
-  <>
-    <Type.SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
-    <Comment comment={props.sig.comment} />
-  </>
 )
