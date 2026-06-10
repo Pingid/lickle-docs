@@ -1,11 +1,13 @@
 import * as vite from 'vite'
 import path from 'node:path'
 import pc from 'picocolors'
+// import pMap from 'p-map'
 
 import * as Core from '../../core/index.ts'
 import { Node } from '../../_lib/index.ts'
 
-import { htmlShellGenerator } from '../context/index.ts'
+import type { ServerEntry } from '../entrypoints/entry-server.tsx'
+import { createShellStreamer } from '../context/index.ts'
 import { createRouter } from '../../core/client/index.ts'
 
 type GenerateStaticOptions = {
@@ -20,15 +22,10 @@ type GenerateStaticOptions = {
   noJavascript?: boolean
 }
 
-type RenderPage = (json: Core.Config.ProjectVersion, url: string) => Promise<{ body: string; head: string }>
-
 export const generateStatic = async (opts: GenerateStaticOptions) => {
   opts.logger.info(`\nGenerating static routes...\n`)
   // Client script and css
-  const manifest = await readManifest(path.join(opts.outDir, '.vite', 'manifest.json'))
-  const entry = manifest[path.basename(opts.clientEntry)]
-  const clientSrc = prefixSlash(path.join(opts.baseUrl, entry?.file ?? ''))
-  const cssHref = prefixSlash(path.join(opts.baseUrl, entry?.css?.[0] ?? ''))
+  const clientManifest = await readManifest(opts.outDir, opts.baseUrl)
 
   // Project Json script
   const serializedJson = serializeJson(opts.json)
@@ -39,39 +36,51 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const jsonHref = prefixSlash(path.join(opts.baseUrl, path.relative(opts.outDir, outPath)))
 
   // Server script
-  const serverManifest = await readManifest(path.join(opts.serverOutDir, '.vite', 'manifest.json'))
-  const serverEntry = serverManifest[path.basename(opts.serverEntry)]?.file
-  const serverSrc = path.resolve(opts.serverOutDir, serverEntry ?? '')
-
-  const { renderPage } = await Node.Jiti.importModule<{ renderPage: RenderPage }>(serverSrc)
-  const htmlShell = await htmlShellGenerator()
+  const serverManifest = await readManifest(opts.serverOutDir, opts.baseUrl)
+  const serverModule = await Node.Jiti.importModule<ServerEntry>(serverManifest.entry()!.filePath)
 
   const router = createRouter({ routes: opts.json.routes, prefix: { doc: opts.json.name.replace(/^@/, ''), page: '' } })
+  const shellStreamer = await createShellStreamer()
 
-  for (const route of router.items) {
-    // The base route (`/` or empty) owns `index.html`; others map their slug to
-    // a `<slug>.html` file (a leading slash would break the filename).
+  const gen = async (route: Core.Router.Route) => {
     const rel = route.slug.replace(/^\/+/, '')
     const isHome = rel === ''
-    const { body, head } = await renderPage(opts.json, prefixSlash(route.slug))
+    const outPath = path.join(opts.outDir, isHome ? 'index.html' : rel + '.html')
+    await Node.Fs.ensureDir(outPath)
 
-    const bodyHtml = [`<div id="root">${body}</div>`, `<script type="module" src="${jsonHref}"></script>`]
-    if (!opts.noJavascript) bodyHtml.push(`<script type="module" src="${clientSrc}"></script>`)
+    opts.logger.info(
+      `${pc.gray(path.relative(process.cwd(), opts.outDir) + '/')}${pc.blue(path.relative(opts.outDir, outPath))}`,
+    )
 
-    const html = htmlShell({
-      body: bodyHtml.join('\n'),
-      head: [`<link rel="stylesheet" href="${cssHref}" />`, head].join('\n'),
+    const bodyHtml = [`<script type="module" src="${jsonHref}"></script>`]
+    if (!opts.noJavascript) bodyHtml.push(`<script type="module" src="${clientManifest.entry()?.href}"></script>`)
+
+    const css = clientManifest.css().map((c) => `<link rel="stylesheet" href="${c.href}" />`)
+    const head = [...css, serverModule.hydrationScript].join('\n')
+
+    const fileStream = shellStreamer(outPath, {
       title: isHome ? opts.json.name : route.title,
+      head,
+      script: bodyHtml.join('\n'),
     })
 
-    const outPath = path.join(opts.outDir, isHome ? 'index.html' : rel + '.html')
+    await new Promise<void>((resolve) => {
+      const body = serverModule.renderToStream(opts.json, prefixSlash(route.slug), {
+        onCompleteAll: () => resolve(),
+      })
+      body.pipe(fileStream)
+    })
 
-    await Node.Fs.ensureDir(outPath)
-    await Node.Fs.writeFile(outPath, html)
     opts.logger.info(
       `${pc.gray(path.relative(process.cwd(), opts.outDir) + '/')}${pc.green(path.relative(opts.outDir, outPath))}`,
     )
   }
+
+  for (const route of router.items) {
+    await gen(route)
+  }
+
+  // await pMap(router.items, gen, { concurrency: 10 })
 
   await Node.Fs.rm(opts.serverOutDir, { recursive: true })
   await Node.Fs.rm(path.join(opts.outDir, '.vite'), { recursive: true })
@@ -88,8 +97,25 @@ type ManifestChunk = {
 }
 type Manifest = Record<string, ManifestChunk>
 
-const readManifest = async (manifestPath: string): Promise<Manifest> =>
-  JSON.parse(await Node.Fs.readFile(manifestPath, 'utf8')) as Manifest
+const readManifest = async (dir: string, baseUrl: string) => {
+  const m = JSON.parse(await Node.Fs.readFile(path.join(dir, '.vite', 'manifest.json'), 'utf8')) as Manifest
+
+  const css = () =>
+    Object.values(m)
+      .filter((m) => m.css)
+      .map((m) => m.css)
+      .flat()
+      .filter((x) => x !== undefined)
+      .map((c) => ({ href: prefixSlash(path.join(baseUrl, c)) }))
+
+  const entry = () => {
+    const entry = Object.values(m).find((m) => m.isEntry)
+    if (!entry) return
+    return { ...entry, filePath: path.join(dir, entry.file), href: prefixSlash(path.join(baseUrl, entry.file)) }
+  }
+
+  return { css, entry }
+}
 
 // Guard against </script> in string content breaking the inline script, and XSS.
 const serializeJson = (json: unknown): string =>

@@ -2,7 +2,7 @@ import { createMemo, type Accessor } from 'solid-js'
 import { useParams } from '@solidjs/router'
 
 import { useHighlighter } from '../context/highlight/index.tsx'
-import { useMarkdown } from '../context/markdown/index.tsx'
+import { useMarkdown } from './markdown/index.ts'
 
 import { commentToMarkdown } from '../util/markdown.ts'
 import type { Types } from '../context/index.tsx'

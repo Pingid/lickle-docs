@@ -1,4 +1,5 @@
 export {
+  useDocActiveProject,
   useTheme,
   useComponents,
   ThemeProvider,

@@ -1,7 +1,7 @@
 import { Router } from '@solidjs/router'
 import { hydrate } from 'solid-js/web'
 
-import { App, type Types, LanguagesProvider } from '@lickle/docs/ui'
+import { App, type Types, LanguagesProvider } from '../../ui/index.ts'
 
 import components from './virtuals/components.ts'
 import languages from './virtuals/languages.ts'

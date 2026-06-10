@@ -69,8 +69,8 @@ const client = (opts: ClientOptions, context: Context.ViteContext) => {
   const config = shared(opts, context)
   config.plugins = [Plugin.html(context), solid(), ...tailwindcss(), ...config.plugins]
   return Util.deepMerge(config, {
-    resolve: { alias: devAlias() },
     define: { 'import.meta.env.VITE_ROUTER_TYPE': JSON.stringify(opts.router) },
+    resolve: { alias: devAlias() },
   } satisfies vite.UserConfig)
 }
 
@@ -102,10 +102,11 @@ const shared = (opts: ClientOptions, context: Context.ViteContext) => {
     plugins: [Plugin.docs(context), Plugin.components(context), Plugin.shiki(context), Plugin.resolve(context)],
     build: { outDir: opts.outDir, emptyOutDir: true, assetsDir: 'lickle-doc-assets' },
     server: { port: opts.port, fs: { allow: [clientFiles.root] } },
-    resolve: { alias: {} },
+    resolve: { alias: devAlias() },
     clearScreen: false,
   } satisfies vite.UserConfig
 }
+
 const devAlias = () => {
   const LIB_UI_PATH = path.resolve(libRoot, './src/ui/index.ts')
   const LIB_THEME_CSS_PATH = path.resolve(libRoot, 'theme.css')

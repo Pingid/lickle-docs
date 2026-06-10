@@ -5,7 +5,6 @@ import type { JSX } from 'solid-js/jsx-runtime'
 import { ComponentsProvider, ThemeProvider, type Components } from './context/index.tsx'
 import { DocsProvider, useDocActiveProject, type DocsInput } from './context/docs/index.tsx'
 import { Route, useParams, Navigate, HashRouter } from './util/router.tsx'
-import { MarkdownProvider } from './context/markdown/index.tsx'
 import { Link, Page, Layout } from './components/index.ts'
 import { Loading } from './components/Loading.tsx'
 import { useDocRouter } from './hooks/index.ts'
@@ -27,13 +26,15 @@ export interface AppProps {
 export const App = (p: AppProps) => {
   const Router = p.Router ?? HashRouter
   return (
-    <DocsProvider value={p.docs ?? null}>
-      <ComponentsProvider value={p.components}>
-        <Router base={BASE_URL} url={p.url}>
-          <Route path="/*slug" component={AppRoutes} />
-        </Router>
-      </ComponentsProvider>
-    </DocsProvider>
+    <ThemeProvider>
+      <DocsProvider value={p.docs ?? null}>
+        <ComponentsProvider value={p.components}>
+          <Router base={BASE_URL} url={p.url}>
+            <Route path="/*slug" component={AppRoutes} />
+          </Router>
+        </ComponentsProvider>
+      </DocsProvider>
+    </ThemeProvider>
   )
 }
 
@@ -41,24 +42,20 @@ const AppRoutes: Component<RouteSectionProps> = () => {
   const doc = useDocActiveProject()
 
   return (
-    <MarkdownProvider>
-      <ThemeProvider>
-        <Layout loading={doc.loading}>
-          <Switch>
-            <Match when={doc.current() !== null}>
-              <ProjectPage />
-            </Match>
-            <Match when={doc.loading()}>
-              <Loading />
-            </Match>
-            <Match when={doc.error()}>Error: {doc.error().message}</Match>
-            <Match when={doc.current() === null}>
-              <NotFound />
-            </Match>
-          </Switch>
-        </Layout>
-      </ThemeProvider>
-    </MarkdownProvider>
+    <Layout loading={doc.loading}>
+      <Switch>
+        <Match when={doc.current() !== null}>
+          <ProjectPage />
+        </Match>
+        <Match when={doc.loading()}>
+          <Loading />
+        </Match>
+        <Match when={doc.error()}>Error: {doc.error().message}</Match>
+        <Match when={doc.current() === null}>
+          <NotFound />
+        </Match>
+      </Switch>
+    </Layout>
   )
 }
 

@@ -1,32 +1,26 @@
-import { createContext, createMemo, type ParentComponent, useContext, type Accessor } from 'solid-js'
+import { createMemo, type Accessor } from 'solid-js'
 import { Marked, type Tokens } from 'marked'
 
-import { useHighlighter } from '../highlight/index.tsx'
+import { useHighlighter } from '../../context/index.tsx'
 import { withBaseUrl } from '../../util/base.ts'
 
 export type MarkdownParser = (x: string, lookup: (raw: string) => string | undefined) => string
-const MarkdownContext = createContext<Accessor<MarkdownParser>>()
-export const useMarkdown = () => {
-  const ctx = useContext(MarkdownContext)
-  if (!ctx) throw new Error('useMarkdown must be used within a <MarkdownProvider>')
-  return ctx
-}
+const M = new Marked({ gfm: true, breaks: false })
 
-export const MarkdownProvider: ParentComponent = (p) => {
+export const useMarkdown = (): Accessor<MarkdownParser> => {
   const highligher = useHighlighter()
   const code = createMemo(() => {
     const hltr = highligher()
     const highlight = (x: { text: string; lang: string }) => hltr?.codeToHtml(x.text, { lang: x.lang }) ?? x.text
     return codeBlockRenderer(hltr?.available ?? new Set(), highlight)
   })
-  const marked = createMemo(() => new Marked({ gfm: true, breaks: false, renderer: { code: code() } }))
 
   const parser = createMemo(() => {
-    const m = marked()
     return (x: string, lookup: (raw: string) => string | undefined) =>
-      m.use({ renderer: { code: code(), codespan: codespanRenderer(lookup) } }).parse(x, { async: false })
+      M.use({ renderer: { code: code(), codespan: codespanRenderer(lookup) } }).parse(x, { async: false })
   })
-  return <MarkdownContext.Provider value={parser}>{p.children}</MarkdownContext.Provider>
+
+  return parser
 }
 
 const codespanRenderer = (lookup: (raw: string) => string | undefined) => (c: Tokens.Codespan) => {

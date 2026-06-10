@@ -1,4 +1,4 @@
-import type { Types } from '@lickle/docs/ui'
+import type { Types } from '../../../ui/index.ts'
 
 const schema: Types.DocsJson = {
   name: '',

@@ -97,7 +97,7 @@ const useCodeEditor = (props: CodeEditorProps) => {
   const init = () => {
     const el = _host
     const c = markup()
-    if (c && el) setup(el, c)
+    if (c && el && !isServer) setup(el, c)
   }
 
   createEffect(init)

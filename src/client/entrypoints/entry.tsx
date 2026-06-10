@@ -2,7 +2,7 @@ import { createEffect, createSignal } from 'solid-js'
 import { HashRouter, Router } from '@solidjs/router'
 import { render } from 'solid-js/web'
 
-import { type Types, App, LanguagesProvider } from '@lickle/docs/ui'
+import { type Types, App, LanguagesProvider } from '../../ui/index.ts'
 
 import components from './virtuals/components.ts'
 import languages from './virtuals/languages.ts'
