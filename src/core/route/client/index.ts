@@ -9,6 +9,7 @@ export type GroupedItems<T> = { group: string; items: T[] }
 export type SidebarRoute = Route & { children: GroupedItems<SidebarRoute>[] }
 
 export interface ClientRouter {
+  base: string
   items: Route[]
   sidebar: GroupedItems<SidebarRoute>[]
   get(match: { slug?: SlugPath; id?: number }): Route | undefined
@@ -68,6 +69,7 @@ export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: 
   const sidebar = buildSidebar(_sidebarRoot)
 
   return {
+    base: prefix,
     items: allRoutes,
     get: (match) => {
       if (typeof match.slug === 'string') return _bySlug.get(match.slug)

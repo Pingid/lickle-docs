@@ -13,7 +13,7 @@ export const renderPage = async (json: Types.DocsJson, url: string): Promise<{ b
   const highlighter = await loadHighlighter(languages)
   const body = await renderToStringAsync(() => (
     <LanguagesProvider langs={() => languages} highlighter={highlighter}>
-      <App docs={json} components={components} Router={(p) => <StaticRouter {...p} url={url} />} />
+      <App docs={json} components={components} Router={StaticRouter} url={url} />
     </LanguagesProvider>
   ))
   return { body, head: generateHydrationScript() }

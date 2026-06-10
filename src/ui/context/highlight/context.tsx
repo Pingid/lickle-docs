@@ -1,12 +1,4 @@
-import {
-  type Accessor,
-  createContext,
-  createEffect,
-  createMemo,
-  createResource,
-  createSignal,
-  useContext,
-} from 'solid-js'
+import { type Accessor, createContext, createEffect, createMemo, createSignal, useContext } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
 import { isServer } from 'solid-js/web'
 
@@ -23,10 +15,6 @@ export type CodeHighlighter = {
 export type Lang = { name: string; import: LanguageInput }
 export type Core = Awaited<ReturnType<typeof createHighlighterCore>>
 
-// The live highlighter exposes a `codeToHtml` function that cannot be
-// serialized into the SSR hydration payload, so it lives in a signal rather
-// than a resource value. The resource only exists to make `renderToStringAsync`
-// await the server-side build; the client rebuilds via an effect.
 const HighlightingContext = createContext<Accessor<CodeHighlighter | undefined>>()
 
 let cached: { key: string; core: Promise<Core> } | undefined
@@ -54,14 +42,6 @@ export function LanguagesProvider(props: { langs: Accessor<Lang[]>; highlighter?
   // Seed from a server-prebuilt instance so the SSR shell pass highlights.
   const [core, setCore] = createSignal<Core | undefined>(props.highlighter)
 
-  // Server awaits the build (in case it wasn't seeded); no-op on the client.
-  createResource(props.langs, async (langs) => {
-    if (isServer && !core()) {
-      const h = await loadHighlighter(langs)
-      setCore(() => h)
-    }
-    return null
-  })
   // Client builds after hydration (effects don't run during SSR).
   createEffect(() => {
     if (isServer) return

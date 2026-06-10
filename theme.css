@@ -26,6 +26,7 @@
   --sidebar-width: 12rem;
   --sidebar-sm-width: 16rem;
   --content-max-width: 1000px;
+  --sidebar-indent: 0.75rem;
 }
 
 :root {

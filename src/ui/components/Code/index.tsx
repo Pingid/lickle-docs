@@ -7,8 +7,15 @@ import { useCodeHighlight } from '../../hooks/index.ts'
 
 export const Code = (props: { code: string; lang?: string; class?: string }) => {
   const html = useCodeHighlight(props.code, props.lang ?? 'text')
-  return <Show when={html()}>{(h) => <div class={props.class} innerHTML={h()} />}</Show>
+  return (
+    <div
+      class={props.class}
+      innerHTML={html() ?? `<pre class="codeblock"><code>${escapeHtml(props.code)}</code></pre>`}
+    />
+  )
 }
+
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 export const CodeBlock = (props: { code: string; lang?: string }) => (
   <div class="bg-code-bg border border-line rounded-lg p-4">

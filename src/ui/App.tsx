@@ -13,9 +13,15 @@ import { useDocRouter } from './hooks/index.ts'
 import { BASE_URL } from './util/base.ts'
 
 export interface AppProps {
+  url?: string
   docs?: DocsInput
   components?: Components
-  Router?: Component<{ children: JSX.Element; root?: Component<{ children?: JSX.Element }>; base?: string }>
+  Router?: Component<{
+    children: JSX.Element
+    root?: Component<{ children?: JSX.Element }>
+    base?: string
+    url?: string
+  }>
 }
 
 export const App = (p: AppProps) => {
@@ -23,7 +29,7 @@ export const App = (p: AppProps) => {
   return (
     <DocsProvider value={p.docs ?? null}>
       <ComponentsProvider value={p.components}>
-        <Router base={BASE_URL}>
+        <Router base={BASE_URL} url={p.url}>
           <Route path="/*slug" component={AppRoutes} />
         </Router>
       </ComponentsProvider>

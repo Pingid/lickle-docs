@@ -1,4 +1,6 @@
-import { For, Show, createEffect, createSignal } from 'solid-js'
+import { For, Show } from 'solid-js'
+import cn from '@lickle/cn'
+
 import { A, useLocation } from '../util/router.tsx'
 
 import { createSlot, type Types } from '../context/index.tsx'
@@ -37,22 +39,24 @@ const NavChildren = (props: {
 }) => {
   if (props.depth > 10) return <div>Too deep</div>
   return (
-    <>
+    <div style={{ '--sidebar-depth': props.depth }}>
       <Show when={props.route.group}>
         <GroupLabel label={props.route.group} depth={props.depth} />
       </Show>
       <For each={props.route.items}>
         {(child) => <NavNode route={child} depth={props.depth} onNavigate={props.onNavigate} />}
       </For>
-    </>
+    </div>
   )
 }
 
 /** A non-interactive section heading shown above a run of related routes. */
 const GroupLabel = (props: { label: string; depth: number }) => (
   <div
-    class="pr-2 pt-2 pb-1 text-[0.6875rem] font-medium text-mute/55 select-none first:pt-1"
-    style={{ 'padding-left': `calc(${indent(props.depth)} + 1.625rem)` }}
+    class={cn(
+      'pr-2 pt-2 pb-1 text-[0.6875rem] font-medium text-mute/55 select-none first:pt-1',
+      'pl-[calc(var(--sidebar-depth)*var(--sidebar-indent))]',
+    )}
   >
     {props.label}
   </div>
@@ -71,64 +75,69 @@ type NodeProps = { route: Types.SidebarRoute; depth: number; onNavigate?: () => 
  * - A leaf route is a plain link.
  */
 const NavNode = (props: NodeProps) => {
-  // const project = useProject()
   const loc = useLocation()
+  const router = useDocRouter()
 
   const base = () => props.route.slug
-  const isActive = () => loc.pathname === base()
-  const onPath = () => isActive() || loc.pathname.startsWith(`${base()}/`)
-
-  const [open, setOpen] = createSignal(onPath())
-  // Auto-open the branch containing the active page; a manual collapse sticks
-  // until the route changes.
-  createEffect(() => onPath() && setOpen(true))
+  const isActive = () => {
+    if (props.route.slug === (router()?.base ?? '/') || !props.route.children.length) {
+      return loc.pathname === `/${props.route.slug}`
+    }
+    return loc.pathname.includes(base())
+  }
 
   return (
     <Show
       when={props.route.children.length > 0}
       fallback={
-        <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
+        <div class="pl-[calc(var(--sidebar-depth)*var(--sidebar-indent))]">
           <span class="w-5 shrink-0" />
-          <NodeLink route={props.route} active={isActive()} onNavigate={props.onNavigate} />
+          <NodeLink
+            class={cn('text-mute hover:bg-hover hover:text-fg transition-colors ')}
+            route={props.route}
+            active={isActive()}
+            onNavigate={props.onNavigate}
+          />
         </div>
       }
     >
-      <div>
-        <div class="flex items-center" style={{ 'padding-left': indent(props.depth) }}>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open()}
-            aria-label={open() ? 'Collapse section' : 'Expand section'}
-            class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors cursor-pointer"
-          >
-            <Chevron open={open()} />
-          </button>
-          <NodeLink route={props.route} active={isActive()} onNavigate={props.onNavigate} />
+      <details open={isActive()}>
+        <summary
+          class={cn(
+            'flex items-center list-none cursor-pointer [&::-webkit-details-marker]:hidden',
+            '[details[open]>summary>*]:text-fg',
+            'pl-[calc(var(--sidebar-depth)*var(--sidebar-indent))]',
+          )}
+        >
+          <span class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors">
+            <Chevron />
+          </span>
+          <NodeLink
+            class={cn('text-mute hover:bg-hover hover:text-fg transition-colors')}
+            route={props.route}
+            active={isActive()}
+            onNavigate={props.onNavigate}
+          />
+        </summary>
+        <div class="pb-2">
+          <NavList routes={props.route.children} depth={props.depth + 1} onNavigate={props.onNavigate} />
         </div>
-        <Show when={open()}>
-          <div class="pb-2">
-            <NavList routes={props.route.children} depth={props.depth + 1} onNavigate={props.onNavigate} />
-          </div>
-        </Show>
-      </div>
+      </details>
     </Show>
   )
 }
 
-const NodeLink = (props: { route: Route; active: boolean; onNavigate?: () => void }) => (
+const NodeLink = (props: { route: Route; active: boolean; onNavigate?: () => void; class?: string }) => (
   <A
     href={props.route.slug}
-    class="flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 text-mute hover:bg-hover hover:text-fg transition-colors min-w-0"
-    classList={{ '!text-fg !bg-hover font-medium': props.active }}
+    class={cn('flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 min-w-0', props.class)}
+    classList={{ '!text-fg font-medium': props.active }}
     onClick={() => props.onNavigate?.()}
   >
     <KindCue route={props.route} />
     <span class="font-mono truncate">{props.route.title}</span>
   </A>
 )
-
-const indent = (depth: number): string => `${depth * 0.75}rem`
 
 const KindCue = (props: { route: Route }) => {
   const project = useProject()
@@ -141,7 +150,7 @@ const Chevron = (props: { open?: boolean }) => (
     width="10"
     height="10"
     viewBox="0 0 12 12"
-    class="shrink-0 text-mute transition-transform"
+    class="shrink-0 text-mute transition-transform [details[open]>summary_&]:rotate-90"
     classList={{ 'rotate-90': props.open }}
     aria-hidden="true"
   >
