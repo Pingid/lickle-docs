@@ -16,13 +16,17 @@ import { clientOnly } from '../util/solid.tsx'
 
 const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
 
-/** id of the CSS-only drawer toggle checkbox; the mobile menu `<label>` targets it. */
+/**
+ * id of the CSS-only drawer toggle checkbox; the mobile menu `<label>` targets it.
+ * @internal
+ */
 export const MENU_TOGGLE_ID = 'lickle-menu-toggle'
 
 /**
  * Top bar: project name, version switcher (when several versions are
  * configured), search trigger, the config's `links` and the theme toggle.
  * Replaceable via the `header` slot.
+  * @group components
  */
 export const Header = createSlot('header', (props) => {
   const docs = useDocs()

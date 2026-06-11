@@ -1,19 +1,24 @@
-import type { t } from '../../../_lib/index.ts'
-import type { Reflect } from '../../index.ts'
 import type { Exposure } from '../../reflect/indexed.ts'
+import { memo } from '../../../_lib/util/index.ts'
+import type { Reflect } from '../../index.ts'
+
+/** A facade over a declaration that can expose members: a module or namespace. */
+export type ModuleFacade = DeclarationFacade<'module' | 'namespace'>
 
 /**
  * The declaration view adapter hooks receive: the raw declaration plus
  * index-aware helpers for the questions hooks usually ask — where it came
  * from, whether it is an entrypoint, whether it is public.
  */
-export type DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap> =
-  DeclarationFacadeMap[K]
-type DeclarationFacadeMap = t.MapKind<Reflect.DeclarationDefinitions, 'kind', Reflect.Base & DeclarationFacadeApi>
-/** A facade over a declaration that can expose members: a module or namespace. */
-export type ModuleFacade = DeclarationFacade<'module'> | DeclarationFacade<'namespace'>
-
-export interface DeclarationFacadeApi {
+export interface DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap> {
+  /** The declaration id */
+  id: number
+  /** The declaration kind */
+  kind: K
+  /** The declaration name */
+  name: string
+  /** The raw declaration */
+  raw: Reflect.Declaration<K>
   /** Get another declaration by id */
   get<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap>(
     id: number,
@@ -49,6 +54,8 @@ export interface DeclarationFacadeApi {
     /** Root modules where this declaration is exposed */
     root(): DeclarationFacade<'module'>[]
   }
+  /** Every comment tag of the declaration */
+  tags: Map<string, Reflect.CommentTag>
 }
 
 export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap>(
@@ -72,8 +79,19 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
     root: () => fromExposures(index.exposures(id).map((x) => x[0])) as DeclarationFacade<'module'>[],
   }
 
+  const tags = memo(() => new Map(declaration.comment?.tags?.map((t) => [t.tag, t]) ?? []))
+
+  const referenced = memo(() =>
+    Array.from(index.referencedIn(id))
+      .map((id) => createFacade(index, id))
+      .filter((e) => e !== undefined),
+  )
+
   return {
-    ...(declaration as Reflect.Declaration<K>),
+    raw: declaration as unknown as Reflect.Declaration<K>,
+    kind: declaration.kind as K,
+    id: declaration.id,
+    name: declaration.name,
     get: (id) => createFacade(index, id),
     parent: () => createFacade<'module'>(index, declaration.parent),
     members: () =>
@@ -84,10 +102,10 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
     isEntry: (): this is DeclarationFacade<'module'> => index.isRoot(id),
     entryIndex: () => index.rootIndex(id),
     entry: () => index.rootAlias(id),
-    referenced: () =>
-      Array.from(index.referencedIn(id))
-        .map((id) => createFacade(index, id))
-        .filter((e) => e !== undefined),
+    referenced,
+    get tags() {
+      return tags()
+    },
     exposure: exposed,
   }
 }

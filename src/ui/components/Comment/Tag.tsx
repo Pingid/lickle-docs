@@ -5,7 +5,7 @@ import { Dynamic } from 'solid-js/web'
 import { createSlot, type Types } from '../../context/index.tsx'
 import { CodeBlock } from '../Code/index.tsx'
 import { Markdown, MarkdownInline } from '../Markdown.tsx'
-import { Type } from '../Type.tsx'
+import * as Type from '../Type.tsx'
 import { Link } from '../Link.tsx'
 
 /**
@@ -94,7 +94,7 @@ const TagTemplate = (props: { tag: Types.CommentTagMap['@template'] }) => (
               <Show when={tp.constraint}>
                 <>
                   <span class="text-accent">extends </span>
-                  <Type type={tp.constraint!} />
+                  <Type.Type type={tp.constraint!} />
                 </>
               </Show>
             </dd>

@@ -1,9 +1,9 @@
 import { create, insert, search } from '@orama/orama'
 import { createMemo, createResource } from 'solid-js'
 
+import { useDocRouter, type ClientRouter } from '../router/index.ts'
 import { commentToMarkdown } from '../../util/markdown.ts'
 import * as Types from '../../context/docs/types.ts'
-import { useDocRouter } from '../router/index.ts'
 import { useProject } from '../project/index.ts'
 
 /**
@@ -11,6 +11,7 @@ import { useProject } from '../project/index.ts'
  * doc comments. The index (Orama) builds lazily on the client, once per
  * version; before it is ready the returned engine answers with no hits.
  * Powers the `⌘K` search palette.
+ * @group hooks
  */
 export const useSearch = (): (() => SearchEngine) => {
   const project = useProject()
@@ -34,7 +35,7 @@ export const useSearch = (): (() => SearchEngine) => {
   return createMemo(() => engine() ?? { query: async () => [] })
 }
 
-const INSTANCE = new WeakMap<Types.ClientRouter, Promise<SearchEngine>>()
+const INSTANCE = new WeakMap<ClientRouter, Promise<SearchEngine>>()
 
 /** One search result: the declaration's name, kind, page slug, source file and owning module. */
 export type SearchHit = { name: string; kind: Types.Any['kind']; slug: string; file: string; module: string }
@@ -43,7 +44,7 @@ export type SearchHit = { name: string; kind: Types.Any['kind']; slug: string; f
 export type SearchEngine = { query: (term: string, limit?: number) => Promise<SearchHit[]> }
 
 const createSearchEngine = async (
-  router: Types.ClientRouter,
+  router: ClientRouter,
   byId: (id: number) => Types.Declaration | undefined,
 ): Promise<SearchEngine> => {
   const db = await create({

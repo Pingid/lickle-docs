@@ -2,9 +2,9 @@ import { For, Show, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
 import { createSlot, type Types } from '../context/index.tsx'
-import { Type, TypeSignature } from './Type.tsx'
 import { Comment } from './Comment/index.tsx'
 import { Syntax } from './Syntax.tsx'
+import * as Type from './Type.tsx'
 
 /**
  * Dispatch a declaration to its per-kind renderer. Implemented via `Dynamic`
@@ -45,7 +45,7 @@ export const DeclarationVariable = (props: { decl: Types.Declaration<'variable'>
       <Syntax.Kw>const </Syntax.Kw>
       <span class="font-semibold">{props.decl.name}</span>
       <Syntax.Punct>: </Syntax.Punct>
-      <Type type={props.decl.type} />
+      <Type.Type type={props.decl.type} />
       <Show when={props.decl.defaultValue}>
         <Syntax.Punct>{` = ${props.decl.defaultValue}`}</Syntax.Punct>
       </Show>
@@ -75,7 +75,7 @@ export const DeclarationTypeAlias = (props: { decl: Types.Declaration<'type-alia
         <Type.Generics generics={props.decl.generics} />
         <Show when={!record()}>
           <Syntax.Punct> = </Syntax.Punct>
-          <Type type={props.decl.type} />
+          <Type.Type type={props.decl.type} />
         </Show>
       </div>
       <Comment comment={props.decl.comment} />
@@ -142,7 +142,7 @@ const PropertyRow = (props: { prop: Types.Part<'property'> }) => (
         <Syntax.Punct>?</Syntax.Punct>
       </Show>
       <Syntax.Punct>: </Syntax.Punct>
-      <Type type={props.prop.type} />
+      <Type.Type type={props.prop.type} />
       <Show when={props.prop.defaultValue}>
         <Syntax.Punct>{` = ${props.prop.defaultValue}`}</Syntax.Punct>
       </Show>
@@ -160,9 +160,9 @@ const IndexRow = (props: { sig: Types.Part<'index-signature'> }) => (
     <Syntax.Punct>[</Syntax.Punct>
     <span class="font-semibold">{props.sig.parameter.name}</span>
     <Syntax.Punct>: </Syntax.Punct>
-    <Type type={props.sig.parameter.type} />
+    <Type.Type type={props.sig.parameter.type} />
     <Syntax.Punct>]: </Syntax.Punct>
-    <Type type={props.sig.type} />
+    <Type.Type type={props.sig.type} />
   </div>
 )
 
@@ -177,7 +177,9 @@ const Members = (props: {
 }) => (
   <>
     <MemberSection title="Constructors" when={props.constructors?.length}>
-      <For each={props.constructors}>{(sig) => <TypeSignature sig={sig} name="constructor" kind="constructor" />}</For>
+      <For each={props.constructors}>
+        {(sig) => <Type.TypeSignature sig={sig} name="constructor" kind="constructor" />}
+      </For>
     </MemberSection>
     <MemberSection title="Properties" when={props.properties?.length || props.indexSignature}>
       <For each={props.properties}>{(p) => <PropertyRow prop={p} />}</For>
@@ -185,14 +187,14 @@ const Members = (props: {
     </MemberSection>
     <MemberSection title="Methods" when={props.methods?.length}>
       <For each={props.methods}>
-        {(m) => <For each={m.signatures}>{(sig) => <TypeSignature sig={sig} name={m.name} kind="method" />}</For>}
+        {(m) => <For each={m.signatures}>{(sig) => <Type.TypeSignature sig={sig} name={m.name} kind="method" />}</For>}
       </For>
     </MemberSection>
     <MemberSection title="Call Signatures" when={props.callSignatures?.length}>
-      <For each={props.callSignatures}>{(sig) => <TypeSignature sig={sig} />}</For>
+      <For each={props.callSignatures}>{(sig) => <Type.TypeSignature sig={sig} />}</For>
     </MemberSection>
     <MemberSection title="Construct Signatures" when={props.constructSignatures?.length}>
-      <For each={props.constructSignatures}>{(sig) => <TypeSignature sig={sig} kind="constructor" />}</For>
+      <For each={props.constructSignatures}>{(sig) => <Type.TypeSignature sig={sig} kind="constructor" />}</For>
     </MemberSection>
   </>
 )

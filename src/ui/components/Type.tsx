@@ -19,6 +19,7 @@ type T = Types.Type
  * Type signature + its doc block. Parameter descriptions come from the
  * `@param` tags inside `sig.comment` and are rendered by `<Comment>` itself,
  * so there's no separate parameter table here.
+ * @group components
  */
 export const TypeSignature = (props: {
   sig: Types.Part<'signature'>
@@ -28,7 +29,7 @@ export const TypeSignature = (props: {
 }) => {
   return (
     <div class="mb-8">
-      <Type.SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
+      <SignatureLine sig={props.sig} name={props.name} id={props.id} kind={props.kind} />
       <Show when={props.sig.comment}>
         <div class="mt-2">
           <Comment comment={props.sig.comment} />
@@ -43,11 +44,10 @@ export const TypeSignature = (props: {
  * so that navigating between pages with different type shapes swaps the
  * sub-renderer instead of freezing on the original branch (a classic Solid
  * pitfall where a top-level `switch` in a component runs only on mount).
+ * @group components
  */
 export const Type = (props: { type: T | undefined }) => {
-  const renderer = createMemo(() =>
-    staticComponent(props.type ? (RENDERERS[props.type.kind] ?? Type.Unknown) : () => null),
-  )
+  const renderer = createMemo(() => staticComponent(props.type ? (RENDERERS[props.type.kind] ?? Unknown) : () => null))
   return (
     <Show when={props.type && renderer()}>
       {(r) => <Dynamic component={r() as Component<{ type: T }>} type={props.type!} />}
@@ -57,16 +57,16 @@ export const Type = (props: { type: T | undefined }) => {
 
 // --- Variant renderers (one per `Types.Type['kind']`, ordered to match RENDERERS) ---
 
-Type.Intrinsic = (props: { type: Types.Type<'intrinsic'> }) => <Syntax.Kw>{props.type.name}</Syntax.Kw>
+const Intrinsic = (props: { type: Types.Type<'intrinsic'> }) => <Syntax.Kw>{props.type.name}</Syntax.Kw>
 
-Type.Literal = (props: { type: Types.Type<'literal'> }) => {
+const Literal = (props: { type: Types.Type<'literal'> }) => {
   const t = props.type
   if (typeof t.value === 'string') return <span class="text-fg">"{t.value}"</span>
   if (t.value === null) return <Syntax.Kw>null</Syntax.Kw>
   return <span>{String(t.value)}</span>
 }
 
-Type.Reference = (props: { type: Types.Type<'reference'> }) => {
+const Reference = (props: { type: Types.Type<'reference'> }) => {
   const t = props.type
   return (
     <>
@@ -75,12 +75,12 @@ Type.Reference = (props: { type: Types.Type<'reference'> }) => {
         name={t.name}
         external={t.type === 'external' ? t.external : undefined}
       />
-      <Type.TypeArgs args={t.args} />
+      <TypeArgs args={t.args} />
     </>
   )
 }
 
-Type.Record = (props: { type: Types.Type<'record'> }) => {
+const Record = (props: { type: Types.Type<'record'> }) => {
   const decl = props.type
   const onlySignatures =
     decl.callSignatures?.length === 1 &&
@@ -88,7 +88,7 @@ Type.Record = (props: { type: Types.Type<'record'> }) => {
     !decl.methods?.length &&
     !decl.indexSignature &&
     !decl.constructSignatures?.length
-  if (onlySignatures) return <Type.SignatureExpr sig={decl.callSignatures![0]!} arrow />
+  if (onlySignatures) return <SignatureExpr sig={decl.callSignatures![0]!} arrow />
 
   // Every member kind, flattened to renderers so a single `<For>` lays them
   // out with consistent `; ` separators.
@@ -96,11 +96,11 @@ Type.Record = (props: { type: Types.Type<'record'> }) => {
     ...decl.properties.map((p) => () => <RecordProperty prop={p} />),
     ...(decl.methods ?? []).flatMap((m) => m.signatures.map((sig) => () => <RecordMethod name={m.name} sig={sig} />)),
     ...(decl.indexSignature ? [() => <RecordIndex sig={decl.indexSignature!} />] : []),
-    ...(decl.callSignatures ?? []).map((sig) => () => <Type.SignatureExpr sig={sig} />),
+    ...(decl.callSignatures ?? []).map((sig) => () => <SignatureExpr sig={sig} />),
     ...(decl.constructSignatures ?? []).map((sig) => () => (
       <>
         <Syntax.Kw>new </Syntax.Kw>
-        <Type.SignatureExpr sig={sig} />
+        <SignatureExpr sig={sig} />
       </>
     )),
   ]
@@ -127,8 +127,9 @@ Type.Record = (props: { type: Types.Type<'record'> }) => {
  * Conditional type. Right-nested chains (`A extends B ? X : C extends D ? …`)
  * are flattened and rendered as an aligned `: ` ladder, the way Prettier
  * formats long conditional-type maps, instead of one runaway inline line.
+ * @group components
  */
-Type.Conditional = (props: { type: Types.Type<'conditional'> }) => {
+const Conditional = (props: { type: Types.Type<'conditional'> }) => {
   const chain = createMemo(() => {
     const branches: Types.Type<'conditional'>[] = []
     let cur: Types.Type | undefined = props.type
@@ -178,18 +179,18 @@ Type.Conditional = (props: { type: Types.Type<'conditional'> }) => {
   )
 }
 
-Type.Union = (props: { type: Types.Type<'union'> }) => <Type.Join sep=" | " items={props.type.types} />
+const Union = (props: { type: Types.Type<'union'> }) => <Join sep=" | " items={props.type.types} />
 
-Type.Intersection = (props: { type: Types.Type<'intersection'> }) => <Type.Join sep=" & " items={props.type.types} />
+const Intersection = (props: { type: Types.Type<'intersection'> }) => <Join sep=" & " items={props.type.types} />
 
-Type.Array = (props: { type: Types.Type<'array'> }) => (
+const Array = (props: { type: Types.Type<'array'> }) => (
   <>
     <Type type={props.type.elementType} />
     <Syntax.Punct>[]</Syntax.Punct>
   </>
 )
 
-Type.Tuple = (props: { type: Types.Type<'tuple'> }) => (
+const Tuple = (props: { type: Types.Type<'tuple'> }) => (
   <>
     <Syntax.Punct>[</Syntax.Punct>
     <For each={props.type.elements}>
@@ -206,13 +207,13 @@ Type.Tuple = (props: { type: Types.Type<'tuple'> }) => (
   </>
 )
 
-Type.FunctionType = (props: { type: Types.Type<'function-type'> }) => (
+const FunctionType = (props: { type: Types.Type<'function-type'> }) => (
   <Show when={props.type.signatures[0]} fallback={<Syntax.Kw>function</Syntax.Kw>}>
-    {(sig) => <Type.SignatureExpr sig={sig()} arrow />}
+    {(sig) => <SignatureExpr sig={sig()} arrow />}
   </Show>
 )
 
-Type.TypeOperator = (props: { type: Types.Type<'type-operator'> }) => (
+const TypeOperator = (props: { type: Types.Type<'type-operator'> }) => (
   <>
     <Syntax.Kw>{props.type.operator}</Syntax.Kw>
     <span> </span>
@@ -220,7 +221,7 @@ Type.TypeOperator = (props: { type: Types.Type<'type-operator'> }) => (
   </>
 )
 
-Type.Infer = (props: { type: Types.Type<'infer'> }) => (
+const Infer = (props: { type: Types.Type<'infer'> }) => (
   <>
     <Syntax.Kw>infer </Syntax.Kw>
     <Syntax.Name>{props.type.name}</Syntax.Name>
@@ -233,7 +234,7 @@ Type.Infer = (props: { type: Types.Type<'infer'> }) => (
   </>
 )
 
-Type.IndexedAccess = (props: { type: Types.Type<'indexed-access'> }) => (
+const IndexedAccess = (props: { type: Types.Type<'indexed-access'> }) => (
   <>
     <Type type={props.type.object} />
     <Syntax.Punct>[</Syntax.Punct>
@@ -242,7 +243,7 @@ Type.IndexedAccess = (props: { type: Types.Type<'indexed-access'> }) => (
   </>
 )
 
-Type.Mapped = (props: { type: Types.Type<'mapped'> }) => {
+const Mapped = (props: { type: Types.Type<'mapped'> }) => {
   const t = props.type
   return (
     <>
@@ -275,15 +276,15 @@ Type.Mapped = (props: { type: Types.Type<'mapped'> }) => {
   )
 }
 
-Type.Query = (props: { type: Types.Type<'query'> }) => (
+const Query = (props: { type: Types.Type<'query'> }) => (
   <>
     <Syntax.Kw>typeof </Syntax.Kw>
     <Syntax.Name>{props.type.name}</Syntax.Name>
-    <Type.TypeArgs args={props.type.args} />
+    <TypeArgs args={props.type.args} />
   </>
 )
 
-Type.TemplateLiteral = (props: { type: Types.Type<'template-literal'> }) => (
+const TemplateLiteral = (props: { type: Types.Type<'template-literal'> }) => (
   <>
     <span class="text-fg">
       {'`'}
@@ -303,7 +304,7 @@ Type.TemplateLiteral = (props: { type: Types.Type<'template-literal'> }) => (
   </>
 )
 
-Type.Predicate = (props: { type: Types.Type<'predicate'> }) => (
+const Predicate = (props: { type: Types.Type<'predicate'> }) => (
   <>
     <Show when={props.type.asserts}>
       <Syntax.Kw>asserts </Syntax.Kw>
@@ -318,7 +319,7 @@ Type.Predicate = (props: { type: Types.Type<'predicate'> }) => (
   </>
 )
 
-Type.ImportType = (props: { type: Types.Type<'import-type'> }) => {
+const ImportType = (props: { type: Types.Type<'import-type'> }) => {
   const t = props.type
   return (
     <>
@@ -335,41 +336,42 @@ Type.ImportType = (props: { type: Types.Type<'import-type'> }) => {
           <Syntax.Name>{t.qualifier!}</Syntax.Name>
         </>
       </Show>
-      <Type.TypeArgs args={t.args} />
+      <TypeArgs args={t.args} />
     </>
   )
 }
 
 /** Catch-all: the parser's `unknown` kind, plus any runtime kind without a renderer. */
-Type.Unknown = (props: { type: Types.Type }) => (
+const Unknown = (props: { type: Types.Type }) => (
   <Syntax.Name>{(props.type as { text?: string; kind: string }).text ?? props.type.kind}</Syntax.Name>
 )
 
 const RENDERERS: { [K in Types.Type['kind']]: Component<{ type: Types.Type<K> }> } = {
-  intrinsic: Type.Intrinsic,
-  literal: Type.Literal,
-  reference: Type.Reference,
-  record: Type.Record,
-  conditional: Type.Conditional,
-  union: Type.Union,
-  intersection: Type.Intersection,
-  array: Type.Array,
-  tuple: Type.Tuple,
-  'function-type': Type.FunctionType,
-  'type-operator': Type.TypeOperator,
-  infer: Type.Infer,
-  'indexed-access': Type.IndexedAccess,
-  mapped: Type.Mapped,
-  query: Type.Query,
-  'template-literal': Type.TemplateLiteral,
-  predicate: Type.Predicate,
-  'import-type': Type.ImportType,
-  unknown: Type.Unknown,
+  intrinsic: Intrinsic,
+  literal: Literal,
+  reference: Reference,
+  record: Record,
+  conditional: Conditional,
+  union: Union,
+  intersection: Intersection,
+  array: Array,
+  tuple: Tuple,
+  'function-type': FunctionType,
+  'type-operator': TypeOperator,
+  infer: Infer,
+  'indexed-access': IndexedAccess,
+  mapped: Mapped,
+  query: Query,
+  'template-literal': TemplateLiteral,
+  predicate: Predicate,
+  'import-type': ImportType,
+  unknown: Unknown,
 }
 
 // --- Shared building blocks used by the variant renderers ---
 
-Type.Join = (props: { sep: string; items: T[] }) => (
+/** @internal */
+export const Join = (props: { sep: string; items: T[] }) => (
   <For each={props.items}>
     {(t, i) => (
       <>
@@ -382,10 +384,10 @@ Type.Join = (props: { sep: string; items: T[] }) => (
   </For>
 )
 
-Type.TypeArgs = (props: { args?: T[] }) => (
+const TypeArgs = (props: { args?: T[] }) => (
   <Show when={props.args?.length}>
     <Syntax.Punct>{'<'}</Syntax.Punct>
-    <Type.Join sep=", " items={props.args!} />
+    <Join sep=", " items={props.args!} />
     <Syntax.Punct>{'>'}</Syntax.Punct>
   </Show>
 )
@@ -404,7 +406,7 @@ const RecordProperty = (props: { prop: Types.Part<'property'> }) => (
 const RecordMethod = (props: { name: string; sig: Types.Part<'signature'> }) => (
   <>
     <Syntax.Name>{props.name}</Syntax.Name>
-    <Type.SignatureExpr sig={props.sig} />
+    <SignatureExpr sig={props.sig} />
   </>
 )
 
@@ -440,9 +442,10 @@ const TupleElement = (props: { el: Types.Part<'tuple-element'> }) => (
   </>
 )
 
-Type.SignatureExpr = (props: { sig: Types.Part<'signature'>; arrow?: boolean }) => (
+/** @internal */
+export const SignatureExpr = (props: { sig: Types.Part<'signature'>; arrow?: boolean }) => (
   <>
-    <Type.Generics generics={props.sig.generics} />
+    <Generics generics={props.sig.generics} />
     <Syntax.Punct>(</Syntax.Punct>
     <For each={props.sig.params}>
       {(p, i) => (
@@ -468,8 +471,11 @@ Type.SignatureExpr = (props: { sig: Types.Part<'signature'>; arrow?: boolean }) 
   </>
 )
 
-/** Type parameter list — `<T extends C = D>`. */
-Type.Generics = (props: { generics?: Types.Part<'generic'>[] }) => (
+/**
+ * Type parameter list — `<T extends C = D>`.
+ * @internal
+ */
+export const Generics = (props: { generics?: Types.Part<'generic'>[] }) => (
   <Show when={props.generics?.length}>
     <Syntax.Punct>{'<'}</Syntax.Punct>
     <For each={props.generics!}>
@@ -498,19 +504,22 @@ Type.Generics = (props: { generics?: Types.Part<'generic'>[] }) => (
   </Show>
 )
 
-Type.TypeBlock = (props: { type: T | undefined }) => (
+/** @internal */
+export const TypeBlock = (props: { type: T | undefined }) => (
   <code class="font-mono text-[0.85em] leading-relaxed">
     <Type type={props.type} />
   </code>
 )
 
-Type.TypeBox = (props: { type: T | undefined; class?: string }) => (
+/** @internal */
+export const TypeBox = (props: { type: T | undefined; class?: string }) => (
   <div class={`codeblock ${props.class ?? ''}`}>
     <Type type={props.type} />
   </div>
 )
 
-Type.Inline = (props: { type?: Types.Type; text: string }) => (
+/** @internal */
+export const Inline = (props: { type?: Types.Type; text: string }) => (
   <>
     <Show when={props.type}>
       <div class="font-mono text-sm mb-1">
@@ -526,15 +535,19 @@ Type.Inline = (props: { type?: Types.Type; text: string }) => (
 /**
  * Single-glyph badge for a declaration kind. Use in dense lists (sidebar,
  * member cards, search palette) where a `K` / `ƒ` cue is enough.
+ * @internal
  */
-Type.KindBadge = (props: { kind: Kind | string; class?: string }) => (
+export const KindBadge = (props: { kind: Kind | string; class?: string }) => (
   <span class={`font-mono text-xs text-mute text-center ${props.class ?? ''}`} title={labelOf(props.kind)}>
     {shortOf(props.kind)}
   </span>
 )
 
-/** Tracked uppercase label for a declaration kind (`MODULE`, `FUNCTION`, …). */
-Type.KindLabel = (props: { kind: Kind | string; class?: string }) => (
+/**
+ * Tracked uppercase label for a declaration kind (`MODULE`, `FUNCTION`, …).
+ * @internal
+ */
+export const KindLabel = (props: { kind: Kind | string; class?: string }) => (
   <span class={`text-xs uppercase tracking-wider text-mute ${props.class ?? ''}`}>{labelOf(props.kind)}</span>
 )
 
@@ -543,7 +556,7 @@ Type.KindLabel = (props: { kind: Kind | string; class?: string }) => (
  * resolves. Used in compact module-export lists where the signature is
  * read-only context and the name itself is the navigation target.
  */
-Type.NameLink = (props: { id?: number; name: string; class?: string }) => {
+const NameLink = (props: { id?: number; name: string; class?: string }) => {
   const slugs = useSlugFor()
   const slug = () => (props.id != null ? slugs.byId(props.id) : undefined)
   return (
@@ -562,7 +575,8 @@ Type.NameLink = (props: { id?: number; name: string; class?: string }) => {
 
 const isOptional = (p: Types.Part<'parameter'>): boolean => p.optional || p.default != null
 
-Type.SignatureLine = (props: {
+/** @internal */
+export const SignatureLine = (props: {
   sig: Types.Part<'signature'>
   name?: string
   /** Owning declaration id — when set, the name renders as a link to its page. */
@@ -574,9 +588,9 @@ Type.SignatureLine = (props: {
       <Syntax.Kw>new </Syntax.Kw>
     </Show>
     <Show when={props.name}>
-      <Type.NameLink id={props.id} name={props.name!} class="font-semibold" />
+      <NameLink id={props.id} name={props.name!} class="font-semibold" />
     </Show>
-    <Type.Generics generics={props.sig.generics} />
+    <Generics generics={props.sig.generics} />
     <Syntax.Punct>(</Syntax.Punct>
     <For each={props.sig.params}>
       {(p, i) => (

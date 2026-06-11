@@ -3,7 +3,7 @@ import { useNavigate } from '../util/router.tsx'
 
 import { useDocRouter, useSearch, type SearchHit } from '../hooks/index.ts'
 import { SearchIcon } from './icons.tsx'
-import { Type } from './Type.tsx'
+import * as Type from './Type.tsx'
 
 const DEBOUNCE_MS = 80
 // const DEFAULT_LIMIT = 12

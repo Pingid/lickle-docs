@@ -5,15 +5,15 @@ import { A, useLocation } from '../util/router.tsx'
 
 import { createSlot, type Types } from '../context/index.tsx'
 import { useDocRouter, useProject } from '../hooks/index.ts'
-import { Type } from './Type.tsx'
-
-type Route = Types.Route
+import * as Type from './Type.tsx'
+import type { Route } from '../../core/route/types.ts'
 
 /**
  * Navigation tree built from the router's sidebar: grouped entries with
  * kind badges, collapsible branches, and the branch on the active path open
  * automatically. Replaceable via the `sidebar` slot; `onNavigate` fires on
  * link clicks so a mobile drawer can close itself.
+ * @group components
  */
 export const Sidebar = createSlot('sidebar', (props) => {
   const router = useDocRouter()
@@ -133,7 +133,7 @@ const NavNode = (props: NodeProps) => {
   )
 }
 
-const NodeLink = (props: { route: Route; active: boolean; onNavigate?: () => void; class?: string }) => (
+const NodeLink = (props: { route: Types.Route; active: boolean; onNavigate?: () => void; class?: string }) => (
   <A
     href={props.route.slug}
     class={cn('flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 min-w-0', props.class)}

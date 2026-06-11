@@ -53,7 +53,7 @@ test('root lists only direct members; nested members live under their namespace'
   expect(memberTitles(router, outer).sort()).toEqual(['Outer.deep', 'Outer.inner'])
 })
 
-test('members are grouped by kind (plural) and ordered functions → variables → types', () => {
+test('members are grouped by kind (plural) and ordered functions → variables → interfaces', () => {
   const { router } = routesFixture(`
     export type A = string
     export const b = 1
@@ -62,8 +62,8 @@ test('members are grouped by kind (plural) and ordered functions → variables �
     export class E {}
   `)
   const root = idAt(router, 'l/fixture')
-  expect(memberGroups(router, root)).toEqual(['functions', 'variables', 'types', 'classes', 'interfaces'])
-  expect(memberTitles(router, root)).toEqual(['c', 'b', 'A', 'E', 'D'])
+  expect(memberGroups(router, root)).toEqual(['functions', 'variables', 'interfaces', 'types', 'classes'])
+  expect(memberTitles(router, root)).toEqual(['c', 'b', 'D', 'A', 'E'])
 })
 
 // --- sidebar, referenced-in, reachable, compact ---------------------------

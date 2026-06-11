@@ -20,7 +20,10 @@ export const ComponentsProvider = (props: { value?: Components; children: JSX.El
   return <ComponentsCtx.Provider value={merged}>{props.children}</ComponentsCtx.Provider>
 }
 
-/** Read the active (already-merged) component registry. */
+/**
+ * Read the active (already-merged) component registry.
+ * @group hooks
+ * */
 export const useComponents = (): Accessor<Components> => useContext(ComponentsCtx)
 
 export const withComponents = (c: Components) => (props: { children: JSX.Element }) => (

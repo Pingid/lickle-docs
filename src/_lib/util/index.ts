@@ -16,6 +16,16 @@ export const memo1 = <F extends Fn>(fn: F): F => {
   }) as F
 }
 
+/** Cache on the first argument */
+export const memo = <F extends Fn>(fn: F): F => {
+  let called = false
+  let result: any
+  return ((...args: any[]) => {
+    if (!called) return (result = fn(...args))
+    return result
+  }) as F
+}
+
 /** Serialise overlapping async invocations; if a call arrives mid-run, replay once. */
 export const serial = (fn: () => Promise<any>) => {
   let busy = false

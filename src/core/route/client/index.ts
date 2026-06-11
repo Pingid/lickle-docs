@@ -27,6 +27,7 @@ export interface ClientRouter {
  * Index generated routes for the client: prefix every slug with `base`
  * (version path) and the per-kind `prefix` (project name for doc routes),
  * build slug/id lookup maps and assemble the grouped sidebar tree.
+ * @internal
  */
 export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: string }): ClientRouter => {
   const prefix = Slug.join(p.base?.replace(/^\/+|\/+$/g, ''))
@@ -104,13 +105,17 @@ export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: 
 }
 
 /**
- * Bucket `items` by group name, then order the buckets by {@link Group.order}
+ * Bucket `items` by group name, then order the buckets by {@link Group}
  * (ascending; ties keep first-seen order). Items without a group fall into the
  * unnamed `''` bucket, which orders by its own `order` (0 by default) like any
  * other — set an explicit `order` to pin it first or last. Item order within a
  * bucket is preserved.
+ * @internal
  */
-export const groupItems = <T>(items: T[], groupOf: (item: T) => Group | undefined): GroupedItems<T>[] => {
+export const groupItems = <T extends Record<string, any>>(
+  items: T[],
+  groupOf: (item: T) => Group | undefined,
+): GroupedItems<T>[] => {
   const groups = new Map<string, { order: number; items: T[] }>()
   for (const item of items) {
     const group = groupOf(item)
@@ -124,5 +129,8 @@ export const groupItems = <T>(items: T[], groupOf: (item: T) => Group | undefine
   }
   return [...groups.entries()]
     .sort(([, a], [, b]) => a.order - b.order)
-    .map(([group, bucket]) => ({ group, items: bucket.items }))
+    .map(([group, bucket]) => ({
+      group,
+      items: bucket.items.sort((a, b) => ((a as any).order ?? 0) - ((b as any).order ?? 0)),
+    }))
 }

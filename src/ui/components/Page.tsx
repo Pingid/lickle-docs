@@ -12,7 +12,7 @@ import { CopyPageButton } from './CopyPage.tsx'
 import { Declaration } from './Declaration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
-import { Type } from './Type.tsx'
+import * as Type from './Type.tsx'
 
 /**
  * A doc route renders its declaration (header + body), its member links and its
@@ -171,7 +171,7 @@ const Signature = (props: { decl: Types.Declaration }) => {
   if (d.kind === 'variable')
     return (
       <span class="font-mono text-sm text-mute min-w-0 truncate">
-        : <Type type={d.type} />
+        : <Type.Type type={d.type} />
       </span>
     )
   return null

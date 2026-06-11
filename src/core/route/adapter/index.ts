@@ -32,6 +32,7 @@ import { compose, type ExposurePath } from '../provider/core.ts'
 import { type DeclarationFacade } from '../provider/facade.ts'
 import { kindOrder, pluralLabel } from '../naming.ts'
 import type { Adapter } from '../provider/core.ts'
+import type { Reflect } from '../../../core/index.ts'
 
 export type { DeclarationFacade, ModuleFacade } from '../provider/facade.ts'
 export type * from '../provider/core.ts'
@@ -57,7 +58,10 @@ export { compose }
  * ```
  */
 export const groupBy = (
-  cb: (d: DeclarationFacade, value: { name: string; order?: number } | undefined) => { name: string; order?: number },
+  cb: (
+    d: DeclarationFacade,
+    value: { name: string; order?: number } | undefined,
+  ) => { name: string; order?: number } | undefined,
 ) =>
   compose({
     links: (value, d) => value.map((l) => ({ ...l, group: cb(d.get(l.target)!, l.group) })),
@@ -77,6 +81,27 @@ export const groupByKind = groupBy((d) => {
   if (d.isEntry()) return { name: '', order: 1 + (d.entryIndex() ?? 0) }
   return { name: pluralLabel(d.kind), order: kindOrder(d.kind) }
 })
+
+/**
+ * Group sidebar entries and member listings by a JSDoc tag — declarations
+ * carrying the tag bucket under its text; everything else keeps its current
+ * group, ordered after the tagged ones.
+ *
+ * @param tag The tag to read, e.g. `@group` — a declaration documented with
+ * `@group hooks` buckets under "hooks".
+ *
+ * @example
+ * ```ts
+ * provider: Adapter.groupByTag('@group')
+ * ```
+ */
+export const groupByTag = (tag: `@${string}`) =>
+  groupBy((d, group) => {
+    const t = d.tags.get(tag)
+    if (t?.text) return { name: t.text, order: sortByHash(t.text) }
+    if (group) return { ...group, order: group.order ? group.order + sortByHash.MAX : 1 }
+    return group
+  })
 
 /**
  * Prefer the entrypoint `entry` as home: whenever a declaration is
@@ -129,6 +154,35 @@ export const place = (homes: Record<string, string>): Adapter => ({
 })
 
 /**
+ * Keep only declarations `cb` accepts. Rejected declarations emit no page —
+ * they disappear from the sidebar, member listings, backlinks and search.
+ *
+ * @example Hide everything tagged `@internal`
+ * ```ts
+ * provider: Adapter.filter((d) => !d.tags.has('@internal'))
+ * ```
+ */
+export const filter = (cb: (d: DeclarationFacade) => boolean): Adapter => ({
+  declare: (v, d) => (cb(d) ? v : undefined),
+})
+
+/**
+ * Rewrite each declaration's doc comment before it renders. Useful for
+ * stripping mechanical tags the adapter has already consumed.
+ *
+ * @example Hide `@group` tags from the rendered pages
+ * ```ts
+ * provider: Adapter.mapComment((c) => ({ ...c, tags: c.tags?.filter((t) => t.tag !== '@group') }))
+ * ```
+ */
+export const mapComment = (cb: (d: Reflect.Comment) => Reflect.Comment): Adapter => ({
+  declare: (v, d) => {
+    if (d.raw.comment) d.raw.comment = cb(d.raw.comment)
+    return v
+  },
+})
+
+/**
  * The module chain of an exposure path as a slash-joined label: the
  * entrypoint label plus the alias of every intermediate module. The last
  * hop names the declaration itself, so it is excluded.
@@ -138,3 +192,22 @@ const pathLabel = (p: ExposurePath): string =>
 
 const sameEntry = (a: string | undefined, b: string) => a !== undefined && normalize(a) === normalize(b)
 const normalize = (s: string) => s.replace(/^\.\/?/, '')
+
+/**
+ * Stable order key derived from a string, so grouped items get a
+ * deterministic order without manual numbering.
+ * @internal
+ */
+export const sortByHash = (text: string) => {
+  let hash = 0
+  if (text.length === 0) return hash
+
+  for (let i = 0; i < text.length; i++) {
+    const chr = text.charCodeAt(i)
+    hash = (hash << 5) - hash + chr
+    hash |= 0
+  }
+
+  return Math.abs(hash)
+}
+sortByHash.MAX = 2_147_483_647

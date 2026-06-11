@@ -43,7 +43,11 @@ export type Group = { name: string; order?: number }
 export type Sidebar = { parent?: SlugPath; group?: Group; order?: number }
 
 /** A link to a declaration's page, displayed under `alias` and bucketed by `group`. */
-export type DocLink = { target: number; alias: string; group?: Group }
+export type DocLink = { target: number; alias: string; group?: Group; order?: number }
 
-/** URL prefixes applied per route kind: `doc` for declaration pages, `page` for markdown pages. */
+/**
+ * URL prefixes applied per route kind: `doc` for declaration pages, `page`
+ * for markdown pages.
+ * @internal
+ */
 export type RoutePrefix = { doc?: string; page?: string }

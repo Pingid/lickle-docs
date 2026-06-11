@@ -2,7 +2,7 @@ import type * as Reflect from '../reflect/index.ts'
 
 import { Slug } from '../../_lib/index.ts'
 
-import { compose, withMemo, provide, type ContextOptions, type RouteContext, type Provider } from './provider/index.ts'
+import { compose, withMemo, provide, type RouteContext, type Provider, type Adapter } from './provider/index.ts'
 import { createFacade } from './provider/facade.ts'
 import { groupByKind } from './adapter/index.ts'
 import type { Route } from './types.ts'
@@ -13,12 +13,24 @@ export type * from './types.ts'
 
 export type DocRoutes = { routes: Route[]; declarations: Reflect.Declaration[] }
 
+/** Inputs for {@link makeContext}. */
+export type ContextOptions = {
+  /** The reflection index of every scanned declaration. */
+  docs: Reflect.Index
+  /** The project name, used as the route prefix. */
+  name: string
+  /** Optional refinements applied over the base provider. */
+  adapter?: Adapter
+}
+
 export const builder = (opts: ContextOptions) => {
   const cx = makeContext(opts, (c) => withMemo(provide(c, compose(groupByKind, opts.adapter))))
 
-  const navigable = new Set<number>()
   const routes: Route[] = []
-  const declarations: Reflect.Declaration[] = []
+
+  // declarations that are linked to by sidebare or other routes
+  const linked = new Set<number>()
+
   let pageRouteMatched = false
   return {
     declare: (decl: Reflect.Declaration) => {
@@ -26,10 +38,10 @@ export const builder = (opts: ContextOptions) => {
       const route = facade && cx.provider.declare(facade)
       if (route) {
         routes.push(route)
-        declarations.push(decl)
-        if (cx.docs.isRoot(decl.id)) navigable.add(decl.id)
-        for (const ref of route.referenced) navigable.add(ref.target)
-        for (const link of route.links) navigable.add(link.target)
+
+        if (route.sidebar) linked.add(decl.id)
+        for (const ref of route.referenced) linked.add(ref.target)
+        for (const link of route.links) linked.add(link.target)
       }
     },
     markdown: (p: { title: string; slug?: string; content: string }) => {
@@ -42,15 +54,32 @@ export const builder = (opts: ContextOptions) => {
       routes.push({ kind: 'page', title: p.title, slug, sidebar: {}, body: [p.content] })
     },
     build: (): DocRoutes => {
-      return {
-        routes: routes
-          .filter((r) => r.kind !== 'doc' || navigable.has(r.decl))
-          .sort((a, b) => {
-            if (a.kind === 'page') return -1
-            return a.title.localeCompare(b.title)
-          }),
-        declarations: declarations.filter((d) => navigable.has(d.id)),
+      let r: Route[] = []
+      const d: Reflect.Declaration[] = []
+      const routed = new Set<number>()
+
+      for (const route of routes) {
+        if (route.kind === 'doc' && linked.has(route.decl)) {
+          const decl = cx.docs.get(route.decl)
+          if (!decl) continue
+          r.push(route)
+          d.push(decl)
+          routed.add(route.decl)
+        }
       }
+
+      for (const route of routes) {
+        if (route.kind === 'page') continue
+        route.links.filter((l) => routed.has(l.target))
+        route.referenced.filter((r) => routed.has(r.target))
+      }
+
+      r = r.sort((a, b) => {
+        if (a.kind === 'page') return -1
+        return a.title.localeCompare(b.title)
+      })
+
+      return { routes: r, declarations: d }
     },
   }
 }

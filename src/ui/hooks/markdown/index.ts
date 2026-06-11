@@ -7,6 +7,9 @@ import { withBaseUrl } from '../../util/base.ts'
 export type MarkdownParser = (x: string, lookup: (raw: string) => string | undefined) => string
 const M = new Marked({ gfm: true, breaks: false })
 
+/**
+ * @group hooks
+ * */
 export const useMarkdown = (): Accessor<MarkdownParser> => {
   const highligher = useHighlighter()
   const code = createMemo(() => {

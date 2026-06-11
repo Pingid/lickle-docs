@@ -78,6 +78,10 @@ export function LanguagesProvider(props: { langs: Accessor<Lang[]>; highlighter?
   return <HighlightingContext.Provider value={value}>{props.children}</HighlightingContext.Provider>
 }
 
+/**
+ * Read the active highlighter.
+ * @group hooks
+ * */
 export const useHighlighter = (): Accessor<CodeHighlighter | undefined> =>
   useContext(HighlightingContext) ?? (() => undefined)
 

@@ -1,5 +1,6 @@
 import { groupItems } from '../../core/client/index.ts'
 
+import type { ClientRouter } from '../hooks/router/index.ts'
 import type { Types } from '../context/index.tsx'
 import type { Project } from '../hooks/index.ts'
 import { withBaseUrl } from './base.ts'
@@ -13,7 +14,7 @@ export interface MarkdownOptions {
   inlineMembers?: boolean
 }
 
-type Ctx = { project: Project; slugOf: SlugOf; inline: boolean; seen: Set<number>; router: Types.ClientRouter }
+type Ctx = { project: Project; slugOf: SlugOf; inline: boolean; seen: Set<number>; router: ClientRouter }
 
 /**
  * Serialize a route's main content to markdown: the title, declaration body
@@ -24,7 +25,7 @@ type Ctx = { project: Project; slugOf: SlugOf; inline: boolean; seen: Set<number
  * full docs, recursively) instead of listed as links.
  */
 export const routeToMarkdown = (
-  router: Types.ClientRouter,
+  router: ClientRouter,
   route: Types.Route,
   project: Project,
   slugOf: SlugOf,

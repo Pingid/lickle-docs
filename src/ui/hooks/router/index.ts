@@ -1,16 +1,19 @@
 import { createMemo, type Accessor } from 'solid-js'
 
 import { useDocActiveProject, useDocs, type Types } from '../../context/index.tsx'
-import { createRouter } from '../../../core/route/client/index.ts'
+import { createRouter, type ClientRouter } from '../../../core/route/client/index.ts'
 
-const INSTANCE = new WeakMap<Types.DocsVersion, Types.ClientRouter>()
+export type { ClientRouter }
+
+const INSTANCE = new WeakMap<Types.DocsVersion, ClientRouter>()
 
 /**
  * The route table for the active version: every page, the sidebar tree and
  * slug/id lookups (see `ClientRouter`). Slugs come prefixed with the project
  * and version path, ready for navigation. Built once per version and reused.
+ * @group hooks
  */
-export const useDocRouter = (): Accessor<Types.ClientRouter | undefined> => {
+export const useDocRouter = (): Accessor<ClientRouter | undefined> => {
   const docs = useDocs()
   const doc = useDocActiveProject()
   const routes = createMemo(() => {

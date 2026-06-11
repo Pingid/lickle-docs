@@ -47,22 +47,17 @@ export interface Adapter {
   referenced?: Hook<DocLink[]>
 }
 
-/** Shared state passed to every hook: the reflection index, the resolved {@link Provider} and the project name. */
+/**
+ * Shared state of one route-generation run: the reflection index, the
+ * resolved {@link Provider} and the project name.
+ * @internal
+ */
 export type RouteContext = { docs: Reflect.Index; provider: Provider; name: string }
 
-/** Inputs for {@link makeContext}. */
-export type ContextOptions = {
-  /** The reflection index of every scanned declaration. */
-  docs: Reflect.Index
-  /** The project name, used as the route prefix. */
-  name: string
-  /** Optional refinements applied over the base provider. */
-  adapter?: Adapter
-}
-
 /**
- * The resolved route-generation functions, each keyed by declaration id.
- * What an {@link Adapter} refines: hooks wrap these per-facet defaults.
+ * The resolved route-generation functions. What an {@link Adapter} refines:
+ * hooks wrap these per-facet defaults.
+ * @internal
  */
 export type Provider = {
   /** Canonical exposure path for the declaration — empty when placed by source path. */
@@ -110,6 +105,7 @@ const mergeHook = <V>(a?: Hook<V>, b?: Hook<V>): Hook<V> | undefined => {
  * Apply an adapter over a base provider: each provider method is wrapped so
  * the matching hook post-processes its result. Facets without a hook pass
  * through untouched.
+ * @internal
  */
 export const provideAdapter = (base: Provider, adapter?: Adapter): Provider => {
   if (!adapter) return base
@@ -127,6 +123,7 @@ const applyHook = <V>(hook: Hook<V> | undefined, def: (id: DeclarationFacade) =>
  * Memoize every provider method by declaration id. Route generation calls
  * the same facets repeatedly (slugs feed sidebar entries, links and
  * breadcrumbs), so results are computed once.
+ * @internal
  */
 export const withMemo = (ad: Provider): Provider =>
   Object.fromEntries(hooks.map((hook) => [hook, memo1(ad[hook as keyof Provider])])) as Provider

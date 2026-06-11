@@ -51,6 +51,7 @@ export const ThemeProvider = (props: { children: JSX.Element }) => {
  *
  * @returns `mode` (the stored preference) and `setMode`.
  * @throws When no {@link ThemeProvider} is mounted above the caller.
+ * @group hooks
  */
 export const useTheme = (): ThemeCtx => {
   const ctx = useContext(Ctx)

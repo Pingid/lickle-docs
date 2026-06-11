@@ -1,6 +1,7 @@
 import { type RouteContext, type Provider, type Adapter, type ExposurePath, provideAdapter } from './core.ts'
 import { type DeclarationFacade, type ModuleFacade } from './facade.ts'
 import type { DocRoute, Sidebar, DocLink } from '../types.ts'
+import { sortByHash } from '../adapter/index.ts'
 
 export const provide = (c: RouteContext, adapter: Adapter): Provider => provideAdapter(provider(c), adapter)
 
@@ -32,7 +33,9 @@ const getLinks =
   () =>
   (decl: DeclarationFacade): DocLink[] => {
     if (decl.kind === 'module' || decl.kind === 'namespace') {
-      return decl.exposure.children().map((e) => ({ target: e.id, alias: e.alias() ?? e.name }))
+      return decl.exposure
+        .children()
+        .map((e) => ({ target: e.id, alias: e.alias() ?? e.name, order: sortByHash(e.alias() ?? e.name) }))
     }
     return []
   }
@@ -40,7 +43,11 @@ const getLinks =
 const getReferenced =
   () =>
   (decl: DeclarationFacade): DocLink[] => {
-    return Array.from(decl.referenced()).map((r) => ({ target: r.id, alias: r.alias() ?? r.name }))
+    return Array.from(decl.referenced()).map((r) => ({
+      target: r.id,
+      alias: r.alias() ?? r.name,
+      order: sortByHash(r.alias() ?? r.name),
+    }))
   }
 
 /**
@@ -74,7 +81,7 @@ const getSidebar =
     const parent = path[path.length - 1]
     if (!parent) return undefined
 
-    return { parent: cx.provider.slug(parent) }
+    return { parent: cx.provider.slug(parent), order: sortByHash(cx.provider.alias(decl)) }
   }
 
 const getAlias =
@@ -98,13 +105,19 @@ const getSegments = (cx: RouteContext, decl: DeclarationFacade): string[] => {
   if (path.length > 0 && path[0]!.isEntry()) {
     return [...rootAliasSegments(cx, path[0]!.id), ...path.map((f) => f.alias() ?? f.name)]
   }
-  // The defining-parent chain is a tree-index concept with no facade hop, so
-  // it stays id-based.
-  return decl.exposure.parents().flatMap((e) => {
-    if (e.kind === 'namespace') return e.name
-    if (e.isEntry()) return rootAliasSegments(cx, e.id)
-    return e.name
-  })
+  // Source-path placement: the defining-parent chain, from the file module
+  // down to the declaration itself.
+  return lexicalSegments(cx, decl)
+}
+
+const lexicalSegments = (cx: RouteContext, decl: DeclarationFacade): string[] => {
+  const own = decl.isEntry()
+    ? rootAliasSegments(cx, decl.id)
+    : decl.kind === 'module'
+      ? pathSegments(cx, (decl as DeclarationFacade<'module'>).raw.path)
+      : [decl.name]
+  const parent = decl.parent()
+  return parent ? [...lexicalSegments(cx, parent), ...own] : own
 }
 
 const rootAliasSegments = (cx: RouteContext, id: number): string[] => pathSegments(cx, cx.docs.rootAlias(id)!.as)

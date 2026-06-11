@@ -37,6 +37,10 @@ export const DocsProvider: ParentComponent<{ value: DocsInput }> = (p) => (
   </DocsContext.Provider>
 )
 
+/**
+ * Read the active docs.
+ * @group hooks
+ * */
 export const useDocs = () => {
   const ctx = useContext(DocsContext)
   if (!ctx) throw new Error('useDocs must be used within a <DocsProvider>')
@@ -47,6 +51,10 @@ export const useDocs = () => {
   return { versions, active, name, links }
 }
 
+/**
+ * Read the active project json.
+ * @group hooks
+ * */
 const useDocsProjectJson = (version: () => Types.DocsVersion | undefined) => {
   const ctx = useContext(DocsContext)
 
@@ -69,10 +77,16 @@ const useDocsProjectJson = (version: () => Types.DocsVersion | undefined) => {
   return { json, loading, error, version, current }
 }
 
-/** All versions of the active docs. */
+/**
+ * All versions of the active docs.
+ * @group hooks
+ * */
 export const useDocVersions = (): Accessor<Types.DocsVersion[]> => useDocs().versions
 
-/** The version owning the current location. */
+/**
+ * The version owning the current location.
+ * @group hooks
+ * */
 export const useDocActiveVersion = (): Accessor<Types.DocsVersion | undefined> => {
   const docs = useDocs()
   const loc = useLocation()
@@ -84,6 +98,7 @@ export const useDocActiveVersion = (): Accessor<Types.DocsVersion | undefined> =
  * accessors — `json` (the loaded `ProjectVersion`, cached per version),
  * `current`, `loading`, `error` and `version` — so the layout can render a
  * shell while a version loads.
+ * @group hooks
  */
 export const useDocActiveProject = () => {
   const docs = useDocs()
@@ -91,6 +106,10 @@ export const useDocActiveProject = () => {
   return useDocsProjectJson(() => docs.active(loc.pathname))
 }
 
+/**
+ * Load a version of the active docs.
+ * @group hooks
+ * */
 export const useLoadVersion = () => {
   const [v, load] = createSignal<Types.DocsVersion | undefined>(undefined)
   const d = useDocsProjectJson(() => v())

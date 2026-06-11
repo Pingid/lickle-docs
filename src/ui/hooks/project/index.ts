@@ -14,7 +14,10 @@ export interface Project extends Omit<Types.ProjectVersion, 'routes'> {
 
 const INSTANCE = new WeakMap<Types.DocsVersion, Project>()
 
-/** Indexed access to the active version's data. The {@link Project} is built once per version and reused. */
+/**
+ * Indexed access to the active version's data. The {@link Project} is built once per version and reused.
+ * @group hooks
+ * */
 export const useProject = (): Accessor<Project | undefined> => {
   const doc = useDocActiveProject()
   return createMemo(() => {
