@@ -2,7 +2,8 @@ import type * as Reflect from '../reflect/index.ts'
 
 import { Slug } from '../../_lib/index.ts'
 
-import { compose, makeContext, withMemo, provide, type ContextOptions } from './provider/index.ts'
+import { compose, withMemo, provide, type ContextOptions, type RouteContext, type Provider } from './provider/index.ts'
+import { createFacade } from './provider/facade.ts'
 import { groupByKind } from './adapter/index.ts'
 import type { Route } from './types.ts'
 
@@ -21,7 +22,8 @@ export const builder = (opts: ContextOptions) => {
   let pageRouteMatched = false
   return {
     declare: (decl: Reflect.Declaration) => {
-      const route = cx.provider.declare(decl.id)
+      const facade = createFacade(cx.docs, decl.id)
+      const route = facade && cx.provider.declare(facade)
       if (route) {
         routes.push(route)
         declarations.push(decl)
@@ -51,4 +53,15 @@ export const builder = (opts: ContextOptions) => {
       }
     },
   }
+}
+
+/**
+ * Wire a provider factory to its own context. The provider needs the context
+ * to call back into itself (e.g. a slug derives from the parent's slug), so
+ * the context is created first and the provider grafted on.
+ */
+const makeContext = (opts: ContextOptions, provider: (cx: RouteContext) => Provider): RouteContext => {
+  const cx = { ...opts, provider: {} as any }
+  cx.provider = provider(cx)
+  return cx
 }

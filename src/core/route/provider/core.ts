@@ -1,7 +1,7 @@
 import type * as Reflect from '../../reflect/index.ts'
 import { memo1 } from '../../../_lib/util/index.ts'
 
-import { createFacade, type DeclarationFacade } from './facade.ts'
+import { type DeclarationFacade, type ModuleFacade } from './facade.ts'
 import type { DocRoute, Sidebar, DocLink } from '../types.ts'
 
 /**
@@ -9,7 +9,16 @@ import type { DocRoute, Sidebar, DocLink } from '../types.ts'
  * produced, the declaration it belongs to and the shared {@link RouteContext};
  * returns the value to use instead.
  */
-export type Hook<V> = (value: V, id: DeclarationFacade, cx: RouteContext) => V
+export type Hook<V> = (value: V, declarationFacade: DeclarationFacade) => V
+
+/**
+ * A re-export chain from an entrypoint to a declaration — the shape
+ * `d.exposure.ancestors()` returns. Each element is an exposing module,
+ * carrying the alias of the next hop; the first element must be an
+ * entrypoint module for the path to produce a slug. An empty path places
+ * the declaration by source path and hides it from the sidebar.
+ */
+export type ExposurePath = ModuleFacade[]
 
 /**
  * A record of hooks refining route generation, one per facet. Every hook is
@@ -17,6 +26,13 @@ export type Hook<V> = (value: V, id: DeclarationFacade, cx: RouteContext) => V
  * {@link compose} and pass the result as the config `provider`.
  */
 export interface Adapter {
+  /**
+   * Canonical exposure path — where the declaration's page lives when it is
+   * re-exported in several places. The default picks the shortest chain from
+   * the earliest entrypoint; return another `d.exposure.ancestors()` path to
+   * relocate the page. Slug, title and sidebar placement all follow.
+   */
+  exposure?: Hook<ExposurePath>
   /** Display title of a declaration's page and links to it. */
   alias?: Hook<string>
   /** URL path of a declaration's page. */
@@ -45,33 +61,24 @@ export type ContextOptions = {
 }
 
 /**
- * Wire a provider factory to its own context. The provider needs the context
- * to call back into itself (e.g. a slug derives from the parent's slug), so
- * the context is created first and the provider grafted on.
- */
-export const makeContext = (opts: ContextOptions, provider: (cx: RouteContext) => Provider): RouteContext => {
-  const cx = { ...opts, provider: {} as any }
-  cx.provider = provider(cx)
-  return cx
-}
-
-/**
  * The resolved route-generation functions, each keyed by declaration id.
  * What an {@link Adapter} refines: hooks wrap these per-facet defaults.
  */
 export type Provider = {
+  /** Canonical exposure path for the declaration — empty when placed by source path. */
+  exposure(id: DeclarationFacade): ExposurePath
   /** Display title for the declaration. */
-  alias(id: number): string
+  alias(id: DeclarationFacade): string
   /** URL path for the declaration's page. */
-  slug(id: number): string
+  slug(id: DeclarationFacade): string
   /** The page route for the declaration, or `undefined` when it has none. */
-  declare(id: number): DocRoute | undefined
+  declare(id: DeclarationFacade): DocRoute | undefined
   /** Sidebar placement, or `undefined` when hidden. */
-  sidebar(id: number): Sidebar | undefined
+  sidebar(id: DeclarationFacade): Sidebar | undefined
   /** Member links listed on the declaration's page. */
-  links(id: number): DocLink[]
+  links(id: DeclarationFacade): DocLink[]
   /** Backlinks from declarations that reference this one. */
-  referenced(id: number): DocLink[]
+  referenced(id: DeclarationFacade): DocLink[]
 }
 
 /**
@@ -81,7 +88,7 @@ export type Provider = {
  */
 export const compose = (...adapters: (Adapter | undefined)[]): Adapter => adapters.reduce<Adapter>(merge, {})
 
-const hooks = ['alias', 'slug', 'declare', 'sidebar', 'referenced', 'links'] as const
+const hooks = ['exposure', 'alias', 'slug', 'declare', 'sidebar', 'referenced', 'links'] as const
 const merge = (a: Adapter | undefined, b: Adapter | undefined): Adapter => {
   if (!a) return b ?? {}
   if (!b) return a ?? {}
@@ -96,7 +103,7 @@ const mergeHook = <V>(a?: Hook<V>, b?: Hook<V>): Hook<V> | undefined => {
   if (!a && !b) return undefined
   if (!a) return b
   if (!b) return a
-  return (curr, id, cx) => b(a(curr, id, cx), id, cx)
+  return (curr, id) => b(a(curr, id), id)
 }
 
 /**
@@ -104,16 +111,16 @@ const mergeHook = <V>(a?: Hook<V>, b?: Hook<V>): Hook<V> | undefined => {
  * the matching hook post-processes its result. Facets without a hook pass
  * through untouched.
  */
-export const provideAdapter = (cx: RouteContext, base: Provider, adapter?: Adapter): Provider => {
+export const provideAdapter = (base: Provider, adapter?: Adapter): Provider => {
   if (!adapter) return base
   return Object.fromEntries(
-    hooks.map((hook) => [hook, applyHook(cx, adapter?.[hook] as Hook<any>, base[hook])]),
+    hooks.map((hook) => [hook, applyHook(adapter?.[hook] as Hook<any>, base[hook])]),
   ) as Provider
 }
 
-const applyHook = <V>(cx: RouteContext, hook: Hook<V> | undefined, def: (id: number) => V): ((id: number) => V) => {
+const applyHook = <V>(hook: Hook<V> | undefined, def: (id: DeclarationFacade) => V): ((id: DeclarationFacade) => V) => {
   if (!hook) return def
-  return (id) => hook(def(id), createFacade(cx.docs, id)!, cx)
+  return (id) => hook(def(id), id)
 }
 
 /**

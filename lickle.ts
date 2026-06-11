@@ -17,14 +17,14 @@ export default defineConfig({
     return d
   },
   versions: './docs/version/*.json',
-  provider: Adapter.groupBy((d, cx, group) => {
+  provider: Adapter.groupBy((d, group) => {
     // Keep modules/namespaces (and entrypoints) in their kind groups so the
     // Modules / Namespaces sections stay first.
     if (d.isEntry() || d.kind === 'module' || d.kind === 'namespace') return group ?? { name: '' }
     // Areas apply to direct exports of an entrypoint only; members of nested
     // modules/namespaces keep their kind buckets.
 
-    const direct = cx.docs.exposures(d.id).some((p) => p.length === 1)
+    const direct = d.exposure.ancestors().some((p) => p.length === 1)
     if (!direct) return group ?? { name: '' }
     const srcFile = d.sources[0]?.file ?? ''
     if (srcFile.startsWith('ui/') && /^use[A-Z]/.test(d.name)) return { name: 'hooks', order: 11 }

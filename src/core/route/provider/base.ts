@@ -1,130 +1,113 @@
-import { type RouteContext, type Provider, type Adapter, provideAdapter } from './core.ts'
+import { type RouteContext, type Provider, type Adapter, type ExposurePath, provideAdapter } from './core.ts'
+import { type DeclarationFacade, type ModuleFacade } from './facade.ts'
 import type { DocRoute, Sidebar, DocLink } from '../types.ts'
-import type { Exposure } from '../../reflect/indexed.ts'
 
-export const provide = (c: RouteContext, adapter: Adapter): Provider => provideAdapter(c, provider(c), adapter)
+export const provide = (c: RouteContext, adapter: Adapter): Provider => provideAdapter(provider(c), adapter)
 
 const provider = (cx: RouteContext): Provider => ({
+  exposure: getExposure(),
   alias: getAlias(cx),
   slug: getSlug(cx),
   declare: getRoute(cx),
   sidebar: getSidebar(cx),
-  links: getLinks(cx),
-  referenced: getReferenced(cx),
+  links: getLinks(),
+  referenced: getReferenced(),
 })
 
 const getRoute =
   (cx: RouteContext) =>
-  (id: number): DocRoute | undefined => {
-    const decl = cx.docs.get(id)!
+  (decl: DeclarationFacade): DocRoute | undefined => {
     if (decl.kind === 'export') return undefined
 
-    const sidebar = cx.provider.sidebar(id)
-    const title = cx.provider.alias(id)
-    const slug = cx.provider.slug(id)
-    const links = cx.provider.links(id)
-    const referenced = cx.provider.referenced(id)
+    const sidebar = cx.provider.sidebar(decl)
+    const title = cx.provider.alias(decl)
+    const slug = cx.provider.slug(decl)
+    const links = cx.provider.links(decl)
+    const referenced = cx.provider.referenced(decl)
 
-    return { kind: 'doc', decl: id, title, slug, sidebar, links, referenced }
+    return { kind: 'doc', decl: decl.id, title, slug, sidebar, links, referenced }
   }
 
 const getLinks =
-  (cx: RouteContext) =>
-  (id: number): DocLink[] => {
-    const decl = cx.docs.get(id)!
+  () =>
+  (decl: DeclarationFacade): DocLink[] => {
     if (decl.kind === 'module' || decl.kind === 'namespace') {
-      return cx.docs.exposes(id).map((e) => ({ target: e.exposer, alias: e.alias ?? cx.provider.alias(e.exposer) }))
+      return decl.exposure.children().map((e) => ({ target: e.id, alias: e.alias() ?? e.name }))
     }
     return []
   }
 
 const getReferenced =
-  (cx: RouteContext) =>
-  (id: number): DocLink[] => {
-    return Array.from(cx.docs.referencedIn(id)).map((id) => ({ target: id, alias: cx.provider.alias(id) }))
+  () =>
+  (decl: DeclarationFacade): DocLink[] => {
+    return Array.from(decl.referenced()).map((r) => ({ target: r.id, alias: r.alias() ?? r.name }))
   }
+
+/**
+ * Default canonical-placement policy: the shortest re-export chain wins,
+ * ties broken toward the earliest entrypoint. The page lives at this path;
+ * every other exposer lists it as a link. Refine via the adapter's
+ * `exposure` hook — slug, alias and sidebar all derive from it.
+ */
+const getExposure =
+  () =>
+  (decl: DeclarationFacade): ExposurePath =>
+    decl.exposure.ancestors().sort((a, b) => a.length - b.length || rank(a) - rank(b))[0] ?? []
+
+/** Entrypoint index of a path's root, for canonical-path tie-breaks. */
+const rank = (pth: ModuleFacade[]) => pth[0]?.entry()?.index ?? 0
 
 const getSlug =
   (cx: RouteContext) =>
-  (id: number): string =>
-    getSegments(cx, id).join('/')
+  (decl: DeclarationFacade): string =>
+    getSegments(cx, decl).join('/')
 
 const getSidebar =
   (cx: RouteContext) =>
-  (id: number): Sidebar | undefined => {
-    const idx = cx.docs.rootIndex(id)
+  (decl: DeclarationFacade): Sidebar | undefined => {
+    const idx = decl.entryIndex()
     if (typeof idx === 'number') return { order: idx + 1 }
-    if (!cx.docs.isExposed(id)) return undefined
 
-    const parents = getExposedPath(cx, id)
-    const parent = parents[parents.length - 1]
-    const decl = cx.docs.get(id)!
+    if (decl.kind === 'export') return undefined
 
-    if ((!parent && decl.kind === 'module') || decl.kind === 'export') return undefined
-
+    const path = cx.provider.exposure(decl)
+    const parent = path[path.length - 1]
     if (!parent) return undefined
 
-    return { parent: cx.provider.slug(parent.exposer) }
+    return { parent: cx.provider.slug(parent) }
   }
 
 const getAlias =
   (cx: RouteContext) =>
-  (id: number): string => {
-    if (cx.docs.isRoot(id)) return cx.docs.rootAlias(id)!.as.replace(/^\.\//, '').replace(/^\.$/, cx.name)
+  (decl: DeclarationFacade): string => {
+    if (decl.isEntry()) return decl.entry()!.as.replace(/^\.\//, '').replace(/^\.$/, cx.name)
 
-    if (cx.docs.isExposed(id)) {
-      return getExposedPath(cx, id)
-        .map((e) => e.alias)
-        .join('.')
-    }
+    const path = cx.provider.exposure(decl)
+    if (path.length > 0) return path.map((f) => f.alias() ?? f.name).join('.')
 
-    const decl = cx.docs.get(id)!
-    if (decl.kind === 'module') {
-      const segments = getSegments(cx, id)
-      return segments.join('/')
-    }
+    if (decl.kind === 'module') return getSegments(cx, decl).join('/')
 
     return decl.name
   }
 
-const getSegments = (cx: RouteContext, id: number): string[] => {
-  if (cx.docs.isRoot(id)) return rootAliasSegments(cx, id)
-  const pth = getExposedPath(cx, id)
-  if (pth.length > 0) {
-    const root = rootAliasSegments(cx, pth[0]!.exposer)
-    return [...root, ...pth.map((e) => e.alias)].filter((e) => e !== undefined)
-  } else {
-    const path = cx.docs.parents(id)
-    return path
-      .map((e) => {
-        const dec = cx.docs.get(e)!
-        if (cx.docs.isRoot(e)) return rootAliasSegments(cx, e)
-        if (dec.kind === 'module') return pathSegments(cx, dec.path)
-        return dec.name
-      })
-      .flat()
+const getSegments = (cx: RouteContext, decl: DeclarationFacade): string[] => {
+  if (decl.isEntry()) return rootAliasSegments(cx, decl.id)
+  const path = cx.provider.exposure(decl)
+  // A path rooted anywhere but an entrypoint has no mount point; fall back
+  // to source-path placement rather than fabricating segments.
+  if (path.length > 0 && path[0]!.isEntry()) {
+    return [...rootAliasSegments(cx, path[0]!.id), ...path.map((f) => f.alias() ?? f.name)]
   }
+  // The defining-parent chain is a tree-index concept with no facade hop, so
+  // it stays id-based.
+  return decl.exposure.parents().flatMap((e) => {
+    if (e.kind === 'namespace') return e.name
+    if (e.isEntry()) return rootAliasSegments(cx, e.id)
+    return e.name
+  })
 }
 
 const rootAliasSegments = (cx: RouteContext, id: number): string[] => pathSegments(cx, cx.docs.rootAlias(id)!.as)
-
-/**
- * The canonical exposure path for a declaration reachable from several
- * entrypoints: the shortest re-export chain wins, ties broken toward the
- * earliest entrypoint. The page lives at this path; every other exposer
- * lists it as a link.
- */
-const getExposedPath = (cx: RouteContext, id: number): Exposure[] =>
-  cx.docs.exposures(id).sort((a, b) => a.length - b.length || rank(cx, a) - rank(cx, b))[0] ?? []
-
-/** Entrypoint index of a path's root, for canonical-path tie-breaks. */
-const rank = (cx: RouteContext, pth: Exposure[]) => {
-  if (pth.length === 0) return 0
-  const root = pth[0]!.exposer
-  const rootAlias = cx.docs.rootAlias(root)
-  if (!rootAlias) return 0
-  return rootAlias.index
-}
 
 const pathSegments = (cx: RouteContext, path: string) => {
   let segs = path

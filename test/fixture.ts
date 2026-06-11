@@ -56,6 +56,49 @@ export const byName = <K extends reflect.Declaration['kind'] = reflect.Declarati
 export const typeOf = (index: reflect.Index, name: string): reflect.Type => byName<'variable'>(index, name).type
 
 /**
+ * Scan several in-memory modules with multiple entrypoints and run the full
+ * route pipeline. `files` maps file name to source; `entries` lists the
+ * entrypoint labels and the files they point at. Relative imports between
+ * fixture files must be extensionless (`./shared`).
+ */
+export const multiRoutesFixture = (
+  files: Record<string, string>,
+  entries: { as: string; file: string }[],
+  adapter?: Adapter,
+): {
+  index: reflect.Index
+  routes: Route[]
+  declarations: reflect.Declaration[]
+  router: ClientRouter
+} => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reflect-'))
+  const fileNames = Object.keys(files).map((name) => path.join(dir, name))
+  Object.entries(files).forEach(([name, code]) => fs.writeFileSync(path.join(dir, name), code))
+  try {
+    const cmd: ts.ParsedCommandLine = {
+      fileNames,
+      options: {
+        strict: true,
+        target: ts.ScriptTarget.Latest,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+      },
+      errors: [],
+    }
+    const scanned = reflect.scan({ cmd, dir, srcDir: dir, include: (sf) => fileNames.includes(sf.fileName) })
+    const index = reflect.index(
+      reflect.resolve(scanned),
+      entries.map((e) => ({ as: e.as, path: path.join(dir, e.file) })),
+    )
+    const b = builder({ docs: index, name: 'fixture', adapter })
+    for (const decl of index.declarations()) b.declare(decl)
+    const { routes, declarations } = b.build()
+    return { index, routes, declarations, router: createRouter({ routes, prefix: PREFIX }) }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+/**
  * Scan a single module and run the full route pipeline over it: the reflection
  * index, the generated routes (and the declarations backing them), and a client
  * router built from them.
