@@ -2,7 +2,7 @@ import { create, insert, search } from '@orama/orama'
 import { createMemo, createResource } from 'solid-js'
 
 import { commentToMarkdown } from '../../util/markdown.ts'
-import type { Docs } from '../../context/docs/index.tsx'
+import type { Reflect } from '../../context/docs/index.tsx'
 import * as DocRouter from '../router/index.ts'
 import { useProject } from '../project/index.ts'
 
@@ -38,14 +38,14 @@ export const useSearch = (): (() => SearchEngine) => {
 const INSTANCE = new WeakMap<DocRouter.ClientRouter, Promise<SearchEngine>>()
 
 /** One search result: the declaration's name, kind, page slug, source file and owning module. */
-export type SearchHit = { name: string; kind: Docs.Any['kind']; slug: string; file: string; module: string }
+export type SearchHit = { name: string; kind: Reflect.Any['kind']; slug: string; file: string; module: string }
 
 /** A queryable search index. `limit` defaults to 20 hits. */
 export type SearchEngine = { query: (term: string, limit?: number) => Promise<SearchHit[]> }
 
 const createSearchEngine = async (
   router: DocRouter.ClientRouter,
-  byId: (id: number) => Docs.Declaration | undefined,
+  byId: (id: number) => Reflect.Declaration | undefined,
 ): Promise<SearchEngine> => {
   const db = await create({
     schema: { name: 'string', kind: 'string', slug: 'string', file: 'string', module: 'string', comment: 'string' },

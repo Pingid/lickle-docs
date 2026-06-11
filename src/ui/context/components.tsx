@@ -4,7 +4,7 @@ import type { JSX } from 'solid-js/jsx-runtime'
 import { Dynamic } from 'solid-js/web'
 
 import * as DocRouter from '../hooks/router/index.ts'
-import type { Docs } from '../context/index.tsx'
+import type { Reflect } from '../context/index.tsx'
 import type { t } from '../../_lib/index.ts'
 
 const ComponentsCtx = createContext<Accessor<Components>>(() => ({}))
@@ -83,15 +83,15 @@ export interface Components {
   /** A whole route: declaration page or markdown page. */
   page?: WithDefault<{ route: DocRouter.Route }>
   /** Title block of a declaration page: breadcrumb, name, kind, source link. */
-  'page.header'?: WithDefault<{ decl: Docs.Declaration; route: DocRouter.Route }>
+  'page.header'?: WithDefault<{ decl: Reflect.Declaration; route: DocRouter.Route }>
 
   // Declaration page slots
   /** A declaration's body — signatures, members, doc comment. */
-  declaration?: WithDefault<{ decl: Docs.Declaration }>
+  declaration?: WithDefault<{ decl: Reflect.Declaration }>
   /** A JSDoc block: summary markdown plus its tags. */
-  comment?: WithDefault<{ comment?: Docs.Comment; class?: string }>
+  comment?: WithDefault<{ comment?: Reflect.Comment; class?: string }>
   /** A single JSDoc tag (`@example`, `@returns`, …). Override to render custom tags. */
-  tag?: WithDefault<{ tag: Docs.CommentTag }>
+  tag?: WithDefault<{ tag: Reflect.CommentTag }>
 }
 
 type WithDefault<P extends Record<string, any>> = Component<P & { Default: Component<P> }>

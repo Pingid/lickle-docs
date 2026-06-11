@@ -1,7 +1,7 @@
-import type { Docs } from '../context/index.tsx'
+import type { Reflect } from '../context/index.tsx'
 
 /** Single-line plain-text preview of a comment. Used by listings/cards. */
-export const commentSummaryText = (comment: Docs.Comment | undefined): string => {
+export const commentSummaryText = (comment: Reflect.Comment | undefined): string => {
   if (!comment) return ''
   let out = ''
   for (const p of comment.parts) {

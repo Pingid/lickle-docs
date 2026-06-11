@@ -221,7 +221,9 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     // A re-exported module (`export * as ns from './m'`) nests its members.
     if (d.kind === 'module') {
       if (record(id, exposer, alias ?? d.name)) {
-        for (const child of members(id)) expose(child.id, id)
+        for (const child of members(id)) {
+          expose(child.id, id)
+        }
       }
       return
     }
@@ -236,7 +238,7 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
 
   const exposures = (id: number, pth: Exposure[] = []): Exposure[][] => {
     const d = _exposedBy.get(id)
-    // console.log('d', d)
+
     if (!d) return []
     return d.flatMap((e) => (deps.isRoot(e.exposer) ? [[e, ...pth]] : exposures(e.exposer, [e, ...pth])))
   }

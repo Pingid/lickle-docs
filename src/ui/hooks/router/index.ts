@@ -1,11 +1,11 @@
 import { createMemo, type Accessor } from 'solid-js'
 
-import { useDocActiveProject, useDocs, type Docs } from '../../context/index.tsx'
+import { useDocActiveProject, useDocs, type Reflect } from '../../context/index.tsx'
 import { createRouter, type ClientRouter } from '../../../core/route/client/index.ts'
 
 export type { ClientRouter, Route, DocRoute, DocLink } from '../../../core/route/types.ts'
 
-const INSTANCE = new WeakMap<Docs.DocsVersion, ClientRouter>()
+const INSTANCE = new WeakMap<Reflect.DocsVersion, ClientRouter>()
 
 /**
  * The route table for the active version: every page, the sidebar tree and

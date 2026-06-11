@@ -2,7 +2,7 @@ import { createEffect, createSignal } from 'solid-js'
 import { HashRouter, Router } from '@solidjs/router'
 import { render } from 'solid-js/web'
 
-import { type Types, App, LanguagesProvider } from '../../ui/index.ts'
+import { type Reflect, App, LanguagesProvider } from '../../ui/index.ts'
 
 import components from './virtuals/components.ts'
 import languages from './virtuals/languages.ts'
@@ -20,7 +20,7 @@ const HmrApp = () => {
     () =>
       import.meta.hot &&
       import.meta.hot.on('docs-update', (payload) => {
-        const data = payload as Types.ProjectVersion
+        const data = payload as Reflect.ProjectVersion
         const current = d().versions.findIndex((v) => v.version === data.version!)
         const next = { version: data.version!, slug: '/', get: data }
         if (current === -1) setDocs({ ...d(), versions: [next, ...d().versions] })

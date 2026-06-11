@@ -5,7 +5,7 @@ import { useHighlighter } from '../context/highlight/index.tsx'
 import { useMarkdown } from './markdown/index.ts'
 
 import { commentToMarkdown } from '../util/markdown.ts'
-import type { Docs } from '../context/index.tsx'
+import type { Reflect } from '../context/index.tsx'
 
 import { use } from './router/index.ts'
 import { useProject } from './project/index.ts'
@@ -28,7 +28,7 @@ export const useRoute = () => {
  * The declaration behind the current route — `undefined` on markdown pages and unmatched URLs.
  * @group hooks
  * */
-export const useDeclaration = (): Accessor<Docs.Declaration | undefined> => {
+export const useDeclaration = (): Accessor<Reflect.Declaration | undefined> => {
   const route = useRoute()
   const project = useProject()
   return createMemo(() => {
@@ -88,7 +88,7 @@ export const useRenderMarkdown = (text: string) => {
  * Flatten a structured doc comment to markdown, resolving `{@link Name}` references to page links.
  * @group hooks
  * */
-export const useCommentMarkdown = (comment: () => Docs.Comment | undefined) => {
+export const useCommentMarkdown = (comment: () => Reflect.Comment | undefined) => {
   const slugs = useSlugFor()
   const slugOf = (name: string) => slugs.byName(name)
   return createMemo(() => {

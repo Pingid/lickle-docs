@@ -2,7 +2,7 @@ import { For, Show, createMemo, type Component } from 'solid-js'
 import { A } from '../util/router.tsx'
 import { Dynamic } from 'solid-js/web'
 
-import { type Docs } from '../context/index.tsx'
+import { type Reflect } from '../context/index.tsx'
 
 import { type Kind, labelOf, shortOf } from '../util/kind.ts'
 import { useSlugFor } from '../hooks/index.ts'
@@ -13,7 +13,7 @@ import { Comment } from './Comment/index.tsx'
 import { Syntax } from './Syntax.tsx'
 import { Link } from './Link.tsx'
 
-type T = Docs.Type
+type T = Reflect.Type
 
 /**
  * Type signature + its doc block. Parameter descriptions come from the
@@ -22,7 +22,7 @@ type T = Docs.Type
  * @group components
  */
 export const TypeSignature = (props: {
-  sig: Docs.Part<'signature'>
+  sig: Reflect.Part<'signature'>
   name?: string
   id?: number
   kind?: 'function' | 'method' | 'constructor'
@@ -57,16 +57,16 @@ export const Type = (props: { type: T | undefined }) => {
 
 // --- Variant renderers (one per `Types.Type['kind']`, ordered to match RENDERERS) ---
 
-const Intrinsic = (props: { type: Docs.Type<'intrinsic'> }) => <Syntax.Kw>{props.type.name}</Syntax.Kw>
+const Intrinsic = (props: { type: Reflect.Type<'intrinsic'> }) => <Syntax.Kw>{props.type.name}</Syntax.Kw>
 
-const Literal = (props: { type: Docs.Type<'literal'> }) => {
+const Literal = (props: { type: Reflect.Type<'literal'> }) => {
   const t = props.type
   if (typeof t.value === 'string') return <span class="text-fg">"{t.value}"</span>
   if (t.value === null) return <Syntax.Kw>null</Syntax.Kw>
   return <span>{String(t.value)}</span>
 }
 
-const Reference = (props: { type: Docs.Type<'reference'> }) => {
+const Reference = (props: { type: Reflect.Type<'reference'> }) => {
   const t = props.type
   return (
     <>
@@ -80,7 +80,7 @@ const Reference = (props: { type: Docs.Type<'reference'> }) => {
   )
 }
 
-const Record = (props: { type: Docs.Type<'record'> }) => {
+const Record = (props: { type: Reflect.Type<'record'> }) => {
   const decl = props.type
   const onlySignatures =
     decl.callSignatures?.length === 1 &&
@@ -129,17 +129,17 @@ const Record = (props: { type: Docs.Type<'record'> }) => {
  * formats long conditional-type maps, instead of one runaway inline line.
  * @group components
  */
-const Conditional = (props: { type: Docs.Type<'conditional'> }) => {
+const Conditional = (props: { type: Reflect.Type<'conditional'> }) => {
   const chain = createMemo(() => {
-    const branches: Docs.Type<'conditional'>[] = []
-    let cur: Docs.Type | undefined = props.type
+    const branches: Reflect.Type<'conditional'>[] = []
+    let cur: Reflect.Type | undefined = props.type
     while (cur?.kind === 'conditional') {
       branches.push(cur)
       cur = cur.false
     }
     return { branches, tail: cur }
   })
-  const head = (b: Docs.Type<'conditional'>) => (
+  const head = (b: Reflect.Type<'conditional'>) => (
     <>
       <Type type={b.check} />
       <Syntax.Kw> extends </Syntax.Kw>
@@ -179,18 +179,18 @@ const Conditional = (props: { type: Docs.Type<'conditional'> }) => {
   )
 }
 
-const Union = (props: { type: Docs.Type<'union'> }) => <Join sep=" | " items={props.type.types} />
+const Union = (props: { type: Reflect.Type<'union'> }) => <Join sep=" | " items={props.type.types} />
 
-const Intersection = (props: { type: Docs.Type<'intersection'> }) => <Join sep=" & " items={props.type.types} />
+const Intersection = (props: { type: Reflect.Type<'intersection'> }) => <Join sep=" & " items={props.type.types} />
 
-const Array = (props: { type: Docs.Type<'array'> }) => (
+const Array = (props: { type: Reflect.Type<'array'> }) => (
   <>
     <Type type={props.type.elementType} />
     <Syntax.Punct>[]</Syntax.Punct>
   </>
 )
 
-const Tuple = (props: { type: Docs.Type<'tuple'> }) => (
+const Tuple = (props: { type: Reflect.Type<'tuple'> }) => (
   <>
     <Syntax.Punct>[</Syntax.Punct>
     <For each={props.type.elements}>
@@ -207,13 +207,13 @@ const Tuple = (props: { type: Docs.Type<'tuple'> }) => (
   </>
 )
 
-const FunctionType = (props: { type: Docs.Type<'function-type'> }) => (
+const FunctionType = (props: { type: Reflect.Type<'function-type'> }) => (
   <Show when={props.type.signatures[0]} fallback={<Syntax.Kw>function</Syntax.Kw>}>
     {(sig) => <SignatureExpr sig={sig()} arrow />}
   </Show>
 )
 
-const TypeOperator = (props: { type: Docs.Type<'type-operator'> }) => (
+const TypeOperator = (props: { type: Reflect.Type<'type-operator'> }) => (
   <>
     <Syntax.Kw>{props.type.operator}</Syntax.Kw>
     <span> </span>
@@ -221,7 +221,7 @@ const TypeOperator = (props: { type: Docs.Type<'type-operator'> }) => (
   </>
 )
 
-const Infer = (props: { type: Docs.Type<'infer'> }) => (
+const Infer = (props: { type: Reflect.Type<'infer'> }) => (
   <>
     <Syntax.Kw>infer </Syntax.Kw>
     <Syntax.Name>{props.type.name}</Syntax.Name>
@@ -234,7 +234,7 @@ const Infer = (props: { type: Docs.Type<'infer'> }) => (
   </>
 )
 
-const IndexedAccess = (props: { type: Docs.Type<'indexed-access'> }) => (
+const IndexedAccess = (props: { type: Reflect.Type<'indexed-access'> }) => (
   <>
     <Type type={props.type.object} />
     <Syntax.Punct>[</Syntax.Punct>
@@ -243,7 +243,7 @@ const IndexedAccess = (props: { type: Docs.Type<'indexed-access'> }) => (
   </>
 )
 
-const Mapped = (props: { type: Docs.Type<'mapped'> }) => {
+const Mapped = (props: { type: Reflect.Type<'mapped'> }) => {
   const t = props.type
   return (
     <>
@@ -276,7 +276,7 @@ const Mapped = (props: { type: Docs.Type<'mapped'> }) => {
   )
 }
 
-const Query = (props: { type: Docs.Type<'query'> }) => (
+const Query = (props: { type: Reflect.Type<'query'> }) => (
   <>
     <Syntax.Kw>typeof </Syntax.Kw>
     <Syntax.Name>{props.type.name}</Syntax.Name>
@@ -284,7 +284,7 @@ const Query = (props: { type: Docs.Type<'query'> }) => (
   </>
 )
 
-const TemplateLiteral = (props: { type: Docs.Type<'template-literal'> }) => (
+const TemplateLiteral = (props: { type: Reflect.Type<'template-literal'> }) => (
   <>
     <span class="text-fg">
       {'`'}
@@ -304,7 +304,7 @@ const TemplateLiteral = (props: { type: Docs.Type<'template-literal'> }) => (
   </>
 )
 
-const Predicate = (props: { type: Docs.Type<'predicate'> }) => (
+const Predicate = (props: { type: Reflect.Type<'predicate'> }) => (
   <>
     <Show when={props.type.asserts}>
       <Syntax.Kw>asserts </Syntax.Kw>
@@ -319,7 +319,7 @@ const Predicate = (props: { type: Docs.Type<'predicate'> }) => (
   </>
 )
 
-const ImportType = (props: { type: Docs.Type<'import-type'> }) => {
+const ImportType = (props: { type: Reflect.Type<'import-type'> }) => {
   const t = props.type
   return (
     <>
@@ -342,11 +342,11 @@ const ImportType = (props: { type: Docs.Type<'import-type'> }) => {
 }
 
 /** Catch-all: the parser's `unknown` kind, plus any runtime kind without a renderer. */
-const Unknown = (props: { type: Docs.Type }) => (
+const Unknown = (props: { type: Reflect.Type }) => (
   <Syntax.Name>{(props.type as { text?: string; kind: string }).text ?? props.type.kind}</Syntax.Name>
 )
 
-const RENDERERS: { [K in Docs.Type['kind']]: Component<{ type: Docs.Type<K> }> } = {
+const RENDERERS: { [K in Reflect.Type['kind']]: Component<{ type: Reflect.Type<K> }> } = {
   intrinsic: Intrinsic,
   literal: Literal,
   reference: Reference,
@@ -392,7 +392,7 @@ const TypeArgs = (props: { args?: T[] }) => (
   </Show>
 )
 
-const RecordProperty = (props: { prop: Docs.Part<'property'> }) => (
+const RecordProperty = (props: { prop: Reflect.Part<'property'> }) => (
   <>
     <Syntax.Name>{props.prop.name}</Syntax.Name>
     <Show when={props.prop.optional}>
@@ -403,14 +403,14 @@ const RecordProperty = (props: { prop: Docs.Part<'property'> }) => (
   </>
 )
 
-const RecordMethod = (props: { name: string; sig: Docs.Part<'signature'> }) => (
+const RecordMethod = (props: { name: string; sig: Reflect.Part<'signature'> }) => (
   <>
     <Syntax.Name>{props.name}</Syntax.Name>
     <SignatureExpr sig={props.sig} />
   </>
 )
 
-const RecordIndex = (props: { sig: Docs.Part<'index-signature'> }) => (
+const RecordIndex = (props: { sig: Reflect.Part<'index-signature'> }) => (
   <>
     <Syntax.Punct>[</Syntax.Punct>
     <Syntax.Name>{props.sig.parameter.name}</Syntax.Name>
@@ -421,7 +421,7 @@ const RecordIndex = (props: { sig: Docs.Part<'index-signature'> }) => (
   </>
 )
 
-const TupleElement = (props: { el: Docs.Part<'tuple-element'> }) => (
+const TupleElement = (props: { el: Reflect.Part<'tuple-element'> }) => (
   <>
     <Show when={props.el.rest}>
       <Syntax.Punct>...</Syntax.Punct>
@@ -443,7 +443,7 @@ const TupleElement = (props: { el: Docs.Part<'tuple-element'> }) => (
 )
 
 /** @internal */
-export const SignatureExpr = (props: { sig: Docs.Part<'signature'>; arrow?: boolean }) => (
+export const SignatureExpr = (props: { sig: Reflect.Part<'signature'>; arrow?: boolean }) => (
   <>
     <Generics generics={props.sig.generics} />
     <Syntax.Punct>(</Syntax.Punct>
@@ -475,7 +475,7 @@ export const SignatureExpr = (props: { sig: Docs.Part<'signature'>; arrow?: bool
  * Type parameter list — `<T extends C = D>`.
  * @internal
  */
-export const Generics = (props: { generics?: Docs.Part<'generic'>[] }) => (
+export const Generics = (props: { generics?: Reflect.Part<'generic'>[] }) => (
   <Show when={props.generics?.length}>
     <Syntax.Punct>{'<'}</Syntax.Punct>
     <For each={props.generics!}>
@@ -519,7 +519,7 @@ export const TypeBox = (props: { type: T | undefined; class?: string }) => (
 )
 
 /** @internal */
-export const Inline = (props: { type?: Docs.Type; text: string }) => (
+export const Inline = (props: { type?: Reflect.Type; text: string }) => (
   <>
     <Show when={props.type}>
       <div class="font-mono text-sm mb-1">
@@ -573,11 +573,11 @@ const NameLink = (props: { id?: number; name: string; class?: string }) => {
   )
 }
 
-const isOptional = (p: Docs.Part<'parameter'>): boolean => p.optional || p.default != null
+const isOptional = (p: Reflect.Part<'parameter'>): boolean => p.optional || p.default != null
 
 /** @internal */
 export const SignatureLine = (props: {
-  sig: Docs.Part<'signature'>
+  sig: Reflect.Part<'signature'>
   name?: string
   /** Owning declaration id — when set, the name renders as a link to its page. */
   id?: number

@@ -36,7 +36,6 @@ import type { Reflect } from '../../../core/index.ts'
 
 export type { DeclarationFacade, ModuleFacade } from '../provider/facade.ts'
 export type * from '../provider/core.ts'
-export type * from '../types.ts'
 
 export { compose }
 

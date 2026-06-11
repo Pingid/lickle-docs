@@ -10,20 +10,19 @@ import {
 
 import { useLocation } from '../../util/router.tsx'
 
-import type * as Docs from './types.ts'
-export type * as Docs from './types.ts'
+import type * as Reflect from './types.ts'
 
-// export type { Docs }
+export type { Reflect }
 
 /**
  * What {@link DocsProvider} accepts: a multi-version `DocsJson`, a single
  * `ProjectVersion` (wrapped as the only version), or an accessor of either
  * for data that loads asynchronously.
  */
-export type DocsInput = MaybeAccessor<Docs.DocsJson | Docs.ProjectVersion | null>
+export type DocsInput = MaybeAccessor<Reflect.DocsJson | Reflect.ProjectVersion | null>
 const DocsContext = createContext<{
-  docs: Accessor<Docs.DocsJson | null>
-  cache: Map<Docs.DocsVersion, Docs.ProjectVersion>
+  docs: Accessor<Reflect.DocsJson | null>
+  cache: Map<Reflect.DocsVersion, Reflect.ProjectVersion>
 }>()
 
 /**
@@ -56,7 +55,7 @@ export const useDocs = () => {
  * Read the active project json.
  * @group hooks
  * */
-const useDocsProjectJson = (version: () => Docs.DocsVersion | undefined) => {
+const useDocsProjectJson = (version: () => Reflect.DocsVersion | undefined) => {
   const ctx = useContext(DocsContext)
 
   const [resource] = createResource(version, (v) => delay(v ? (typeof v.get === 'function' ? v.get() : v.get) : null))
@@ -82,13 +81,13 @@ const useDocsProjectJson = (version: () => Docs.DocsVersion | undefined) => {
  * All versions of the active docs.
  * @group hooks
  * */
-export const useDocVersions = (): Accessor<Docs.DocsVersion[]> => useDocs().versions
+export const useDocVersions = (): Accessor<Reflect.DocsVersion[]> => useDocs().versions
 
 /**
  * The version owning the current location.
  * @group hooks
  * */
-export const useDocActiveVersion = (): Accessor<Docs.DocsVersion | undefined> => {
+export const useDocActiveVersion = (): Accessor<Reflect.DocsVersion | undefined> => {
   const docs = useDocs()
   const loc = useLocation()
   return createMemo(() => docs.active(loc.pathname))
@@ -112,12 +111,12 @@ export const useDocActiveProject = () => {
  * @group hooks
  * */
 export const useLoadVersion = () => {
-  const [v, load] = createSignal<Docs.DocsVersion | undefined>(undefined)
+  const [v, load] = createSignal<Reflect.DocsVersion | undefined>(undefined)
   const d = useDocsProjectJson(() => v())
   return { ...d, load }
 }
 
-const resolveDocs = (input: DocsInput): Docs.DocsJson | null => {
+const resolveDocs = (input: DocsInput): Reflect.DocsJson | null => {
   const s = typeof input === 'function' ? input() : input
   if (!s) return null
   if ('versions' in s) return s
@@ -126,7 +125,7 @@ const resolveDocs = (input: DocsInput): Docs.DocsJson | null => {
 
 type MaybeAccessor<T> = (() => T) | T
 
-const resolveActive = (path: string, versions: Docs.DocsVersion[]): Docs.DocsVersion | undefined => {
+const resolveActive = (path: string, versions: Reflect.DocsVersion[]): Reflect.DocsVersion | undefined => {
   const head = trim(path).split('/')[0] ?? ''
   return (
     versions.find((v) => v.slug !== '/' && trim(v.slug) === head) ?? versions.find((v) => v.slug === '/') ?? versions[0]

@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createMemo } from 'solid-js'
 
-import { createSlot, type Docs } from '../context/index.tsx'
+import { createSlot, type Reflect } from '../context/index.tsx'
 import { DocRouter, useProject } from '../hooks/index.ts'
 import { groupItems } from '../../core/client/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
@@ -63,7 +63,7 @@ const Statement = (props: { route: DocRouter.DocRoute }) => {
  * deprecation marker when `@deprecated` is present, and the source link.
  * Replaceable via the `page.header` slot.
  */
-export const PageHeader = createSlot('page.header', (props: { decl: Docs.Declaration; route: DocRouter.Route }) => (
+export const PageHeader = createSlot('page.header', (props: { decl: Reflect.Declaration; route: DocRouter.Route }) => (
   <header class="mb-5">
     <Breadcrumb id={props.decl.id} />
     <div class="flex items-baseline gap-3 flex-wrap">
@@ -78,7 +78,7 @@ export const PageHeader = createSlot('page.header', (props: { decl: Docs.Declara
 ))
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
-export const Source = staticComponent((props: { decl: Docs.Declaration }) => {
+export const Source = staticComponent((props: { decl: Reflect.Declaration }) => {
   const project = useProject()
   const sources = createMemo(() => {
     return (props.decl.sources ?? []).map((s) => ({
@@ -160,7 +160,7 @@ const LinkRow = (props: { link: DocRouter.DocLink }) => {
 }
 
 /** A terse inline type cue next to a member name (function params / variable type). */
-const Signature = (props: { decl: Docs.Declaration }) => {
+const Signature = (props: { decl: Reflect.Declaration }) => {
   const d = props.decl
   if (d.kind === 'function' && d.signatures[0])
     return (

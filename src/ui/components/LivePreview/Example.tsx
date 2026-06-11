@@ -1,14 +1,14 @@
 import { transform as sucraseTransform, type Transform } from 'sucrase'
 import { createEffect, createSignal, onCleanup, Show } from 'solid-js'
 
-import type { Docs } from '../../context/index.tsx'
+import type { Reflect } from '../../context/index.tsx'
 
 import { Sandbox, type SandboxIsolate } from './Sandbox.tsx'
 
 import { TagSection } from '../Comment/index.tsx'
 import { CodeEditor } from '../Code/index.tsx'
 
-type ExampleTag = Docs.CommentTag<'@example'>
+type ExampleTag = Reflect.CommentTag<'@example'>
 
 /** Executes already-compiled JS into the host; return a disposer to tear down. */
 export type ExampleRun = (src: string, host: HTMLElement) => void | (() => void)

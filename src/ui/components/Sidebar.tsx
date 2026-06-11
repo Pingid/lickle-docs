@@ -3,7 +3,7 @@ import cn from '@lickle/cn'
 
 import { A, useLocation } from '../util/router.tsx'
 
-import { createSlot, type Docs } from '../context/index.tsx'
+import { createSlot, type Reflect } from '../context/index.tsx'
 import { DocRouter, useProject } from '../hooks/index.ts'
 import * as Type from './Type.tsx'
 import type { Route } from '../../core/route/types.ts'
@@ -27,7 +27,11 @@ export const Sidebar = createSlot('sidebar', (props) => {
 })
 
 /** A flat run of sibling routes. */
-const NavList = (props: { routes: Docs.GroupedItems<Docs.SidebarRoute>[]; depth: number; onNavigate?: () => void }) => (
+const NavList = (props: {
+  routes: Reflect.GroupedItems<Reflect.SidebarRoute>[]
+  depth: number
+  onNavigate?: () => void
+}) => (
   <For each={props.routes}>
     {(route) => <NavChildren route={route} depth={props.depth} onNavigate={props.onNavigate} />}
   </For>
@@ -35,7 +39,7 @@ const NavList = (props: { routes: Docs.GroupedItems<Docs.SidebarRoute>[]; depth:
 
 /** The grouped children of a route, each group preceded by a {@link GroupLabel}. */
 const NavChildren = (props: {
-  route: Docs.GroupedItems<Docs.SidebarRoute>
+  route: Reflect.GroupedItems<Reflect.SidebarRoute>
   depth: number
   onNavigate?: () => void
 }) => {
@@ -64,7 +68,7 @@ const GroupLabel = (props: { label: string; depth: number }) => (
   </div>
 )
 
-type NodeProps = { route: Docs.SidebarRoute; depth: number; onNavigate?: () => void }
+type NodeProps = { route: Reflect.SidebarRoute; depth: number; onNavigate?: () => void }
 
 /**
  * A single navigation node.

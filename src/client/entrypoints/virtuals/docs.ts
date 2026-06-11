@@ -1,6 +1,6 @@
-import type { Types } from '../../../ui/index.ts'
+import type { Reflect } from '../../../ui/index.ts'
 
-const schema: Types.DocsJson = {
+const schema: Reflect.DocsJson = {
   name: '',
   links: [],
   versions: [],

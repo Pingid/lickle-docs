@@ -93,26 +93,26 @@ const getAlias =
 const getSegments = (cx: RouteContext, decl: DeclarationFacade): string[] => {
   if (decl.isEntry()) return rootAliasSegments(cx, decl.id)
   const path = cx.provider.exposure(decl)
-  // console.log(path)
   // A path rooted anywhere but an entrypoint has no mount point; fall back
   // to source-path placement rather than fabricating segments.
   if (path.length > 0 && path[0]!.isEntry()) {
-    // console.log(path.map((f) => f.alias() ?? f.name))
-    if (path.map((f) => f.alias() ?? f.name)[0] === 'Types') {
-      // console.log(cx.docs.exposures(decl.id))
-    }
     return [...rootAliasSegments(cx, path[0]!.id), ...path.map((f) => f.alias() ?? f.name)]
   }
-  // The defining-parent chain is a tree-index concept with no facade hop, so
-  // it stays id-based.
-  return decl.exposure.parents().flatMap((e) => {
-    if (e.kind === 'namespace') return e.alias() ?? e.name
-    if (e.kind === 'module') {
-      console.log(e.alias() ?? e.name)
-    }
-    if (e.isEntry()) return rootAliasSegments(cx, e.id)
-    return e.alias() ?? e.name
-  })
+  return lexicalSegments(cx, decl)
+}
+
+/**
+ * Source-path placement: the defining-parent chain, from the file module down
+ * to the declaration itself. Used when no entrypoint exposes the declaration.
+ */
+const lexicalSegments = (cx: RouteContext, decl: DeclarationFacade): string[] => {
+  const own = decl.isEntry()
+    ? rootAliasSegments(cx, decl.id)
+    : decl.kind === 'module'
+      ? pathSegments(cx, (decl as DeclarationFacade<'module'>).raw.path)
+      : [decl.name]
+  const parent = decl.parent()
+  return parent ? [...lexicalSegments(cx, parent), ...own] : own
 }
 
 const rootAliasSegments = (cx: RouteContext, id: number): string[] => pathSegments(cx, cx.docs.rootAlias(id)!.as)

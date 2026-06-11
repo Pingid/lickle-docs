@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo } from 'solid-js'
 import cn from '@lickle/cn'
 
 import {
-  type Docs,
+  type Reflect,
   useDocVersions,
   useDocActiveVersion,
   createSlot,
@@ -80,7 +80,7 @@ const VersionSelect = () => {
   const load = useLoadVersion()
   const nav = useNavigate()
 
-  const aliasOf = (v?: Docs.DocsVersion) => v?.alias ?? v?.version
+  const aliasOf = (v?: Reflect.DocsVersion) => v?.alias ?? v?.version
   const label = () => `v${aliasOf(active()) ?? versions()[0]?.version ?? ''}`
 
   let details: HTMLDetailsElement | undefined

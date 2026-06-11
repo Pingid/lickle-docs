@@ -8,22 +8,52 @@ import { Header, MENU_TOGGLE_ID } from './Header.tsx'
 import { SearchPalette } from './SearchPalette.tsx'
 import { Sidebar } from './Sidebar.tsx'
 
+const SIDEBAR_MIN = 160
+const SIDEBAR_MAX = 480
+const SIDEBAR_STORE_KEY = 'lickle-docs:sidebar-width'
+
 /**
  * Page chrome around the content: sticky {@link Header}, responsive
  * {@link Sidebar} (a CSS-only drawer below the `lg` breakpoint), the search
  * palette (toggled with `⌘K` / `Ctrl K`) and the main content well.
  * Replaceable via the `layout` slot.
-  * @group components
+ * @group components
  */
 export const Layout = createSlot('layout', (props) => {
   const [searchOpen, setSearchOpen] = createSignal(false)
+  const [sidebarWidth, setSidebarWidth] = createSignal<number | null>(null)
   const loc = useLocation()
   let menuToggle: HTMLInputElement | undefined
+  let grid: HTMLDivElement | undefined
 
   createEffect(() => {
     void loc.pathname
     if (menuToggle) menuToggle.checked = false
   })
+
+  onMount(() => {
+    const saved = Number(localStorage.getItem(SIDEBAR_STORE_KEY))
+    if (saved) setSidebarWidth(saved)
+  })
+
+  /** Drag the divider to resize the desktop sidebar, clamped and persisted. */
+  const startResize = (e: PointerEvent) => {
+    e.preventDefault()
+    const left = grid?.getBoundingClientRect().left ?? 0
+    const onMove = (m: PointerEvent) => setSidebarWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, m.clientX - left)))
+    const onUp = () => {
+      const w = sidebarWidth()
+      if (w) localStorage.setItem(SIDEBAR_STORE_KEY, String(w))
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
 
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -40,7 +70,11 @@ export const Layout = createSlot('layout', (props) => {
     <div class="flex flex-col w-full h-full">
       <Header onSearch={() => setSearchOpen(true)} />
 
-      <div class="flex-1 grid grid-cols-1 lg:grid-cols-[var(--sidebar-width)_1fr] max-w-[1400px] w-full mx-auto">
+      <div
+        ref={grid}
+        class="relative flex-1 grid grid-cols-1 lg:grid-cols-[var(--sidebar-width)_1fr] max-w-[1400px] w-full mx-auto"
+        style={sidebarWidth() ? { '--sidebar-width': `${sidebarWidth()}px` } : undefined}
+      >
         <input
           id={MENU_TOGGLE_ID}
           ref={menuToggle}
@@ -54,6 +88,16 @@ export const Layout = createSlot('layout', (props) => {
             'hidden lg:block border-r border-line sticky top-(--header-height) self-start h-(--sidebar-height) overflow-y-auto',
           )}
         />
+
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          onPointerDown={startResize}
+          class="hidden lg:block absolute top-0 bottom-0 left-(--sidebar-width) z-30 -ml-1 w-2 cursor-col-resize group"
+        >
+          <span class="block mx-auto h-full w-px bg-transparent transition-colors group-hover:bg-fg/30" />
+        </div>
 
         <label
           for={MENU_TOGGLE_ID}

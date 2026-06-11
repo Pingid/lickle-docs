@@ -16,18 +16,35 @@ import * as reflect from '../src/core/reflect/index.ts'
 /** Slug prefix applied to every fixture router, so doc slugs read as `l/...`. */
 const PREFIX = { doc: 'l', page: '' }
 
-/**
- * Scan a single in-memory module end-to-end and return its reflection index.
- * Backed by a real temp file + program so the type checker (and therefore
- * inference) sees the full default lib.
- */
-export const scanFixture = (code: string): reflect.Index => {
+/** Materialise `files` in a fresh temp dir, run `fn`, then clean up. */
+const withTemp = <T>(files: Record<string, string>, fn: (dir: string, fileNames: string[]) => T): T => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reflect-'))
-  const file = path.join(dir, 'fixture.ts')
-  fs.writeFileSync(file, code)
+  const fileNames = Object.entries(files).map(([name, code]) => {
+    const file = path.join(dir, name)
+    fs.writeFileSync(file, code)
+    return file
+  })
   try {
+    return fn(dir, fileNames)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Scan several in-memory modules and return the merged reflection index.
+ * `files` maps file name to source; `entries` lists the entrypoint labels and
+ * the files they point at. Relative imports between fixture files must be
+ * extensionless (`./shared`). Backed by a real temp program so the type checker
+ * (and therefore inference) sees the full default lib.
+ */
+export const multiScanFixture = (
+  files: Record<string, string>,
+  entries: { as: string; file: string }[],
+): reflect.Index =>
+  withTemp(files, (dir, fileNames) => {
     const cmd: ts.ParsedCommandLine = {
-      fileNames: [file],
+      fileNames,
       options: {
         strict: true,
         target: ts.ScriptTarget.Latest,
@@ -35,12 +52,18 @@ export const scanFixture = (code: string): reflect.Index => {
       },
       errors: [],
     }
-    const scanned = reflect.scan({ cmd, dir, srcDir: dir, include: (sf) => sf.fileName === file })
-    return reflect.index(reflect.resolve(scanned), [{ as: 'fixture', path: file }])
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
-}
+    const scanned = reflect.scan({ cmd, dir, srcDir: dir, include: (sf) => fileNames.includes(sf.fileName) })
+    return reflect.index(
+      reflect.resolve(scanned),
+      entries.map((e) => ({ as: e.as, path: path.join(dir, e.file) })),
+    )
+  })
+
+/**
+ * Scan a single in-memory module end-to-end and return its reflection index.
+ */
+export const scanFixture = (code: string): reflect.Index =>
+  multiScanFixture({ 'fixture.ts': code }, [{ as: 'fixture', file: 'fixture.ts' }])
 
 /** First declaration with the given name. */
 export const byName = <K extends reflect.Declaration['kind'] = reflect.Declaration['kind']>(
@@ -55,69 +78,37 @@ export const byName = <K extends reflect.Declaration['kind'] = reflect.Declarati
 /** The resolved `type` of a variable declaration. */
 export const typeOf = (index: reflect.Index, name: string): reflect.Type => byName<'variable'>(index, name).type
 
+type RoutesFixture = {
+  index: reflect.Index
+  routes: Route[]
+  declarations: reflect.Declaration[]
+  router: ClientRouter
+}
+
+/** Run the full route pipeline over an already-scanned index. */
+const routesOf = (index: reflect.Index, adapter?: Adapter): RoutesFixture => {
+  const b = builder({ docs: index, name: 'fixture', adapter })
+  for (const decl of index.declarations()) b.declare(decl)
+  const { routes, declarations } = b.build()
+  return { index, routes, declarations, router: createRouter({ routes, prefix: PREFIX }) }
+}
+
 /**
  * Scan several in-memory modules with multiple entrypoints and run the full
- * route pipeline. `files` maps file name to source; `entries` lists the
- * entrypoint labels and the files they point at. Relative imports between
- * fixture files must be extensionless (`./shared`).
+ * route pipeline. See {@link multiScanFixture} for the `files`/`entries` shape.
  */
 export const multiRoutesFixture = (
   files: Record<string, string>,
   entries: { as: string; file: string }[],
   adapter?: Adapter,
-): {
-  index: reflect.Index
-  routes: Route[]
-  declarations: reflect.Declaration[]
-  router: ClientRouter
-} => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reflect-'))
-  const fileNames = Object.keys(files).map((name) => path.join(dir, name))
-  Object.entries(files).forEach(([name, code]) => fs.writeFileSync(path.join(dir, name), code))
-  try {
-    const cmd: ts.ParsedCommandLine = {
-      fileNames,
-      options: {
-        strict: true,
-        target: ts.ScriptTarget.Latest,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-      },
-      errors: [],
-    }
-    const scanned = reflect.scan({ cmd, dir, srcDir: dir, include: (sf) => fileNames.includes(sf.fileName) })
-    const index = reflect.index(
-      reflect.resolve(scanned),
-      entries.map((e) => ({ as: e.as, path: path.join(dir, e.file) })),
-    )
-    const b = builder({ docs: index, name: 'fixture', adapter })
-    for (const decl of index.declarations()) b.declare(decl)
-    const { routes, declarations } = b.build()
-    return { index, routes, declarations, router: createRouter({ routes, prefix: PREFIX }) }
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
-}
+): RoutesFixture => routesOf(multiScanFixture(files, entries), adapter)
 
 /**
  * Scan a single module and run the full route pipeline over it: the reflection
  * index, the generated routes (and the declarations backing them), and a client
  * router built from them.
  */
-export const routesFixture = (
-  code: string,
-  adapter?: Adapter,
-): {
-  index: reflect.Index
-  routes: Route[]
-  declarations: reflect.Declaration[]
-  router: ClientRouter
-} => {
-  const index = scanFixture(code)
-  const b = builder({ docs: index, name: 'fixture', adapter })
-  for (const decl of index.declarations()) b.declare(decl)
-  const { routes, declarations } = b.build()
-  return { index, routes, declarations, router: createRouter({ routes, prefix: PREFIX }) }
-}
+export const routesFixture = (code: string, adapter?: Adapter): RoutesFixture => routesOf(scanFixture(code), adapter)
 
 /** Locate a declaration's node in the sidebar tree by its id. */
 const sidebarNode = (groups: GroupedItems<SidebarRoute>[], id: number): SidebarRoute | undefined => {
