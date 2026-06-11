@@ -33,7 +33,7 @@ const getLinks =
   (id: number): DocLink[] => {
     const decl = cx.docs.get(id)!
     if (decl.kind === 'module' || decl.kind === 'namespace') {
-      return cx.docs.exposes(id).map((e) => ({ target: e.exposer, alias: e.alias ?? cx.provider.alias(id) }))
+      return cx.docs.exposes(id).map((e) => ({ target: e.exposer, alias: e.alias ?? cx.provider.alias(e.exposer) }))
     }
     return []
   }
@@ -108,9 +108,16 @@ const getSegments = (cx: RouteContext, id: number): string[] => {
 
 const rootAliasSegments = (cx: RouteContext, id: number): string[] => pathSegments(cx, cx.docs.rootAlias(id)!.as)
 
+/**
+ * The canonical exposure path for a declaration reachable from several
+ * entrypoints: the shortest re-export chain wins, ties broken toward the
+ * earliest entrypoint. The page lives at this path; every other exposer
+ * lists it as a link.
+ */
 const getExposedPath = (cx: RouteContext, id: number): Exposure[] =>
-  cx.docs.exposures(id).sort((a, b) => rank(cx, b) - rank(cx, a))[0] ?? []
+  cx.docs.exposures(id).sort((a, b) => a.length - b.length || rank(cx, a) - rank(cx, b))[0] ?? []
 
+/** Entrypoint index of a path's root, for canonical-path tie-breaks. */
 const rank = (cx: RouteContext, pth: Exposure[]) => {
   if (pth.length === 0) return 0
   const root = pth[0]!.exposer

@@ -28,13 +28,17 @@ const entry = v.struct.match<T.Entry>({
   path: v.string,
 })
 
+// Every adapter hook is optional — `Adapter.groupBy` and hand-rolled
+// adapters set only the hooks they refine. The runtime check is
+// function-or-undefined; hook signatures can't be validated at runtime.
+const hook: Valid<any, unknown> = v.or(v.function, v.undefined)
 const adapter = v.struct.match<Router.Adapter>({
-  alias: v.function,
-  slug: v.function,
-  declare: v.function,
-  sidebar: v.function,
-  referenced: v.function,
-  links: v.function,
+  alias: hook,
+  slug: hook,
+  declare: hook,
+  sidebar: hook,
+  referenced: hook,
+  links: hook,
 })
 
 const any: Valid<any, unknown> = (v) => ({ ok: true, value: v })

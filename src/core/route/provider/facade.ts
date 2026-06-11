@@ -1,33 +1,80 @@
 import type { Reflect } from '../../index.ts'
+import type { Exposure } from '../../reflect/indexed.ts'
 
 /**
  * The declaration view adapter hooks receive: the raw declaration plus
  * index-aware helpers for the questions hooks usually ask — where it came
  * from, whether it is an entrypoint, whether it is public.
  */
-export type DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap> =
-  Reflect.Declaration<K> & {
-    /** Source file of the declaration, relative to the project root. */
-    srcFile: string
-    /** Whether the declaration is an entrypoint module. */
-    isEntry(): this is DeclarationFacade<'module'>
-    /** The index of the module in the entrypoints. */
-    entryIndex(): number | undefined
+export type DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap> = Omit<
+  Reflect.Declaration<K>,
+  'parent'
+> &
+  DeclarationFacadeApi
+
+export interface DeclarationFacadeApi {
+  /** Parent module where the declaration is defined */
+  parent(): DeclarationFacade<'module'> | undefined
+  /** Declarations that are defined in this module */
+  members(): DeclarationFacade[]
+  /** Alias of the declaration, either re-export eg export { Foo as Bar}  or entrypoint import path from package json when isEntry is true*/
+  alias(): string | undefined
+  /** Whether the declaration is an entrypoint module. */
+  isEntry(): this is DeclarationFacade<'module'>
+  /** The index of the module in the entrypoints. */
+  entryIndex(): number | undefined
+  /** Declarations that reference this declaration */
+  referenced: () => Iterable<DeclarationFacade>
+  /** Information about the declaration's exposure through export or re-export */
+  exposure: {
     /** Whether the declaration is exposed to the public API. */
-    isExposed(): boolean
-  }
-
-export const createFacade = (index: Reflect.Index, id: number): DeclarationFacade => {
-  const declaration = index.get(id)
-  if (!declaration) throw new Error(`Declaration with id ${id} not found`)
-
-  return {
-    ...declaration,
-    get srcFile() {
-      return declaration.sources[0]?.file ?? ''
-    },
-    isEntry: (): this is DeclarationFacade<'module'> => index.isRoot(id),
-    entryIndex: (): number | undefined => index.rootIndex(id),
-    isExposed: (): boolean => index.isExposed(id),
+    is(): this is DeclarationFacade<'module'>
+    /** Direct parent modules where this declaration is exposed */
+    parents(): DeclarationFacade[]
+    /** All ancestor modules where this declaration is exposed */
+    ancestors(): DeclarationFacade[][]
+    /** Children modules that this declaration exposes */
+    children(): DeclarationFacade[]
+    /** Root modules where this declaration is exposed */
+    root(): DeclarationFacade<'module'>[]
   }
 }
+
+export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap>(
+  index: Reflect.Index,
+  id: number,
+  alias?: string,
+): DeclarationFacade<K> | undefined => {
+  const declaration = index.get(id)
+  if (!declaration) return undefined
+
+  const fromExposures = (exposures: (Exposure | undefined)[]) =>
+    exposures.map((e) => (e ? createFacade<'module'>(index, e.exposer, e.alias) : undefined)).filter(defined)
+
+  const exposed: DeclarationFacade<any>['exposure'] = {
+    is: (): this is DeclarationFacade<'module'> => index.isRoot(id),
+    parents: () => fromExposures(index.exposedBy(id)),
+    ancestors: () => index.exposures(id).map((x) => fromExposures(x)),
+    children: () => fromExposures(index.exposes(id)),
+    root: () => fromExposures(index.exposures(id).map((x) => x[0])),
+  }
+
+  return {
+    ...(declaration as Reflect.Declaration<K>),
+    parent: () => createFacade<'module'>(index, declaration.parent),
+    members: () =>
+      Array.from(index.children(id))
+        .map((d) => createFacade(index, d.id))
+        .filter(defined),
+    alias: () => alias ?? index.rootAlias(id)?.as,
+    isEntry: (): this is DeclarationFacade<'module'> => index.isRoot(id),
+    entryIndex: () => index.rootIndex(id),
+    referenced: () =>
+      Array.from(index.referencedIn(id))
+        .map((id) => createFacade(index, id))
+        .filter((e) => e !== undefined),
+    exposure: exposed,
+  }
+}
+
+const defined = <T>(x: T | undefined): x is T => x !== undefined

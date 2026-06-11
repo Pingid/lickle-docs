@@ -113,7 +113,7 @@ export const provideAdapter = (cx: RouteContext, base: Provider, adapter?: Adapt
 
 const applyHook = <V>(cx: RouteContext, hook: Hook<V> | undefined, def: (id: number) => V): ((id: number) => V) => {
   if (!hook) return def
-  return (id) => hook(def(id), createFacade(cx.docs, id), cx)
+  return (id) => hook(def(id), createFacade(cx.docs, id)!, cx)
 }
 
 /**
