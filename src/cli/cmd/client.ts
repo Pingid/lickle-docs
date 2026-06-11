@@ -88,6 +88,7 @@ const resolveOptions = (args: {
 
   return {
     dir,
+    port: args.port,
     router: args.router,
     baseUrl: args.base ?? '/',
     outDir: path.resolve(dir, args.outDir ?? 'docs/dist'),

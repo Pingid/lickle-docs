@@ -1,7 +1,13 @@
 import type { Reflect } from '../../index.ts'
 
+/**
+ * The declaration view adapter hooks receive: the raw declaration plus
+ * index-aware helpers for the questions hooks usually ask — where it came
+ * from, whether it is an entrypoint, whether it is public.
+ */
 export type DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap> =
   Reflect.Declaration<K> & {
+    /** Source file of the declaration, relative to the project root. */
     srcFile: string
     /** Whether the declaration is an entrypoint module. */
     isEntry(): this is DeclarationFacade<'module'>

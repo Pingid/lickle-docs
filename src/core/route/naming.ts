@@ -45,6 +45,7 @@ const LABELS: Record<Kind, string> = {
   unknown: 'unknown',
 }
 
+/** Human-readable label for a kind: `'type-alias'` → `'type'`, `'record'` → `'object'`. */
 export const labelOf = (kind: Kind | string): string => LABELS[kind as Kind] ?? 'symbol'
 
 const SHORTS: Partial<Record<Kind, string>> = {
@@ -60,6 +61,7 @@ const SHORTS: Partial<Record<Kind, string>> = {
   method: 'm',
 }
 
+/** One-character badge for a kind, as shown in sidebars and search hits: `'function'` → `'ƒ'`, `'type-alias'` → `'T'`. */
 export const shortOf = (kind: Kind | string): string => SHORTS[kind as Kind] ?? '·'
 
 const ROUTABLE: ReadonlySet<Kind> = new Set([
@@ -73,6 +75,7 @@ const ROUTABLE: ReadonlySet<Kind> = new Set([
   'type-alias',
 ])
 
+/** Whether declarations of this kind get a page of their own. Members (properties, methods, …) render inline on their owner's page. */
 export const isRoutable = (kind: Kind | string): boolean => ROUTABLE.has(kind as Kind)
 
 const PLURAL: Record<Kind, string> = {
@@ -95,6 +98,7 @@ const PLURAL: Record<Kind, string> = {
   unknown: 'unknown',
 }
 
+/** Plural section heading for a kind, as used by the stock grouping: `'type-alias'` → `'types'`. */
 export const pluralLabel = (kind: Kind | string): string => PLURAL[kind as Kind] ?? `${labelOf(kind)}s`
 
 const GROUP_KIND_ORDER: Kind[] = [
@@ -110,6 +114,7 @@ const GROUP_KIND_ORDER: Kind[] = [
   'method',
 ]
 
+/** Sort index for kind groups (modules first, then functions, variables, types, …). Unlisted kinds sort last. */
 export const kindOrder = (kind: Kind): number => {
   const i = GROUP_KIND_ORDER.indexOf(kind)
   return i < 0 ? GROUP_KIND_ORDER.length : i

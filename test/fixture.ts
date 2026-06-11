@@ -72,8 +72,8 @@ export const routesFixture = (
   const index = scanFixture(code)
   const b = builder({ docs: index, name: 'fixture', adapter })
   for (const decl of index.declarations()) b.declare(decl)
-  const { items, declarations } = b.build()
-  return { index, routes: items, declarations, router: createRouter({ items, prefix: PREFIX }) }
+  const { routes, declarations } = b.build()
+  return { index, routes, declarations, router: createRouter({ routes, prefix: PREFIX }) }
 }
 
 /** Locate a declaration's node in the sidebar tree by its id. */

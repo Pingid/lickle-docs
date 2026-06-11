@@ -14,12 +14,23 @@ import * as Types from './types.ts'
 
 export type { Types }
 
+/**
+ * What {@link DocsProvider} accepts: a multi-version `DocsJson`, a single
+ * `ProjectVersion` (wrapped as the only version), or an accessor of either
+ * for data that loads asynchronously.
+ */
 export type DocsInput = MaybeAccessor<Types.DocsJson | Types.ProjectVersion | null>
 const DocsContext = createContext<{
   docs: Accessor<Types.DocsJson | null>
   cache: Map<Types.DocsVersion, Types.ProjectVersion>
 }>()
 
+/**
+ * Supply project data to the tree. Everything below — hooks, router, search,
+ * every page — reads from this context, so it must wrap any use of the docs
+ * UI. Pass the generated `project.json` directly, or a `DocsJson` describing
+ * several versions; loaded versions are cached for the session.
+ */
 export const DocsProvider: ParentComponent<{ value: DocsInput }> = (p) => (
   <DocsContext.Provider value={{ docs: createMemo(() => resolveDocs(p.value)), cache: new Map() }}>
     {p.children}
@@ -68,7 +79,12 @@ export const useDocActiveVersion = (): Accessor<Types.DocsVersion | undefined> =
   return createMemo(() => docs.active(loc.pathname))
 }
 
-/** The version owning the current location. */
+/**
+ * Project data for the version that owns the current URL. Returns resource
+ * accessors — `json` (the loaded `ProjectVersion`, cached per version),
+ * `current`, `loading`, `error` and `version` — so the layout can render a
+ * shell while a version loads.
+ */
 export const useDocActiveProject = () => {
   const docs = useDocs()
   const loc = useLocation()

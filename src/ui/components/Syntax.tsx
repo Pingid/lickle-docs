@@ -1,3 +1,8 @@
+/**
+ * Tokens for rendering type signatures with consistent styling. Use these in
+ * custom `declaration` slot overrides so hand-built signatures match the
+ * stock renderers.
+ */
 export namespace Syntax {
   /** Muted punctuation — brackets, commas, `=`, etc. */
   export const Punct = (p: { children: string }) => <span class="text-mute">{p.children}</span>

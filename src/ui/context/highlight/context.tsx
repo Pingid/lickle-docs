@@ -7,12 +7,15 @@ import { createOnigurumaEngine } from 'shiki/engine/oniguruma'
 import githubLight from 'shiki/dist/themes/github-light.mjs'
 import githubDark from 'shiki/dist/themes/github-dark.mjs'
 
+/** The highlighting surface components consume: the loaded language names and a `codeToHtml` renderer. */
 export type CodeHighlighter = {
   available: Set<string>
   codeToHtml: (text: string, options: { lang: string }) => string
 }
 
+/** A loadable Shiki grammar: its name plus the grammar module to import. */
 export type Lang = { name: string; import: LanguageInput }
+/** The underlying Shiki highlighter instance. */
 export type Core = Awaited<ReturnType<typeof createHighlighterCore>>
 
 const HighlightingContext = createContext<Accessor<CodeHighlighter | undefined>>()
@@ -37,6 +40,16 @@ export const loadHighlighter = (langs: Lang[]): Promise<Core> => {
   return cached.core
 }
 
+/**
+ * Provide syntax highlighting for the given languages. All code rendering —
+ * fenced markdown blocks, `@example` blocks, signatures, the live-example
+ * editor — reads the highlighter from this context; without it, code renders
+ * as plain text. The grammar set comes from the config's `languages` field.
+ *
+ * The highlighter is built on the client after hydration. For SSR, pass a
+ * server-prebuilt `highlighter` (see {@link loadHighlighter}) so the first
+ * paint is already highlighted.
+ */
 export function LanguagesProvider(props: { langs: Accessor<Lang[]>; highlighter?: Core; children: JSX.Element }) {
   const avaliable = createMemo<Set<string>>(() => new Set(props.langs().map((l) => l.name)))
   // Seed from a server-prebuilt instance so the SSR shell pass highlights.

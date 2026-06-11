@@ -9,6 +9,12 @@ import { Type } from './Type.tsx'
 
 type Route = Types.Route
 
+/**
+ * Navigation tree built from the router's sidebar: grouped entries with
+ * kind badges, collapsible branches, and the branch on the active path open
+ * automatically. Replaceable via the `sidebar` slot; `onNavigate` fires on
+ * link clicks so a mobile drawer can close itself.
+ */
 export const Sidebar = createSlot('sidebar', (props) => {
   const router = useDocRouter()
   return (

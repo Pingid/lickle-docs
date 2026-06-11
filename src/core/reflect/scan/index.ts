@@ -84,8 +84,19 @@ scan.VariableDeclaration = (s: State, node: ts.VariableDeclaration) => {
   }
   return statement(s, node, 'variable', () => ({
     type: node.type ? scan.Type(s, node.type) : inferAt(s, node),
-    defaultValue: node.initializer?.getText(),
+    defaultValue: defaultValueOf(node.initializer),
   }))
+}
+
+/**
+ * Initializer source, kept only when it reads as a value: one line, at most
+ * 80 characters. Longer initializers (function bodies, big objects) are
+ * implementation, not documentation — the type and comment carry the page.
+ */
+const defaultValueOf = (init?: ts.Expression): string | undefined => {
+  const text = init?.getText()
+  if (!text || text.length > 80 || text.includes('\n')) return undefined
+  return text
 }
 
 /** Signature declarations of a function-type or a pure call-signature object type. */
@@ -611,7 +622,9 @@ const property = (s: State, node: ts.PropertyDeclaration | ts.PropertySignature)
   part(s, node, 'property', {
     type: node.type ? scan.Type(s, node.type) : inferAt(s, node),
     ...(node.questionToken ? { optional: true } : {}),
-    ...('initializer' in node && node.initializer ? { defaultValue: node.initializer.getText() } : {}),
+    ...('initializer' in node && node.initializer
+      ? { defaultValue: defaultValueOf(node.initializer as ts.Expression) }
+      : {}),
   })
 
 const method = (s: State, node: ts.MethodDeclaration | ts.MethodSignature): T.Part<'method'> =>

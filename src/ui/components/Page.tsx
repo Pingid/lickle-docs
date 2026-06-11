@@ -58,6 +58,11 @@ const Statement = (props: { route: Types.DocRoute }) => {
   )
 }
 
+/**
+ * Title block of a declaration page: breadcrumb, name, kind label, a
+ * deprecation marker when `@deprecated` is present, and the source link.
+ * Replaceable via the `page.header` slot.
+ */
 export const PageHeader = createSlot('page.header', (props: { decl: Types.Declaration; route: Types.Route }) => (
   <header class="mb-5">
     <Breadcrumb id={props.decl.id} />

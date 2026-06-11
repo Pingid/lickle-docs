@@ -6,6 +6,12 @@ import * as Types from '../../context/docs/types.ts'
 import { useDocRouter } from '../router/index.ts'
 import { useProject } from '../project/index.ts'
 
+/**
+ * Full-text search over every declaration page — names, owning module and
+ * doc comments. The index (Orama) builds lazily on the client, once per
+ * version; before it is ready the returned engine answers with no hits.
+ * Powers the `⌘K` search palette.
+ */
 export const useSearch = (): (() => SearchEngine) => {
   const project = useProject()
   const routes = useDocRouter()
@@ -30,8 +36,10 @@ export const useSearch = (): (() => SearchEngine) => {
 
 const INSTANCE = new WeakMap<Types.ClientRouter, Promise<SearchEngine>>()
 
+/** One search result: the declaration's name, kind, page slug, source file and owning module. */
 export type SearchHit = { name: string; kind: Types.Any['kind']; slug: string; file: string; module: string }
 
+/** A queryable search index. `limit` defaults to 20 hits. */
 export type SearchEngine = { query: (term: string, limit?: number) => Promise<SearchHit[]> }
 
 const createSearchEngine = async (

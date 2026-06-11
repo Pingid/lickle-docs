@@ -5,6 +5,11 @@ import { cn } from '@lickle/cn'
 import { useHighlighter, type CodeHighlighter } from '../../context/highlight/context.tsx'
 import { useCodeHighlight } from '../../hooks/index.ts'
 
+/**
+ * Syntax-highlighted code, unstyled. Renders a plain escaped `<pre>` until
+ * the highlighter from `LanguagesProvider` is ready, then swaps in the
+ * highlighted markup. Use {@link CodeBlock} for the bordered presentation.
+ */
 export const Code = (props: { code: string; lang?: string; class?: string }) => {
   const html = useCodeHighlight(props.code, props.lang ?? 'text')
   return (
@@ -17,19 +22,29 @@ export const Code = (props: { code: string; lang?: string; class?: string }) => 
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+/** {@link Code} in the standard bordered block, as used for `@example` and fenced markdown code. */
 export const CodeBlock = (props: { code: string; lang?: string }) => (
   <div class="bg-code-bg border border-line rounded-lg p-4">
     <Code code={props.code} lang={props.lang} />
   </div>
 )
 
-type CodeEditorProps = {
+export type CodeEditorProps = {
+  /** Language for highlighting. Defaults to plain text. */
   lang?: string
+  /** Disable editing; the code still renders through the editor styling. */
   readonly?: boolean
+  /** Current code. The editor follows external updates to this accessor. */
   value: () => string
+  /** Called with the full text after each edit. */
   onChange?: (code: string) => void
 }
 
+/**
+ * An editable, syntax-highlighted code area (CodeJar under the hood —
+ * loaded lazily on the client; SSR renders static {@link Code}). Drives the
+ * editing half of `LiveExample`.
+ */
 export const CodeEditor = (props: CodeEditorProps) => {
   const editor = useCodeEditor(props)
   const showWhenReady = createMemo(() =>

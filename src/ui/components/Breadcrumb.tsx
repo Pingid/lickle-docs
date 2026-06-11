@@ -3,6 +3,7 @@ import { A } from '../util/router.tsx'
 
 import { useDocRouter } from '../hooks/index.ts'
 
+/** Ancestor trail for a declaration — `project / module / namespace / name` — with each resolvable segment linked. */
 export const Breadcrumb = (props: { id: number }) => {
   const router = useDocRouter()
   const crumbs = createMemo(() => router()?.parts(props.id))

@@ -4,6 +4,7 @@ import { useSlugFor } from '../hooks/index.ts'
 import { A } from '../util/router.tsx'
 import { Syntax } from './Syntax.tsx'
 
+/** Router-aware underlined link for in-site navigation. `Link.Type` and `Link.ByName` resolve declarations to pages. */
 export const Link = (props: { href: string; children: string }) => {
   const href = () => (props.href.startsWith('//') ? props.href.slice(1) : props.href === '' ? '/' : props.href)
 
@@ -38,6 +39,7 @@ Link.Type = (props: {
   )
 }
 
+/** Link to a declaration by (qualified) name — `Foo` or `Foo.bar` — falling back to plain text when nothing resolves. */
 Link.ByName = (props: { name: string }) => {
   const slugs = useSlugFor()
   const slug = () => slugs.byName(props.name)

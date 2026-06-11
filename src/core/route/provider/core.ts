@@ -4,42 +4,81 @@ import { memo1 } from '../../../_lib/util/index.ts'
 import { createFacade, type DeclarationFacade } from './facade.ts'
 import type { DocRoute, Sidebar, DocLink } from '../types.ts'
 
-/** A hook that can be used to customize page route generation. */
+/**
+ * One route-generation refinement. Receives the value the default provider
+ * produced, the declaration it belongs to and the shared {@link RouteContext};
+ * returns the value to use instead.
+ */
 export type Hook<V> = (value: V, id: DeclarationFacade, cx: RouteContext) => V
 
-/** Customize page route generation. */
-export type Adapter = {
+/**
+ * A record of hooks refining route generation, one per facet. Every hook is
+ * optional; omitted facets keep the default behaviour. Combine adapters with
+ * {@link compose} and pass the result as the config `provider`.
+ */
+export interface Adapter {
+  /** Display title of a declaration's page and links to it. */
   alias?: Hook<string>
+  /** URL path of a declaration's page. */
   slug?: Hook<string>
+  /** Sidebar placement — parent, group and order. Return `undefined` to hide the entry. */
   sidebar?: Hook<Sidebar | undefined>
+  /** The page emitted for a declaration. Return `undefined` to skip the page. */
   declare?: Hook<DocRoute | undefined>
+  /** Member links listed on the declaration's page. */
   links?: Hook<DocLink[]>
+  /** "Referenced in" backlinks shown on the declaration's page. */
   referenced?: Hook<DocLink[]>
 }
 
+/** Shared state passed to every hook: the reflection index, the resolved {@link Provider} and the project name. */
 export type RouteContext = { docs: Reflect.Index; provider: Provider; name: string }
 
+/** Inputs for {@link makeContext}. */
 export type ContextOptions = {
+  /** The reflection index of every scanned declaration. */
   docs: Reflect.Index
+  /** The project name, used as the route prefix. */
   name: string
+  /** Optional refinements applied over the base provider. */
   adapter?: Adapter
 }
 
+/**
+ * Wire a provider factory to its own context. The provider needs the context
+ * to call back into itself (e.g. a slug derives from the parent's slug), so
+ * the context is created first and the provider grafted on.
+ */
 export const makeContext = (opts: ContextOptions, provider: (cx: RouteContext) => Provider): RouteContext => {
   const cx = { ...opts, provider: {} as any }
   cx.provider = provider(cx)
   return cx
 }
 
+/**
+ * The resolved route-generation functions, each keyed by declaration id.
+ * What an {@link Adapter} refines: hooks wrap these per-facet defaults.
+ */
 export type Provider = {
+  /** Display title for the declaration. */
   alias(id: number): string
+  /** URL path for the declaration's page. */
   slug(id: number): string
+  /** The page route for the declaration, or `undefined` when it has none. */
   declare(id: number): DocRoute | undefined
+  /** Sidebar placement, or `undefined` when hidden. */
   sidebar(id: number): Sidebar | undefined
+  /** Member links listed on the declaration's page. */
   links(id: number): DocLink[]
+  /** Backlinks from declarations that reference this one. */
   referenced(id: number): DocLink[]
 }
 
+/**
+ * Merge adapters left to right into one. For each facet, later hooks receive
+ * the output of earlier hooks, so order matters: `compose(a, b)` runs `a`
+ * first and lets `b` refine its result.
+ */
 export const compose = (...adapters: (Adapter | undefined)[]): Adapter => adapters.reduce<Adapter>(merge, {})
 
 const hooks = ['alias', 'slug', 'declare', 'sidebar', 'referenced', 'links'] as const
@@ -60,6 +99,11 @@ const mergeHook = <V>(a?: Hook<V>, b?: Hook<V>): Hook<V> | undefined => {
   return (curr, id, cx) => b(a(curr, id, cx), id, cx)
 }
 
+/**
+ * Apply an adapter over a base provider: each provider method is wrapped so
+ * the matching hook post-processes its result. Facets without a hook pass
+ * through untouched.
+ */
 export const provideAdapter = (cx: RouteContext, base: Provider, adapter?: Adapter): Provider => {
   if (!adapter) return base
   return Object.fromEntries(
@@ -72,5 +116,10 @@ const applyHook = <V>(cx: RouteContext, hook: Hook<V> | undefined, def: (id: num
   return (id) => hook(def(id), createFacade(cx.docs, id), cx)
 }
 
+/**
+ * Memoize every provider method by declaration id. Route generation calls
+ * the same facets repeatedly (slugs feed sidebar entries, links and
+ * breadcrumbs), so results are computed once.
+ */
 export const withMemo = (ad: Provider): Provider =>
   Object.fromEntries(hooks.map((hook) => [hook, memo1(ad[hook as keyof Provider])])) as Provider

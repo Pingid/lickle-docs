@@ -5,6 +5,11 @@ import { createRouter } from '../../../core/route/client/index.ts'
 
 const INSTANCE = new WeakMap<Types.DocsVersion, Types.ClientRouter>()
 
+/**
+ * The route table for the active version: every page, the sidebar tree and
+ * slug/id lookups (see `ClientRouter`). Slugs come prefixed with the project
+ * and version path, ready for navigation. Built once per version and reused.
+ */
 export const useDocRouter = (): Accessor<Types.ClientRouter | undefined> => {
   const docs = useDocs()
   const doc = useDocActiveProject()

@@ -8,6 +8,12 @@ import { Header, MENU_TOGGLE_ID } from './Header.tsx'
 import { SearchPalette } from './SearchPalette.tsx'
 import { Sidebar } from './Sidebar.tsx'
 
+/**
+ * Page chrome around the content: sticky {@link Header}, responsive
+ * {@link Sidebar} (a CSS-only drawer below the `lg` breakpoint), the search
+ * palette (toggled with `⌘K` / `Ctrl K`) and the main content well.
+ * Replaceable via the `layout` slot.
+ */
 export const Layout = createSlot('layout', (props) => {
   const [searchOpen, setSearchOpen] = createSignal(false)
   const loc = useLocation()

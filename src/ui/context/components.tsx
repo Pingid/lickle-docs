@@ -31,7 +31,7 @@ export const withComponents = (c: Components) => (props: { children: JSX.Element
  * Build a slot dispatcher in one line: look up the override under `key`,
  * forward `Default` so it can decorate, otherwise render the default. The
  * override and default share the same prop shape — that's what the
- * `WithDefault<P>` wrapper in {@link Slots} pins down.
+ * `WithDefault<P>` wrapper in {@link Components} pins down.
  */
 export const createSlot =
   <K extends keyof Components>(
@@ -49,29 +49,70 @@ export const createSlot =
   }
 type Params<T> = T extends (...args: infer P) => any ? P : never
 
+/** The override signature of a single slot — see {@link Components} for the slot map. */
 export type SlotComponent<K extends keyof Components> = Components[K]
 
 /**
- * Slot override signatures. Every slot receives `Default` typed to the
- * stock component's props so the override can decorate (`<Default {...p} />`
- * plus extras) instead of replacing wholesale.
+ * The named slots of the site, with their override signatures. Every slot
+ * receives `Default` — the stock component, typed to the same props — so an
+ * override can decorate (`<Default {...props} />` plus extras) or replace
+ * wholesale. Build a registry with {@link defineComponents}.
+ *
+ * Layout slots: `layout` wraps everything below the header; `header` and
+ * `sidebar` replace the chrome; `home` replaces the landing page.
+ *
+ * Page slots: `page` renders a whole route; `page.header` the title block of
+ * a declaration page; `declaration` a declaration's body; `comment` a JSDoc
+ * block; `tag` a single JSDoc tag (the hook for `LiveExample`).
  */
 export interface Components {
+  /** The landing page. */
   home?: WithDefault<{}>
+  /** Page chrome around the content: header, sidebar, search palette. */
   layout?: WithDefault<{ children: JSX.Element; loading: Accessor<boolean> }>
+  /** Top bar: project name, version switcher, search trigger, links, theme toggle. */
   header?: WithDefault<{ onMenu?: () => void; onSearch?: () => void }>
+  /** Navigation tree. `onNavigate` closes the mobile drawer after a click. */
   sidebar?: WithDefault<{ onNavigate?: () => void; class?: string }>
 
   // Page slots
+  /** A whole route: declaration page or markdown page. */
   page?: WithDefault<{ route: Types.Route }>
+  /** Title block of a declaration page: breadcrumb, name, kind, source link. */
   'page.header'?: WithDefault<{ decl: Types.Declaration; route: Types.Route }>
 
   // Declaration page slots
+  /** A declaration's body — signatures, members, doc comment. */
   declaration?: WithDefault<{ decl: Types.Declaration }>
+  /** A JSDoc block: summary markdown plus its tags. */
   comment?: WithDefault<{ comment?: Types.Comment; class?: string }>
+  /** A single JSDoc tag (`@example`, `@returns`, …). Override to render custom tags. */
   tag?: WithDefault<{ tag: Types.CommentTag }>
 }
 
 type WithDefault<P extends Record<string, any>> = Component<P & { Default: Component<P> }>
 
+/**
+ * Declare slot overrides with type checking. Default-export the result from
+ * the file the config's `components` field points at; the CLI loads it and
+ * mounts the overrides via `ComponentsProvider`. Slots you omit keep the
+ * stock renderer.
+ *
+ * Each override receives the stock component as `Default`, so it can wrap
+ * instead of reimplement.
+ *
+ * @example Badge deprecated declarations, defer everything else
+ * ```tsx
+ * import { defineComponents } from '@lickle/docs/ui'
+ *
+ * export default defineComponents({
+ *   declaration: (props) => (
+ *     <>
+ *       {props.decl.comment?.tags?.some((t) => t.tag === '@deprecated') && <strong>Deprecated</strong>}
+ *       <props.Default {...props} />
+ *     </>
+ *   ),
+ * })
+ * ```
+ */
 export const defineComponents = <C extends Components>(components: C) => components

@@ -8,12 +8,18 @@ import { Markdown, MarkdownInline } from '../Markdown.tsx'
 import { Type } from '../Type.tsx'
 import { Link } from '../Link.tsx'
 
+/**
+ * Render one JSDoc tag, dispatched to a per-tag renderer (`@example` becomes
+ * a code block, `@returns` an inline type, `@see` a link, …). Unknown tags
+ * fall back to a generic markdown section. Replaceable via the `tag` slot —
+ * the hook point for turning `@example` blocks into `LiveExample`s.
+ */
 export const Tag = createSlot('tag', (props: { tag: Types.CommentTag }) => {
   const renderer = createMemo(() => RENDERERS[props.tag.tag as keyof typeof RENDERERS] ?? TagOther)
   return <Dynamic component={renderer() as any} {...props} />
 })
 
-/** Section frame shared across tag renderers. */
+/** Section frame shared across tag renderers: the tag's heading, an optional markdown description, then the body. Use it to keep custom tag renderers visually consistent. */
 export const TagSection = (props: { tag: Types.CommentTag; description?: string; children: JSX.Element }) => {
   return (
     <section class="mt-6 [&>*:not(:first-child)>p]:mt-0">
@@ -32,6 +38,7 @@ export const TagSection = (props: { tag: Types.CommentTag; description?: string;
   )
 }
 
+/** The small uppercase heading of a tag section: `'@example'` → "example". */
 export const TagKind = (p: { kind: string }) => (
   <h4 class="text-mute text-[0.7rem] font-semibold tracking-wider mb-1">{p.kind.replace(/^@/, '')}</h4>
 )

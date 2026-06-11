@@ -2,14 +2,19 @@ import { createMemo, type Accessor } from 'solid-js'
 
 import { useDocActiveProject, type Types } from '../../context/index.tsx'
 
+/** A `ProjectVersion` with lookup indexes layered on top. */
 export interface Project extends Omit<Types.ProjectVersion, 'routes'> {
+  /** The declaration with this id. */
   byId(id: number): Types.Declaration | undefined
+  /** The declaration with this name. With a `scope` id, names resolve within the scope's module before falling back project-wide. */
   byName(name: string, scope: number | undefined): Types.Declaration | undefined
+  /** Repository URL for a source location, from the `repository.fileUrl` template. */
   sourceLink(src: Types.Source): string | undefined
 }
 
 const INSTANCE = new WeakMap<Types.DocsVersion, Project>()
 
+/** Indexed access to the active version's data. The {@link Project} is built once per version and reused. */
 export const useProject = (): Accessor<Project | undefined> => {
   const doc = useDocActiveProject()
   return createMemo(() => {
@@ -23,6 +28,7 @@ export const useProject = (): Accessor<Project | undefined> => {
   })
 }
 
+/** Index a raw `ProjectVersion` into a {@link Project}: id and name maps plus source-link resolution. */
 export const createProject = (project: Types.ProjectVersion): Project => {
   const json = { ...project }
   const _byId = new Map<number, Types.Declaration>()

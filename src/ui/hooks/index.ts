@@ -14,12 +14,14 @@ export * from './project/index.ts'
 export * from './search/index.ts'
 export * from './router/index.ts'
 
+/** The route matching the current URL, resolved through the active version's router. */
 export const useRoute = () => {
   const params = useParams()
   const router = useDocRouter()
   return createMemo(() => router()?.get({ slug: params['slug'] ?? '' }))
 }
 
+/** The declaration behind the current route — `undefined` on markdown pages and unmatched URLs. */
 export const useDeclaration = (): Accessor<Types.Declaration | undefined> => {
   const route = useRoute()
   const project = useProject()
@@ -50,19 +52,23 @@ export const useSlugFor = () => {
   }
 }
 
+/** The active highlighter from `LanguagesProvider` — `undefined` until its grammars finish loading. */
 export const useCodeHighlighter = () => useHighlighter()
 
+/** Highlighted HTML for a code string — `undefined` until the highlighter is ready. */
 export const useCodeHighlight = (text: string, lang: string) => {
   const highlighter = useCodeHighlighter()
   return createMemo(() => highlighter()?.codeToHtml(text, { lang }))
 }
 
+/** Markdown → HTML through the site pipeline: highlighted code fences, backtick identifiers linked to declarations. */
 export const useRenderMarkdown = (text: string) => {
   const markup = useMarkdown()
   const slugs = useSlugFor()
   return createMemo(() => markup()(text, (name) => slugs.byName(name) ?? name))
 }
 
+/** Flatten a structured doc comment to markdown, resolving `{@link Name}` references to page links. */
 export const useCommentMarkdown = (comment: () => Types.Comment | undefined) => {
   const slugs = useSlugFor()
   const slugOf = (name: string) => slugs.byName(name)

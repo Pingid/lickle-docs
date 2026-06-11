@@ -28,6 +28,7 @@ const ExtendsLine = (props: { label: string; types?: Types.Type[] }) => (
   </Show>
 )
 
+/** Function page body: one signature line + doc block per overload. */
 export const DeclarationFunction = (props: { decl: Types.Declaration<'function'> }) => (
   <div class="mt-2">
     <For each={props.decl.signatures}>
@@ -37,6 +38,7 @@ export const DeclarationFunction = (props: { decl: Types.Declaration<'function'>
   </div>
 )
 
+/** Variable page body: `const name: type = default` plus the doc block. */
 export const DeclarationVariable = (props: { decl: Types.Declaration<'variable'> }) => (
   <div>
     <div class="font-mono text-sm leading-relaxed">
@@ -52,19 +54,47 @@ export const DeclarationVariable = (props: { decl: Types.Declaration<'variable'>
   </div>
 )
 
-export const DeclarationTypeAlias = (props: { decl: Types.Declaration<'type-alias'> }) => (
-  <div>
-    <div class="font-mono text-sm leading-relaxed">
-      <Syntax.Kw>type </Syntax.Kw>
-      <span class="font-semibold">{props.decl.name}</span>
-      <Type.Generics generics={props.decl.generics} />
-      <Syntax.Punct> = </Syntax.Punct>
-      <Type type={props.decl.type} />
+/**
+ * Type-alias page body: `type Name<T> = …` plus the doc block. An alias to
+ * an object type with members renders like an interface — member sections
+ * with their doc comments — instead of one flattened inline line.
+ */
+export const DeclarationTypeAlias = (props: { decl: Types.Declaration<'type-alias'> }) => {
+  const record = () => {
+    const t = props.decl.type
+    if (t?.kind !== 'record') return undefined
+    const hasMembers =
+      t.properties.length || t.methods.length || t.callSignatures?.length || t.constructSignatures?.length
+    return hasMembers ? t : undefined
+  }
+  return (
+    <div>
+      <div class="font-mono text-sm leading-relaxed">
+        <Syntax.Kw>type </Syntax.Kw>
+        <span class="font-semibold">{props.decl.name}</span>
+        <Type.Generics generics={props.decl.generics} />
+        <Show when={!record()}>
+          <Syntax.Punct> = </Syntax.Punct>
+          <Type type={props.decl.type} />
+        </Show>
+      </div>
+      <Comment comment={props.decl.comment} />
+      <Show when={record()}>
+        {(t) => (
+          <Members
+            properties={t().properties}
+            methods={t().methods}
+            callSignatures={t().callSignatures}
+            constructSignatures={t().constructSignatures}
+            indexSignature={t().indexSignature}
+          />
+        )}
+      </Show>
     </div>
-    <Comment comment={props.decl.comment} />
-  </div>
-)
+  )
+}
 
+/** Class page body: heritage lines, doc block, then constructors / properties / methods. */
 export const DeclarationClass = (props: { decl: Types.Declaration<'class'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
@@ -79,6 +109,7 @@ export const DeclarationClass = (props: { decl: Types.Declaration<'class'> }) =>
   </div>
 )
 
+/** Interface page body: heritage line, doc block, then properties / methods / signatures. */
 export const DeclarationInterface = (props: { decl: Types.Declaration<'interface'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
@@ -166,6 +197,7 @@ const Members = (props: {
   </>
 )
 
+/** Enum page body: doc block plus the member table. */
 export const DeclarationEnum = (props: { decl: Types.Declaration<'enum'> }) => (
   <div>
     <Comment comment={props.decl.comment} />
@@ -191,10 +223,12 @@ const EnumMemberRow = (props: { member: Types.Part<'enum-member'> }) => (
   </div>
 )
 
+/** Module page body: the module banner comment. Member listings come from the route's links, rendered by `Page`. */
 export const DeclarationModule = (props: { decl: Types.Declaration<'module'> }) => (
   <Comment comment={props.decl.comment} />
 )
 
+/** Namespace page body: the namespace comment. Member listings come from the route's links, rendered by `Page`. */
 export const DeclarationNamespace = (props: { decl: Types.Declaration<'namespace'> }) => (
   <Comment comment={props.decl.comment} />
 )

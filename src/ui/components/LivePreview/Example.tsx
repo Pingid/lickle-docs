@@ -14,15 +14,48 @@ type ExampleTag = Types.CommentTag<'@example'>
 export type ExampleRun = (src: string, host: HTMLElement) => void | (() => void)
 
 export type LiveExampleProps = {
+  /** The `@example` tag to render: its code seeds the editor, its caption becomes the section description. */
   tag: ExampleTag
+  /** Executes the compiled code into the preview host. Return a disposer to clean up before the next run. */
   run: ExampleRun
+  /** Compiles editor source to runnable JS. A function, or {@link TransformOptions} for the built-in sucrase pass (`{}` for the defaults). Unset means run the source as-is. */
   transform?: Transformer
+  /** Editor highlighting language. Defaults to the example's fence language. */
   language?: string
+  /** Isolation strategy for the preview container. Only `'inline'` ships today. */
   isolate?: SandboxIsolate
+  /** Disable editing. */
   readonly?: boolean
+  /** Called when compiling or running throws. Errors render in the preview area either way. */
   onError?: (err: unknown) => void
 }
 
+/**
+ * An editable, runnable rendering of an `@example` block: a {@link CodeEditor}
+ * over the example's code with a live preview beneath. Every edit tears down
+ * the previous run and re-executes; thrown errors render over the preview.
+ *
+ * Execution is yours to define — `transform` compiles the snippet and `run`
+ * evaluates it against the preview element, so any framework (or none) can
+ * back the examples. Wire it into the `tag` slot with `defineComponents` to
+ * upgrade every `@example` in the project.
+ *
+ * @example Run examples as plain scripts with a `host` element in scope
+ * ```tsx
+ * import { defineComponents, LiveExample } from '@lickle/docs/ui'
+ *
+ * const run = (code: string, host: HTMLElement) => new Function('host', code)(host)
+ *
+ * export default defineComponents({
+ *   tag: (props) =>
+ *     props.tag.tag === '@example' ? (
+ *       <LiveExample tag={props.tag} run={run} transform={{}} />
+ *     ) : (
+ *       <props.Default {...props} />
+ *     ),
+ * })
+ * ```
+ */
 export const LiveExample = (props: LiveExampleProps) => {
   const preview = useWithPreview(props)
 

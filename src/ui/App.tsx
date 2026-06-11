@@ -12,9 +12,13 @@ import { useDocRouter } from './hooks/index.ts'
 import { BASE_URL } from './util/base.ts'
 
 export interface AppProps {
+  /** Current URL when rendering on the server. */
   url?: string
+  /** Project data — the generated `project.json`, or a multi-version `DocsJson`. */
   docs?: DocsInput
+  /** Slot overrides built with `defineComponents`. */
   components?: Components
+  /** Router implementation. Defaults to a hash router; pass `Router` from `@solidjs/router` for clean URLs. */
   Router?: Component<{
     children: JSX.Element
     root?: Component<{ children?: JSX.Element }>
@@ -23,6 +27,34 @@ export interface AppProps {
   }>
 }
 
+/**
+ * The complete documentation site as one component: theme, docs and
+ * component providers, the router, and page rendering for every route. The
+ * generated client entry mounts exactly this; render it yourself to embed
+ * the docs in another app.
+ *
+ * Wrap it in a `LanguagesProvider` to enable syntax highlighting — it is
+ * left outside `App` so the host controls which grammars are bundled.
+ *
+ * @example Mount the site against a generated `project.json`
+ * ```tsx
+ * import { render } from 'solid-js/web'
+ * import { Router } from '@solidjs/router'
+ * import { App, LanguagesProvider } from '@lickle/docs/ui'
+ * import project from './docs/project.json'
+ *
+ * const langs = [{ name: 'ts', import: import('shiki/dist/langs/typescript.mjs') }]
+ *
+ * render(
+ *   () => (
+ *     <LanguagesProvider langs={() => langs}>
+ *       <App docs={project} Router={Router} />
+ *     </LanguagesProvider>
+ *   ),
+ *   document.getElementById('root')!,
+ * )
+ * ```
+ */
 export const App = (p: AppProps) => {
   const Router = p.Router ?? HashRouter
   return (
