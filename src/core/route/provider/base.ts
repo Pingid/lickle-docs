@@ -62,20 +62,36 @@ const getSlug =
   (decl: DeclarationFacade): string =>
     getSegments(cx, decl).join('/')
 
+/**
+ * Default sidebar: entrypoints are roots (in entrypoint order); modules and
+ * namespaces own an edge for each member whose *canonical* home is here, so
+ * the default tree mirrors the slug hierarchy with no duplicates. Hooks can
+ * append edges to list a declaration under additional parents.
+ */
 const getSidebar =
   (cx: RouteContext) =>
   (decl: DeclarationFacade): Sidebar | undefined => {
-    const idx = decl.entryIndex()
-    if (typeof idx === 'number') return { order: idx + 1 }
-
     if (decl.kind === 'export') return undefined
 
-    const path = cx.provider.exposure(decl)
-    const parent = path[path.length - 1]
-    if (!parent) return undefined
-
-    return { parent: cx.provider.slug(parent) }
+    const children = sidebarChildren(cx, decl)
+    const idx = decl.entryIndex()
+    if (typeof idx === 'number') return { root: idx + 1, ...(children.length ? { children } : {}) }
+    return children.length ? { children } : undefined
   }
+
+/** Canonical child edges of a module/namespace: members whose exposure path ends here, alphabetical. */
+const sidebarChildren = (cx: RouteContext, decl: DeclarationFacade): DocLink[] => {
+  if (decl.kind !== 'module' && decl.kind !== 'namespace') return []
+  return decl.exposure
+    .children()
+    .filter((c) => {
+      if (c.isEntry() || c.kind === 'export') return false
+      const path = cx.provider.exposure(c)
+      return path[path.length - 1]?.id === decl.id
+    })
+    .map((c) => ({ target: c.id, alias: c.alias() ?? c.name }))
+    .sort((a, b) => a.alias.localeCompare(b.alias))
+}
 
 const getAlias =
   (cx: RouteContext) =>

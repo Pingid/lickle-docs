@@ -70,26 +70,30 @@ const GroupLabel = (props: { label: string; depth: number }) => (
 
 type NodeProps = { route: Reflect.SidebarRoute; depth: number; onNavigate?: () => void }
 
+/** Normalised app-absolute path of a route slug, for comparison with `location.pathname`. */
+const pathOf = (slug: string) => `/${slug}`.replace(/\/+/g, '/')
+
+/** Whether the current page lives anywhere in this node's subtree. */
+const containsCurrent = (route: Reflect.SidebarRoute, pathname: string): boolean =>
+  pathOf(route.slug) === pathname || route.children.some((g) => g.items.some((c) => containsCurrent(c, pathname)))
+
 /**
  * A single navigation node.
  *
  * - A route with children is a controlled disclosure: a chevron button toggles
- *   the section while the title stays a plain link. The branch on the active
- *   path opens automatically (slugs are hierarchical, so the active page lives
- *   under its prefix). A native `<details>` can't be used here because its
- *   toggle swallows the router's delegated link clicks.
+ *   the section while the title stays a plain link. Branches whose subtree
+ *   contains the current page open automatically — checked against the tree,
+ *   not the slug, since the same route may appear under several parents and
+ *   every occurrence should open. A native `<details>` can't be used here
+ *   because its toggle swallows the router's delegated link clicks.
  * - A leaf route is a plain link.
  */
 const NavNode = (props: NodeProps) => {
   const loc = useLocation()
-  const router = DocRouter.use()
 
-  const base = () => props.route.slug
   const isActive = () => {
-    if (props.route.slug === (router()?.base ?? '/') || !props.route.children.length) {
-      return loc.pathname === `/${props.route.slug}`
-    }
-    return loc.pathname.includes(base())
+    if (!props.route.children.length) return pathOf(props.route.slug) === loc.pathname
+    return containsCurrent(props.route, loc.pathname)
   }
 
   return (

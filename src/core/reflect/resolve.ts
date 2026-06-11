@@ -4,7 +4,7 @@ import type { ScanState } from './state.ts'
 import * as T from './types.ts'
 
 export const resolve = (s: ScanState) => {
-  const idByDecl = new Map<ts.Node, number>()
+  const idByDecl = new Map<ts.Node, T.Id>()
   for (const [id, sym] of s.symbolsById) sym.declarations?.forEach((d) => idByDecl.set(d, id))
 
   for (const ref of s.references) {
@@ -18,7 +18,7 @@ export const resolve = (s: ScanState) => {
     else asExternal(ref, classifySymbol(sym))
   }
 
-  const moduleIdForSpecifier = (origin: ts.ExportDeclaration): number | undefined => {
+  const moduleIdForSpecifier = (origin: ts.ExportDeclaration): T.Id | undefined => {
     if (!origin.moduleSpecifier) return undefined
     const sym = s.checker.getSymbolAtLocation(origin.moduleSpecifier)
     if (!sym) return undefined
@@ -34,8 +34,8 @@ export const resolve = (s: ScanState) => {
 const resolveExport = (
   s: ScanState,
   exp: T.Declaration<'export'>,
-  idByDecl: Map<ts.Node, number>,
-  moduleIdForSpecifier: (origin: ts.ExportDeclaration) => number | undefined,
+  idByDecl: Map<ts.Node, T.Id>,
+  moduleIdForSpecifier: (origin: ts.ExportDeclaration) => T.Id | undefined,
 ): void => {
   const form = s.exportsForm.get(exp.id)
   const origin = s.exportsOrigin.get(exp.id)
@@ -46,7 +46,7 @@ const resolveExport = (
     const sym = s.checker.getSymbolAtLocation(origin.expression)
     if (!sym) return
     const id = idsForSymbol(idByDecl, s.checker, sym)[0]
-    if (id !== undefined) exp.names.push({ name: origin.isExportEquals ? 'export=' : 'default', ref: id })
+    if (id !== undefined) exp.names.push({ name: origin.isExportEquals ? 'export=' : 'default', ref: id, type: false })
     return
   }
 
@@ -54,7 +54,7 @@ const resolveExport = (
   if (form === 'namespace-from') {
     const alias = s.exportsAlias.get(exp.id)
     const moduleId = moduleIdForSpecifier(origin)
-    if (alias && moduleId !== undefined) exp.names.push({ name: alias, ref: moduleId })
+    if (alias && moduleId !== undefined) exp.names.push({ name: alias, ref: moduleId, type: origin.isTypeOnly })
     return
   }
 
@@ -66,7 +66,7 @@ const resolveExport = (
     exp.star = true
     for (const sym of s.checker.getExportsOfModule(moduleSym)) {
       const id = idsForSymbol(idByDecl, s.checker, sym)[0]
-      if (id !== undefined) exp.names.push({ name: sym.getName(), ref: id })
+      if (id !== undefined) exp.names.push({ name: sym.getName(), ref: id, type: origin.isTypeOnly })
     }
     return
   }
@@ -83,7 +83,7 @@ const resolveExport = (
       const sym = exportSyms.find((x) => x.getName() === e.name)
       if (!sym) continue
       const id = idsForSymbol(idByDecl, s.checker, sym)[0]
-      if (id !== undefined) exp.names.push({ name: e.as ?? e.name, ref: id })
+      if (id !== undefined) exp.names.push({ name: e.as ?? e.name, ref: id, type: e.type })
     }
     return
   }
@@ -94,19 +94,19 @@ const resolveExport = (
       const sym = s.checker.getSymbolAtLocation(el.propertyName ?? el.name)
       if (!sym) continue
       const id = idsForSymbol(idByDecl, s.checker, sym)[0]
-      if (id !== undefined) exp.names.push({ name: el.name.text, ref: id })
+      if (id !== undefined) exp.names.push({ name: el.name.text, ref: id, type: origin.isTypeOnly || el.isTypeOnly })
     }
   }
 }
 
-const idsForSymbol = (idByDecl: Map<ts.Node, number>, checker: ts.TypeChecker, sym: ts.Symbol): number[] => {
+const idsForSymbol = (idByDecl: Map<ts.Node, T.Id>, checker: ts.TypeChecker, sym: ts.Symbol): T.Id[] => {
   const collect = (s: ts.Symbol, out: number[]): void => {
     for (const decl of s.declarations ?? []) {
       const id = idByDecl.get(decl)
       if (id !== undefined && !out.includes(id)) out.push(id)
     }
   }
-  const ids: number[] = []
+  const ids: T.Id[] = []
   collect(sym, ids)
 
   // Export specifiers / import aliases declare themselves as the symbol's
@@ -137,7 +137,7 @@ const asExternal = (
   r.type = 'external'
   r.external = external
 }
-const asInternal = (ref: T.Type<'reference'>, targetId: number): void => {
+const asInternal = (ref: T.Type<'reference'>, targetId: T.Id): void => {
   const r = ref as Extract<T.Type<'reference'>, { type: 'internal' }>
   r.type = 'internal'
   r.targetId = targetId

@@ -65,8 +65,8 @@ export const groupBy = (
   compose({
     links: (value, d) => value.map((l) => ({ ...l, group: cb(d.get(l.target)!, l.group) })),
     sidebar: (value, d) => {
-      if (!value) return undefined
-      return { ...value, group: cb(d, value?.group) }
+      if (!value?.children) return value
+      return { ...value, children: value.children.map((l) => ({ ...l, group: cb(d.get(l.target)!, l.group) })) }
     },
     referenced: (value, d) => value.map((r) => ({ ...r, group: cb(d.get(r.target)!, r.group) })),
   })
@@ -149,6 +149,30 @@ export const place = (homes: Record<string, string>): Adapter => ({
     const home = homes[d.name]
     if (home === undefined) return path
     return d.exposure.ancestors().find((p) => pathLabel(p) === normalize(home)) ?? path
+  },
+})
+
+/**
+ * Add a curated top-level sidebar section. Declarations whose name is listed
+ * become roots grouped under `title` — *in addition to* their normal place
+ * in the tree, so the same page is reachable from both. Names resolve by
+ * declaration name; the first match wins for duplicates.
+ *
+ * @param title Section heading shown above the entries.
+ * @param names Declaration names to list, in the given order.
+ * @param opts `order` positions the section among the root groups
+ * (default `-1`, above the ungrouped roots).
+ *
+ * @example A hand-picked "essentials" section
+ * ```ts
+ * provider: Adapter.section('essentials', ['defineConfig', 'defineComponents', 'LiveExample'])
+ * ```
+ */
+export const section = (title: string, names: string[], opts?: { order?: number }): Adapter => ({
+  sidebar: (value, d) => {
+    const index = names.indexOf(d.name)
+    if (index < 0) return value
+    return { ...(value ?? {}), root: index, group: { name: title, order: opts?.order ?? -1 } }
   },
 })
 

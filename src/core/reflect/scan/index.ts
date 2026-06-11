@@ -4,6 +4,7 @@ import ts from 'typescript'
 import type * as T from '../types.ts'
 
 import { commentForModule, commentForNode } from './comment.ts'
+import { t } from '../../../_lib/index.ts'
 
 export const scan = (options: ScanOptions) => {
   const { s, files } = setup(options)
@@ -211,6 +212,7 @@ scan.ExportDeclaration = (s: State, node: ts.ExportDeclaration, queue: ts.Source
   const entries = node.exportClause.elements.map((el) => ({
     name: (el.propertyName ?? el.name).text,
     ...(el.propertyName ? { as: el.name.text } : {}),
+    type: node.isTypeOnly || el.isTypeOnly,
   }))
   s.exportsForm.set(exp.id, spec ? 'named-from' : 'named-local')
   if (spec) s.exportsSpec.set(exp.id, spec)
@@ -458,7 +460,7 @@ const inferRef = (s: State, name: string, symbol: ts.Symbol, args?: T.Type[]): T
     parent: s.parent,
     sources: [],
     type: 'internal',
-    targetId: 0,
+    targetId: t.brand<T.Id>(0),
     id: s.nextId(),
     name,
     owner: s.currentStmt,
@@ -565,7 +567,7 @@ const part = <K extends keyof T.PartMap>(
 }
 const base = (s: State, node: ts.Node): T.Base => {
   const result: T.Base = typeBase(s, node) as any
-  result.id = s.nextId()
+  result.id = t.brand<T.Id>(s.nextId())
   result.name = getName(node) ?? 'unknown'
   result.exported = isExported(node)
 

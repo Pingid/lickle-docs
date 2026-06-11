@@ -74,9 +74,9 @@ test('doc routes carry their referenced backlinks, grouped by group', () => {
   expect(doc.referenced[0]!.target).toBe(5)
 })
 
-test('sidebar roots are parent-less routes; children nest under their parent by slug', () => {
+test('legacy parent-pointer sidebars upgrade: parent-less routes root, children nest by slug', () => {
   const root = route({ slug: 'p', decl: 1, sidebar: {} })
-  const child = route({ slug: 'p/c', decl: 2, sidebar: { parent: 'p', group: { name: 'fns', order: 0 } } })
+  const child = route({ slug: 'p/c', decl: 2, sidebar: { parent: 'p', group: { name: 'fns', order: 0 } } as never })
   const router = createRouter({ routes: [root, child], prefix: { doc: 'l' } })
 
   const roots = router.sidebar.flatMap((g) => g.items)

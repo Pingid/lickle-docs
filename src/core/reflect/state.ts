@@ -2,6 +2,7 @@ import ts from 'typescript'
 import path from 'path'
 
 import type * as T from './types.ts'
+import { t } from '../../_lib/index.ts'
 
 /** How a given `exports` clause should populate its targets at resolve time. */
 export type ExportsForm = 'named-local' | 'named-from' | 'star' | 'namespace-from' | 'assignment'
@@ -21,11 +22,11 @@ export interface ScanState extends ScanOptions {
   declarations: T.Declaration[]
 
   /** Monotonic id source. Every node that needs identity calls this. */
-  nextId: () => number
+  nextId: () => T.Id
   getPath: (sf: ts.SourceFile) => string
-  root: number
-  parent: number
-  currentStmt: number
+  root: T.Id
+  parent: T.Id
+  currentStmt: T.Id
   srcDir: string
 
   /** References to other declarations. resolved later. */
@@ -34,23 +35,23 @@ export interface ScanState extends ScanOptions {
   exports: T.Declaration<'export'>[]
 
   /** Symbols by id. Used to resolve references. */
-  symbolsById: Map<number, ts.Symbol>
+  symbolsById: Map<T.Id, ts.Symbol>
   /** Reference origins, used to re-resolve references. */
-  referenceOrigins: Map<number, ts.Node>
+  referenceOrigins: Map<T.Id, ts.Node>
   /** Symbol for inferred references, which have no syntactic origin to re-resolve. */
-  referenceSymbols: Map<number, ts.Symbol>
+  referenceSymbols: Map<T.Id, ts.Symbol>
 
   // ---- deferred export population ----
   /** exports id -> which population strategy resolve should use. */
-  exportsForm: Map<number, ExportsForm>
+  exportsForm: Map<T.Id, ExportsForm>
   /** exports id -> source module specifier text, for the `*-from` forms. */
-  exportsSpec: Map<number, string>
+  exportsSpec: Map<T.Id, string>
   /** exports id -> raw `{ name, as? }` entries, for the `named-*` forms. */
-  exportsEntries: Map<number, { name: string; as?: string }[]>
+  exportsEntries: Map<T.Id, { name: string; as?: string; type: boolean }[]>
   /** exports id -> alias, for `export * as <alias> from '…'`. */
-  exportsAlias: Map<number, string>
+  exportsAlias: Map<T.Id, string>
   /** exports id -> origin node, so resolve can re-ask the checker. */
-  exportsOrigin: Map<number, ts.ExportDeclaration | ts.ExportAssignment>
+  exportsOrigin: Map<T.Id, ts.ExportDeclaration | ts.ExportAssignment>
 
   /** Source files already scanned — dedups the transitive re-export worklist. */
   seen: Set<ts.SourceFile>
@@ -71,11 +72,11 @@ export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): Sc
       return options.include(sf)
     },
     compilerOptions: options.cmd.options,
-    root: 0,
-    parent: 0,
-    currentStmt: 0,
+    root: t.brand<T.Id>(0),
+    parent: t.brand<T.Id>(0),
+    currentStmt: t.brand<T.Id>(0),
     checker,
-    nextId: () => ++id,
+    nextId: () => t.brand<T.Id>(++id),
     getPath,
     references: [],
     exports: [],

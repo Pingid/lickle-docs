@@ -37,7 +37,12 @@ export interface Adapter {
   alias?: Hook<string>
   /** URL path of a declaration's page. */
   slug?: Hook<string>
-  /** Sidebar placement — parent, group and order. Return `undefined` to hide the entry. */
+  /**
+   * Sidebar participation — `root` position and the child edges this route
+   * owns. Append edges to duplicate declarations under several parents;
+   * return `undefined` to own nothing (the route still appears wherever a
+   * parent lists it).
+   */
   sidebar?: Hook<Sidebar | undefined>
   /** The page emitted for a declaration. Return `undefined` to skip the page. */
   declare?: Hook<DocRoute | undefined>

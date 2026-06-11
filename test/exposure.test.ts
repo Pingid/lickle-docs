@@ -25,12 +25,16 @@ const routeOf = (fx: Fixture, name: string): Extract<Route, { kind: 'doc' }> => 
   return route as Extract<Route, { kind: 'doc' }>
 }
 
+/** Slugs (unprefixed) of the routes whose sidebar lists `id` as a child edge. */
+const listedBy = (fx: Fixture, id: number): string[] =>
+  fx.routes.filter((r) => r.sidebar?.children?.some((e) => e.target === id)).map((r) => r.slug)
+
 it('default placement: shortest chain from the earliest entrypoint wins', () => {
   const fx = multiRoutesFixture(FILES, ENTRIES)
   const foo = routeOf(fx, 'Foo')
   expect(foo.slug).toBe('a/Foo')
   expect(foo.title).toBe('Foo')
-  expect(foo.sidebar?.parent).toBe('a')
+  expect(listedBy(fx, foo.decl)).toEqual(['a'])
 })
 
 it('an exposure hook relocates slug, title and sidebar placement together', () => {
@@ -42,7 +46,7 @@ it('an exposure hook relocates slug, title and sidebar placement together', () =
   const foo = routeOf(fx, 'Foo')
   expect(foo.slug).toBe('b/Stuff/Foo')
   expect(foo.title).toBe('Stuff.Foo')
-  expect(foo.sidebar?.parent).toBe('b/Stuff')
+  expect(listedBy(fx, foo.decl)).toEqual(['b/Stuff'])
   // untouched siblings keep the default placement
   expect(routeOf(fx, 'bar').slug).toBe('a/bar')
 })
@@ -72,6 +76,7 @@ it('an empty path hides the sidebar entry and falls back to source-path placemen
   const fx = multiRoutesFixture(FILES, ENTRIES, hide)
   const foo = routeOf(fx, 'Foo')
   expect(foo.sidebar).toBeUndefined()
+  expect(listedBy(fx, foo.decl)).toEqual([])
   expect(foo.slug).toBe('shared/Foo')
   expect(foo.title).toBe('Foo')
 })

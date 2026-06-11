@@ -12,7 +12,7 @@ export type ModuleFacade = DeclarationFacade<'module' | 'namespace'>
  */
 export interface DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap> {
   /** The declaration id */
-  id: number
+  id: Reflect.Id
   /** The declaration kind */
   kind: K
   /** The declaration name */
@@ -21,7 +21,7 @@ export interface DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyo
   raw: Reflect.Declaration<K>
   /** Get another declaration by id */
   get<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap>(
-    id: number,
+    id: Reflect.Id,
   ): DeclarationFacade<K> | undefined
   /** Parent module where the declaration is defined */
   parent(): DeclarationFacade<'module'> | undefined
@@ -60,7 +60,7 @@ export interface DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyo
 
 export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap>(
   index: Reflect.Index,
-  id: number,
+  id: Reflect.Id,
   alias?: string,
 ): DeclarationFacade<K> | undefined => {
   const declaration = index.get(id)

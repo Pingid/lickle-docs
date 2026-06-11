@@ -2,18 +2,20 @@ import { is } from '@lickle/is'
 
 import type { t } from '../../_lib/index.ts'
 
+export type Id = t.Brand<'reflect-id', number>
+
 /** A location in the scanned source, with `file` relative to the project root. */
 export type Source = { file: string; line: number; column: number }
 /**
  * Fields every scanned node carries: its parent declaration id, doc comment and source locations.
  * @internal
  */
-export type Typebase = { parent: number; comment?: Comment; sources: Source[] }
+export type Typebase = { parent: Id; comment?: Comment; sources: Source[] }
 /**
  * {@link Typebase} plus identity — what makes a node a declaration rather than an anonymous part.
  * @internal
  */
-export type Base = Typebase & { id: number; name: string; exported: boolean }
+export type Base = Typebase & { id: Id; name: string; exported: boolean }
 
 /**
  * Per-kind payloads of a {@link Declaration} — what each kind of statement
@@ -42,7 +44,7 @@ export interface DeclarationDefinitions {
     indexSignature?: Part<'index-signature'>
   }
   'type-alias': { generics?: Part<'generic'>[]; type: Type }
-  export: { names: { name: string; ref: number }[]; star: boolean }
+  export: { names: { name: string; ref: Id; type: boolean }[]; star: boolean }
   enum: { const?: boolean; members: Part<'enum-member'>[] }
   namespace: {}
   module: { path: string }
@@ -54,7 +56,7 @@ export interface DeclarationDefinitions {
  */
 export type ReferenceTypeMap = t.MapKind<
   {
-    internal: { targetId: number }
+    internal: { targetId: Id }
     external: { external: 'stdlib' | 'package' | 'anonymous' | 'type-parameter' }
   },
   'type'
@@ -69,7 +71,7 @@ export type ReferenceTypeMap = t.MapKind<
 export interface TypeDefinitions {
   intrinsic: { name: IntrinsicName }
   literal: { value: string | number | boolean | bigint | null }
-  reference: { id: number; name: string; owner: number; args?: Type[] } & ReferenceTypeMap[keyof ReferenceTypeMap]
+  reference: { id: Id; name: string; owner: Id; args?: Type[] } & ReferenceTypeMap[keyof ReferenceTypeMap]
   union: { types: Type[] }
   intersection: { types: Type[] }
   array: { elementType: Type }

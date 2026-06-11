@@ -1,13 +1,15 @@
+import type * as Reflect from '../reflect/types.ts'
+
 /** A page of the generated site: a declaration page or a markdown page. */
 export type Route = DocRoute | PageRoute
 
-/** Fields shared by every route. */
+/** Fields shared by every route. The `slug` is the route's identity — unique across the project. */
 export interface RouteBase {
   /** Display title, shown in the sidebar, breadcrumbs and page header. */
   title: string
-  /** URL path of the page. */
+  /** URL path of the page, and its unique identity. */
   slug: SlugPath
-  /** Sidebar placement. Omitted routes don't appear in the sidebar. */
+  /** Sidebar participation. Routes without one appear only where a parent's `children` list them. */
   sidebar?: Sidebar
 }
 
@@ -15,7 +17,7 @@ export interface RouteBase {
 export interface DocRoute extends RouteBase {
   kind: 'doc'
   /** Id of the declaration this page documents. */
-  decl: number
+  decl: Reflect.Id
   /** Member links listed on the page, e.g. a module's exports. */
   links: DocLink[]
   /** Backlinks from declarations that reference this one. */
@@ -39,11 +41,16 @@ export type SlugPath = string & {}
 /** A named bucket for sidebar entries and link listings. Buckets sort ascending by `order`. */
 export type Group = { name: string; order?: number }
 
-/** Sidebar placement of a route: the parent it nests under, its group and its order within the group. */
-export type Sidebar = { parent?: SlugPath; group?: Group; order?: number }
+/**
+ * Sidebar participation of a route. `root` pins it top-level at that position
+ * (with `group` sectioning the roots); `children` are edges to declarations
+ * rendered beneath it wherever it appears. The same declaration may be listed
+ * by several parents — each occurrence renders, so duplicates are by design.
+ */
+export type Sidebar = { root?: number; group?: Group; children?: DocLink[] }
 
 /** A link to a declaration's page, displayed under `alias` and bucketed by `group`. */
-export type DocLink = { target: number; alias: string; group?: Group; order?: number }
+export type DocLink = { target: Reflect.Id; alias: string; group?: Group; order?: number }
 
 /**
  * URL prefixes applied per route kind: `doc` for declaration pages, `page`

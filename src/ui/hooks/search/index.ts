@@ -57,7 +57,9 @@ const createSearchEngine = async (
       const decl = byId(route.decl)
       const kind = decl?.kind ?? 'module'
 
-      const parent = route.sidebar?.parent ? router.get({ slug: route.sidebar.parent }) : undefined
+      // Owning module from the slug hierarchy — slugs encode the canonical chain.
+      const parentSlug = route.slug.split('/').slice(0, -1).join('/')
+      const parent = parentSlug ? router.get({ slug: parentSlug }) : undefined
 
       const module = parent?.title
       const source = decl?.sources.map((s) => (decl.kind === 'module' ? `${s.file}` : `${s.file}:${s.line}`))?.[0]

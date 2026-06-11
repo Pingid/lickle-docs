@@ -29,3 +29,9 @@ export type DeepMerge<T, U> = T extends object
       }
     : U
   : U
+
+export type Brand<B extends string, T> = T & { __brand: B; __type: T }
+export const brand: {
+  <B extends { __type: any }>(t: B['__type']): B
+  <B extends string, T>(_: B, t: T): Brand<B, T>
+} = ((x: any) => x) as any

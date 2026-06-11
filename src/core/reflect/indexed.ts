@@ -64,13 +64,13 @@ export const roots =
 
 /** */
 export type SourceCode = {
-  getText: (id: number) => string
-  sourceFileText: (id: number) => { file: string; text: string }
+  getText: (id: T.Id) => string
+  sourceFileText: (id: T.Id) => { file: string; text: string }
 }
 export const sourceCode =
   (s: State): Indexer<SourceCode> =>
   (): SourceCode => {
-    const getText = (id: number): string => {
+    const getText = (id: T.Id): string => {
       const node = s?.symbolsById?.get?.(id)
       if (!node) return ''
       return (node?.declarations ?? [])
@@ -79,7 +79,7 @@ export const sourceCode =
         .join('\n')
     }
 
-    const sourceFileText = (id: number) => {
+    const sourceFileText = (id: T.Id) => {
       const node = s?.symbolsById?.get?.(id)
       return {
         get file() {
@@ -132,14 +132,14 @@ export const treeIndex =
 
 /** */
 export type ReferenceIndex = {
-  referencedIn: (id: number) => Iterable<number>
-  references: (id: number) => Iterable<number>
+  referencedIn: (id: T.Id) => Iterable<T.Id>
+  references: (id: T.Id) => Iterable<T.Id>
 }
 export const referenceIndex =
   (s: State): Indexer<ReferenceIndex> =>
   () => {
-    const referencedIn = new Map<number, Set<number>>()
-    const references = new Map<number, Set<number>>()
+    const referencedIn = new Map<T.Id, Set<T.Id>>()
+    const references = new Map<T.Id, Set<T.Id>>()
 
     for (const ref of s.references) {
       if (ref.type === 'internal') {
@@ -152,28 +152,28 @@ export const referenceIndex =
         refss.add(ref.targetId)
       }
     }
-    const EMPTY = new Set<number>()
+    const EMPTY = new Set<T.Id>()
     return { referencedIn: (id) => referencedIn.get(id) ?? EMPTY, references: (id) => references.get(id) ?? EMPTY }
   }
 
 /** Depends on Roots + TreeIndex. */
-export type Exposure = { exposer: number; alias?: string }
+export type Exposure = { exposer: T.Id; alias?: string }
 
 export type ExposerIndex = {
-  isExposed: (id: number) => boolean
-  exposures: (id: number) => Exposure[][]
-  exposes: (id: number) => Exposure[]
-  exposedBy: (id: number) => Exposure[]
+  isExposed: (id: T.Id) => boolean
+  exposures: (id: T.Id) => Exposure[][]
+  exposes: (id: T.Id) => Exposure[]
+  exposedBy: (id: T.Id) => Exposure[]
 }
 export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) => {
-  const _exposedBy = new Map<number, Exposure[]>()
-  const _exposesIn = new Map<number, Exposure[]>()
+  const _exposedBy = new Map<T.Id, Exposure[]>()
+  const _exposesIn = new Map<T.Id, Exposure[]>()
 
   // Records id under exposer/alias. Returns whether this (exposer → id) edge
   // is new — used to stop infinite recursion on cycles, NOT to globally
   // dedup, since the same id can be exposed by many exposers.
   const seenEdge = new Set<string>()
-  const record = (id: number, exposer: number, alias?: string): boolean => {
+  const record = (id: T.Id, exposer: T.Id, alias?: string): boolean => {
     const edge = exposer + ':' + id
     if (seenEdge.has(edge)) return false
     seenEdge.add(edge)
@@ -191,11 +191,11 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
   // Public members of a module / namespace: exported declarations plus the
   // `export …` statements themselves (which carry re-exports). Internal,
   // non-exported helpers are left out of the exposure graph.
-  const members = function* (id: number): Iterable<T.Declaration> {
+  const members = function* (id: T.Id): Iterable<T.Declaration> {
     for (const child of deps.children(id)) if (child.exported) yield child
   }
 
-  const expose = (id: number, exposer: number, alias?: string): void => {
+  const expose = (id: T.Id, exposer: T.Id, alias?: string): void => {
     const d = deps.get(id)
     if (!d) return
     if (d.kind === 'export') {
@@ -236,18 +236,18 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     }
   })
 
-  const exposures = (id: number, pth: Exposure[] = []): Exposure[][] => {
+  const exposures = (id: T.Id, pth: Exposure[] = []): Exposure[][] => {
     const d = _exposedBy.get(id)
 
     if (!d) return []
     return d.flatMap((e) => (deps.isRoot(e.exposer) ? [[e, ...pth]] : exposures(e.exposer, [e, ...pth])))
   }
 
-  const exposes = (id: number) => _exposesIn.get(id) ?? []
+  const exposes = (id: T.Id) => _exposesIn.get(id) ?? []
 
-  const isExposed = (id: number): boolean => (_exposedBy.get(id)?.length ?? 0) > 0
+  const isExposed = (id: T.Id): boolean => (_exposedBy.get(id)?.length ?? 0) > 0
 
-  const exposedBy = (id: number) => _exposedBy.get(id) ?? []
+  const exposedBy = (id: T.Id) => _exposedBy.get(id) ?? []
 
   return { isExposed, exposures, exposes, exposedBy }
 }
