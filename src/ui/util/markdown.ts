@@ -1,8 +1,7 @@
 import { groupItems } from '../../core/client/index.ts'
 
-import type { ClientRouter } from '../hooks/router/index.ts'
-import type { Types } from '../context/index.tsx'
-import type { Project } from '../hooks/index.ts'
+import type { Docs } from '../context/index.tsx'
+import { DocRouter, type Project } from '../hooks/index.ts'
 import { withBaseUrl } from './base.ts'
 import { labelOf } from './kind.ts'
 
@@ -14,7 +13,7 @@ export interface MarkdownOptions {
   inlineMembers?: boolean
 }
 
-type Ctx = { project: Project; slugOf: SlugOf; inline: boolean; seen: Set<number>; router: ClientRouter }
+type Ctx = { project: Project; slugOf: SlugOf; inline: boolean; seen: Set<number>; router: DocRouter.ClientRouter }
 
 /**
  * Serialize a route's main content to markdown: the title, declaration body
@@ -25,19 +24,19 @@ type Ctx = { project: Project; slugOf: SlugOf; inline: boolean; seen: Set<number
  * full docs, recursively) instead of listed as links.
  */
 export const routeToMarkdown = (
-  router: ClientRouter,
-  route: Types.Route,
+  router: DocRouter.ClientRouter,
+  route: DocRouter.Route,
   project: Project,
   slugOf: SlugOf,
   opts: MarkdownOptions = {},
 ): string => renderRoute(route, { project, slugOf, router, inline: !!opts.inlineMembers, seen: new Set() }, 1)
 
-const renderRoute = (route: Types.Route, ctx: Ctx, depth: number): string => {
+const renderRoute = (route: DocRouter.Route, ctx: Ctx, depth: number): string => {
   if (route.kind === 'page') return route.body.join('\n\n').trimEnd() + '\n'
   return statementMd(route, ctx, depth)
 }
 
-const statementMd = (route: Types.DocRoute, ctx: Ctx, depth: number): string => {
+const statementMd = (route: DocRouter.DocRoute, ctx: Ctx, depth: number): string => {
   const decl = ctx.project.byId(route.decl)
   const h = '#'.repeat(Math.min(depth, 6))
   if (!decl) return `${h} ${route.title}\n`
@@ -56,7 +55,7 @@ const statementMd = (route: Types.DocRoute, ctx: Ctx, depth: number): string => 
  * default, or — when `ctx.inline` — expanded in place with each member's full
  * documentation.
  */
-const childrenMd = (route: Types.DocRoute, ctx: Ctx, depth: number): string => {
+const childrenMd = (route: DocRouter.DocRoute, ctx: Ctx, depth: number): string => {
   if (!route.links.length) return ''
   let out = ''
   for (const g of groupItems(route.links, (l) => l.group)) {
@@ -83,12 +82,12 @@ const childrenMd = (route: Types.DocRoute, ctx: Ctx, depth: number): string => {
 // DECLARATIONS
 // ============================================================================
 
-export const declarationToMarkdown = (decl: Types.Declaration, slugOf: SlugOf): string => {
-  const fn = DECL[decl.kind] as ((d: Types.Declaration, s: SlugOf) => string) | undefined
-  return fn ? fn(decl, slugOf) : commentBlock((decl as { comment?: Types.Comment }).comment, slugOf)
+export const declarationToMarkdown = (decl: Docs.Declaration, slugOf: SlugOf): string => {
+  const fn = DECL[decl.kind] as ((d: Docs.Declaration, s: SlugOf) => string) | undefined
+  return fn ? fn(decl, slugOf) : commentBlock((decl as { comment?: Docs.Comment }).comment, slugOf)
 }
 
-const DECL: { [K in Types.Declaration['kind']]?: (d: Types.Declaration<K>, slugOf: SlugOf) => string } = {
+const DECL: { [K in Docs.Declaration['kind']]?: (d: Docs.Declaration<K>, slugOf: SlugOf) => string } = {
   function: (d, s) => signature(d.signatures.map((sig) => sigLine(sig, d.name)).join('\n'), d.comment, s),
   variable: (d, s) =>
     signature(`const ${d.name}: ${typeStr(d.type)}${d.defaultValue ? ` = ${d.defaultValue}` : ''}`, d.comment, s),
@@ -106,21 +105,21 @@ const DECL: { [K in Types.Declaration['kind']]?: (d: Types.Declaration<K>, slugO
   namespace: (d, s) => commentBlock(d.comment, s),
 }
 
-const enumValue = (m: Types.Part<'enum-member'>): string =>
+const enumValue = (m: Docs.Part<'enum-member'>): string =>
   m.value === undefined ? '' : ` = ${typeof m.value === 'string' ? `"${m.value}"` : m.value}`
 
-const heritage = (label: string, types?: Types.Type[]): string =>
+const heritage = (label: string, types?: Docs.Type[]): string =>
   types?.length ? `*${label}* ${types.map(typeStr).join(', ')}\n\n` : ''
 
 /** Shared class/interface member sections, each a `###` subsection of `- ` rows. */
 const members = (
   m: {
-    constructors?: Types.Part<'signature'>[]
-    properties?: Types.Part<'property'>[]
-    methods?: Types.Part<'method'>[]
-    callSignatures?: Types.Part<'signature'>[]
-    constructSignatures?: Types.Part<'signature'>[]
-    indexSignature?: Types.Part<'index-signature'>
+    constructors?: Docs.Part<'signature'>[]
+    properties?: Docs.Part<'property'>[]
+    methods?: Docs.Part<'method'>[]
+    callSignatures?: Docs.Part<'signature'>[]
+    constructSignatures?: Docs.Part<'signature'>[]
+    indexSignature?: Docs.Part<'index-signature'>
   },
   s: SlugOf,
 ): string => {
@@ -147,13 +146,13 @@ const members = (
   return out
 }
 
-const propItem = (p: Types.Part<'property'>, s: SlugOf): string =>
+const propItem = (p: Docs.Part<'property'>, s: SlugOf): string =>
   `- \`${p.name}${p.optional ? '?' : ''}: ${typeStr(p.type)}${p.defaultValue ? ` = ${p.defaultValue}` : ''}\`${inlineComment(p.comment, s)}\n`
 
-const sigItem = (sig: Types.Part<'signature'>, s: SlugOf, kind?: 'constructor', name?: string): string =>
+const sigItem = (sig: Docs.Part<'signature'>, s: SlugOf, kind?: 'constructor', name?: string): string =>
   `- \`${sigLine(sig, name, kind)}\`${inlineComment(sig.comment, s)}\n`
 
-const indexSig = (sig: Types.Part<'index-signature'>): string =>
+const indexSig = (sig: Docs.Part<'index-signature'>): string =>
   `[${sig.parameter.name}: ${typeStr(sig.parameter.type)}]: ${typeStr(sig.type)}`
 
 // ============================================================================
@@ -165,7 +164,7 @@ const indexSig = (sig: Types.Part<'index-signature'>): string =>
  * references resolve to markdown links via {@link SlugOf}. Block tags are not
  * included — see {@link commentBlock} for the full rendering.
  */
-export const commentToMarkdown = (comment: Types.Comment, slugOf: SlugOf): string => {
+export const commentToMarkdown = (comment: Docs.Comment, slugOf: SlugOf): string => {
   let out = ''
   for (const p of comment.parts) {
     if (p.kind === 'text') {
@@ -181,7 +180,7 @@ export const commentToMarkdown = (comment: Types.Comment, slugOf: SlugOf): strin
 }
 
 /** Full comment: summary prose followed by its block tags. */
-const commentBlock = (comment: Types.Comment | undefined, slugOf: SlugOf): string => {
+const commentBlock = (comment: Docs.Comment | undefined, slugOf: SlugOf): string => {
   if (!comment) return ''
   let out = commentToMarkdown(comment, slugOf).trim()
   if (out) out += '\n'
@@ -195,7 +194,7 @@ const commentBlock = (comment: Types.Comment | undefined, slugOf: SlugOf): strin
   return out ? out + '\n' : ''
 }
 
-const tagMd = (t: Types.CommentTag, slugOf: SlugOf): string => {
+const tagMd = (t: Docs.CommentTag, slugOf: SlugOf): string => {
   switch (t.kind) {
     case '@param':
     case '@property':
@@ -227,7 +226,7 @@ const commentText = (text: string, target: string | undefined, slugOf: SlugOf): 
 }
 
 /** First line of a comment summary, for inline ` — desc` suffixes in lists. */
-const inlineComment = (comment: Types.Comment | undefined, slugOf: SlugOf): string => {
+const inlineComment = (comment: Docs.Comment | undefined, slugOf: SlugOf): string => {
   const s = comment ? commentToMarkdown(comment, slugOf).split('\n')[0]?.trim() : ''
   return s ? ` — ${s}` : ''
 }
@@ -241,7 +240,7 @@ const desc = (text?: string): string => {
 // TYPES
 // ============================================================================
 
-type T = Types.Type
+type T = Docs.Type
 
 /** Render an arbitrary type to a TypeScript-like string. Mirrors `Type.tsx`. */
 export const typeStr = (type: T | undefined): string => {
@@ -250,7 +249,7 @@ export const typeStr = (type: T | undefined): string => {
   return fn ? fn(type) : ((type as { text?: string }).text ?? type.kind)
 }
 
-const TYPE: { [K in T['kind']]?: (t: Types.Type<K>) => string } = {
+const TYPE: { [K in T['kind']]?: (t: Docs.Type<K>) => string } = {
   intrinsic: (t) => t.name,
   literal: (t) => (typeof t.value === 'string' ? `"${t.value}"` : String(t.value)),
   reference: (t) => `${t.name}${typeArgs(t.args)}`,
@@ -272,7 +271,7 @@ const TYPE: { [K in T['kind']]?: (t: Types.Type<K>) => string } = {
     `${t.isTypeOf ? 'typeof ' : ''}import("${t.argument}")${t.qualifier ? `.${t.qualifier}` : ''}${typeArgs(t.args)}`,
 }
 
-const recordStr = (t: Types.Type<'record'>): string => {
+const recordStr = (t: Docs.Type<'record'>): string => {
   const onlySig =
     t.callSignatures?.length === 1 &&
     !t.properties.length &&
@@ -290,17 +289,17 @@ const recordStr = (t: Types.Type<'record'>): string => {
   return items.length ? `{ ${items.join('; ')} }` : '{}'
 }
 
-const mappedStr = (t: Types.Type<'mapped'>): string => {
+const mappedStr = (t: Docs.Type<'mapped'>): string => {
   const tp = t.typeParameter
   return `{ ${t.readonly ? 'readonly ' : ''}[${tp.name}${tp.constraint ? ` in ${typeStr(tp.constraint)}` : ''}${t.nameType ? ` as ${typeStr(t.nameType)}` : ''}]${t.optional ? '?' : ''}: ${typeStr(t.type)} }`
 }
 
-const tupleEl = (el: Types.Part<'tuple-element'>): string =>
+const tupleEl = (el: Docs.Part<'tuple-element'>): string =>
   `${el.rest ? '...' : ''}${el.name ? `${el.name}${el.optional ? '?' : ''}: ` : ''}${typeStr(el.type)}${!el.name && el.optional ? '?' : ''}`
 
 const typeArgs = (args?: T[]): string => (args?.length ? `<${args.map(typeStr).join(', ')}>` : '')
 
-const generics = (gs?: Types.Part<'generic'>[]): string =>
+const generics = (gs?: Docs.Part<'generic'>[]): string =>
   gs?.length
     ? `<${gs
         .map(
@@ -310,17 +309,17 @@ const generics = (gs?: Types.Part<'generic'>[]): string =>
         .join(', ')}>`
     : ''
 
-const params = (ps: Types.Part<'parameter'>[]): string =>
+const params = (ps: Docs.Part<'parameter'>[]): string =>
   ps
     .map((p) => `${p.rest ? '...' : ''}${p.name}${p.optional || p.default != null ? '?' : ''}: ${typeStr(p.type)}`)
     .join(', ')
 
 /** Anonymous signature, `<T>(a: A) => R` or `<T>(a: A): R`. */
-const sigExpr = (sig: Types.Part<'signature'>, arrow = false): string =>
+const sigExpr = (sig: Docs.Part<'signature'>, arrow = false): string =>
   `${generics(sig.generics)}(${params(sig.params)})${arrow ? ' => ' : ': '}${typeStr(sig.return)}`
 
 /** Named signature line, `new? name<T>(a: A): R`. */
-const sigLine = (sig: Types.Part<'signature'>, name?: string, kind?: 'constructor'): string =>
+const sigLine = (sig: Docs.Part<'signature'>, name?: string, kind?: 'constructor'): string =>
   `${kind === 'constructor' ? 'new ' : ''}${name ?? ''}${generics(sig.generics)}(${params(sig.params)}): ${typeStr(sig.return)}`
 
 // ============================================================================
@@ -331,7 +330,7 @@ const sigLine = (sig: Types.Part<'signature'>, name?: string, kind?: 'constructo
 const fence = (code: string, lang = 'ts'): string => (code.trim() ? `\`\`\`${lang}\n${code}\n\`\`\`\n` : '')
 
 /** A signature fence followed by its comment, with a blank line between them. */
-const signature = (code: string, comment: Types.Comment | undefined, s: SlugOf): string => {
+const signature = (code: string, comment: Docs.Comment | undefined, s: SlugOf): string => {
   const c = commentBlock(comment, s).replace(/^\n+/, '')
   return fence(code) + (c ? `\n${c}` : '')
 }

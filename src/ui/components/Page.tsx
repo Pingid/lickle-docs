@@ -1,7 +1,7 @@
 import { For, Match, Show, Switch, createMemo } from 'solid-js'
 
-import { createSlot, type Types } from '../context/index.tsx'
-import { useDocRouter, useProject } from '../hooks/index.ts'
+import { createSlot, type Docs } from '../context/index.tsx'
+import { DocRouter, useProject } from '../hooks/index.ts'
 import { groupItems } from '../../core/client/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
 import { staticComponent } from '../util/solid.tsx'
@@ -43,7 +43,7 @@ export const Page = createSlot('page', (props) => {
 })
 
 /** A declaration page: header, the declaration itself, and its members. */
-const Statement = (props: { route: Types.DocRoute }) => {
+const Statement = (props: { route: DocRouter.DocRoute }) => {
   const project = useProject()
   const decl = createMemo(() => project()?.byId(props.route.decl))
   return (
@@ -63,7 +63,7 @@ const Statement = (props: { route: Types.DocRoute }) => {
  * deprecation marker when `@deprecated` is present, and the source link.
  * Replaceable via the `page.header` slot.
  */
-export const PageHeader = createSlot('page.header', (props: { decl: Types.Declaration; route: Types.Route }) => (
+export const PageHeader = createSlot('page.header', (props: { decl: Docs.Declaration; route: DocRouter.Route }) => (
   <header class="mb-5">
     <Breadcrumb id={props.decl.id} />
     <div class="flex items-baseline gap-3 flex-wrap">
@@ -78,7 +78,7 @@ export const PageHeader = createSlot('page.header', (props: { decl: Types.Declar
 ))
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
-export const Source = staticComponent((props: { decl: Types.Declaration }) => {
+export const Source = staticComponent((props: { decl: Docs.Declaration }) => {
   const project = useProject()
   const sources = createMemo(() => {
     return (props.decl.sources ?? []).map((s) => ({
@@ -110,7 +110,7 @@ export const Source = staticComponent((props: { decl: Types.Declaration }) => {
  * Member listing for a declaration page: the route's children grouped by kind,
  * exactly as the router lays them out. Each group becomes a titled section.
  */
-const Links = (props: { links: Types.DocLink[] }) => {
+const Links = (props: { links: DocRouter.DocLink[] }) => {
   const groups = createMemo(() => groupItems(props.links, (l) => l.group))
 
   return (
@@ -129,9 +129,9 @@ const Links = (props: { links: Types.DocLink[] }) => {
   )
 }
 
-const LinkRow = (props: { link: Types.DocLink }) => {
+const LinkRow = (props: { link: DocRouter.DocLink }) => {
   const project = useProject()
-  const router = useDocRouter()
+  const router = DocRouter.use()
   const route = () => {
     const route = router()?.get({ id: props.link.target })
     const decl = project()?.byId(props.link.target)
@@ -160,7 +160,7 @@ const LinkRow = (props: { link: Types.DocLink }) => {
 }
 
 /** A terse inline type cue next to a member name (function params / variable type). */
-const Signature = (props: { decl: Types.Declaration }) => {
+const Signature = (props: { decl: Docs.Declaration }) => {
   const d = props.decl
   if (d.kind === 'function' && d.signatures[0])
     return (
@@ -181,7 +181,7 @@ const Signature = (props: { decl: Types.Declaration }) => {
  * "Referenced In" backlinks from the route's `referenced` refs, grouped and
  * ordered with the same {@link groupItems} the sidebar and member lists use.
  */
-export const References = staticComponent((props: { referenced: Types.DocLink[] }) => {
+export const References = staticComponent((props: { referenced: DocRouter.DocLink[] }) => {
   const groups = createMemo(() => groupItems(props.referenced, (r) => r.group))
   return (
     <Show when={props.referenced.length}>
@@ -204,9 +204,9 @@ export const References = staticComponent((props: { referenced: Types.DocLink[] 
   )
 })
 
-const ReferenceRow = (props: { typeRef: Types.DocLink }) => {
+const ReferenceRow = (props: { typeRef: DocRouter.DocLink }) => {
   const project = useProject()
-  const router = useDocRouter()
+  const router = DocRouter.use()
   const route = () => router()?.get({ id: props.typeRef.target })
   const decl = () => project()?.byId(props.typeRef.target)
   const qualified = () => props.typeRef.alias || route()?.title || ''

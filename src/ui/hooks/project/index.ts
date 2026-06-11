@@ -1,18 +1,18 @@
 import { createMemo, type Accessor } from 'solid-js'
 
-import { useDocActiveProject, type Types } from '../../context/index.tsx'
+import { useDocActiveProject, type Docs } from '../../context/index.tsx'
 
 /** A `ProjectVersion` with lookup indexes layered on top. */
-export interface Project extends Omit<Types.ProjectVersion, 'routes'> {
+export interface Project extends Omit<Docs.ProjectVersion, 'routes'> {
   /** The declaration with this id. */
-  byId(id: number): Types.Declaration | undefined
+  byId(id: number): Docs.Declaration | undefined
   /** The declaration with this name. With a `scope` id, names resolve within the scope's module before falling back project-wide. */
-  byName(name: string, scope: number | undefined): Types.Declaration | undefined
+  byName(name: string, scope: number | undefined): Docs.Declaration | undefined
   /** Repository URL for a source location, from the `repository.fileUrl` template. */
-  sourceLink(src: Types.Source): string | undefined
+  sourceLink(src: Docs.Source): string | undefined
 }
 
-const INSTANCE = new WeakMap<Types.DocsVersion, Project>()
+const INSTANCE = new WeakMap<Docs.DocsVersion, Project>()
 
 /**
  * Indexed access to the active version's data. The {@link Project} is built once per version and reused.
@@ -32,13 +32,13 @@ export const useProject = (): Accessor<Project | undefined> => {
 }
 
 /** Index a raw `ProjectVersion` into a {@link Project}: id and name maps plus source-link resolution. */
-export const createProject = (project: Types.ProjectVersion): Project => {
+export const createProject = (project: Docs.ProjectVersion): Project => {
   const json = { ...project }
-  const _byId = new Map<number, Types.Declaration>()
-  const _byName = new Map<string, Types.Declaration>()
-  const _children = new Map<number, Types.Declaration[]>()
+  const _byId = new Map<number, Docs.Declaration>()
+  const _byName = new Map<string, Docs.Declaration>()
+  const _children = new Map<number, Docs.Declaration[]>()
 
-  const sourceLink = (src: Types.Source) => {
+  const sourceLink = (src: Docs.Source) => {
     if (!json.repository?.fileUrl) return undefined
     return json.repository.fileUrl.replace('{PATH}', `/${src.file}`).replace('{LINE}', src.line.toString())
   }
@@ -50,15 +50,15 @@ export const createProject = (project: Types.ProjectVersion): Project => {
     _children.get(declaration.parent)?.push(declaration)
   }
 
-  const byId = (id: number): Types.Declaration | undefined => _byId.get(id)
+  const byId = (id: number): Docs.Declaration | undefined => _byId.get(id)
 
-  const nextModule = (id: number): Types.Declaration | undefined => {
+  const nextModule = (id: number): Docs.Declaration | undefined => {
     const decl = _byId.get(id)
     if (decl?.kind === 'module') return decl
     if (!decl || !decl.parent) return undefined
     return nextModule(decl.parent)
   }
-  const byName = (name: string, scope: number | undefined): Types.Declaration | undefined => {
+  const byName = (name: string, scope: number | undefined): Docs.Declaration | undefined => {
     if (!scope) return _byName.get(name)
     const parent = scope != null ? nextModule(scope) : undefined
     if (!parent) return _byName.get(name)

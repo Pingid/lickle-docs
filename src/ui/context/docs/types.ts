@@ -13,9 +13,8 @@ import type { Link, ProjectVersion } from '../../../core/config/types.ts'
 
 export type { SidebarRoute, GroupedItems } from '../../../core/route/client/index.ts'
 
-export * from '../../../core/reflect/types.ts'
-export * from '../../../core/config/types.ts'
-export * from '../../../core/route/types.ts'
+export type * from '../../../core/reflect/types.ts'
+export type * from '../../../core/config/types.ts'
 
 type MaybeGetter<T> = (() => Promise<T> | T) | T
 

@@ -7,7 +7,7 @@ import { DocsProvider, useDocActiveProject, type DocsInput } from './context/doc
 import { Route, useParams, Navigate, HashRouter } from './util/router.tsx'
 import { Link, Page, Layout } from './components/index.ts'
 import { Loading } from './components/Loading.tsx'
-import { useDocRouter } from './hooks/index.ts'
+import { DocRouter } from './hooks/index.ts'
 
 import { BASE_URL } from './util/base.ts'
 
@@ -94,7 +94,7 @@ const AppRoutes: Component<RouteSectionProps> = () => {
 /** Resolve the current `/*slug` path to a route and render its page. */
 const ProjectPage = () => {
   const params = useParams()
-  const router = useDocRouter()
+  const router = DocRouter.use()
   const route = createMemo(() => router()?.get({ slug: params['slug'] ?? '' }))
   return (
     <Show when={route()} fallback={<Fallback slug={params['slug']} />}>
@@ -105,7 +105,7 @@ const ProjectPage = () => {
 
 /** Empty path redirects to the first sidebar route; anything else is a miss. */
 const Fallback = (props: { slug?: string }) => {
-  const router = useDocRouter()
+  const router = DocRouter.use()
   const first = createMemo(() => router()?.sidebar[0]?.items?.[0]?.slug)
   return (
     <Show when={!props.slug && first()} fallback={<NotFound />}>

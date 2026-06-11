@@ -2,7 +2,7 @@ import { createMemo, For, Show } from 'solid-js'
 import type { JSX } from 'solid-js/jsx-runtime'
 import { Dynamic } from 'solid-js/web'
 
-import { createSlot, type Types } from '../../context/index.tsx'
+import { createSlot, type Docs } from '../../context/index.tsx'
 import { CodeBlock } from '../Code/index.tsx'
 import { Markdown, MarkdownInline } from '../Markdown.tsx'
 import * as Type from '../Type.tsx'
@@ -14,13 +14,13 @@ import { Link } from '../Link.tsx'
  * fall back to a generic markdown section. Replaceable via the `tag` slot —
  * the hook point for turning `@example` blocks into `LiveExample`s.
  */
-export const Tag = createSlot('tag', (props: { tag: Types.CommentTag }) => {
+export const Tag = createSlot('tag', (props: { tag: Docs.CommentTag }) => {
   const renderer = createMemo(() => RENDERERS[props.tag.tag as keyof typeof RENDERERS] ?? TagOther)
   return <Dynamic component={renderer() as any} {...props} />
 })
 
 /** Section frame shared across tag renderers: the tag's heading, an optional markdown description, then the body. Use it to keep custom tag renderers visually consistent. */
-export const TagSection = (props: { tag: Types.CommentTag; description?: string; children: JSX.Element }) => {
+export const TagSection = (props: { tag: Docs.CommentTag; description?: string; children: JSX.Element }) => {
   return (
     <section class="mt-6 [&>*:not(:first-child)>p]:mt-0">
       <div class="flex items-baseline gap-2">
@@ -43,37 +43,37 @@ export const TagKind = (p: { kind: string }) => (
   <h4 class="text-mute text-[0.7rem] font-semibold tracking-wider mb-1">{p.kind.replace(/^@/, '')}</h4>
 )
 
-const TagReturns = (props: { tag: Types.CommentTagMap['@returns'] }) => (
+const TagReturns = (props: { tag: Docs.CommentTagMap['@returns'] }) => (
   <TagSection tag={props.tag}>
     <Type.Inline type={props.tag.type} text={props.tag.text} />
   </TagSection>
 )
 
-const TagThrows = (props: { tag: Types.CommentTagMap['@throws'] }) => (
+const TagThrows = (props: { tag: Docs.CommentTagMap['@throws'] }) => (
   <TagSection tag={props.tag}>
     <Type.Inline type={props.tag.type} text={props.tag.text} />
   </TagSection>
 )
 
-const TagType = (props: { tag: Types.CommentTagMap['@type'] }) => (
+const TagType = (props: { tag: Docs.CommentTagMap['@type'] }) => (
   <TagSection tag={props.tag}>
     <Type.Inline type={props.tag.type} text={props.tag.text} />
   </TagSection>
 )
 
-const TagSatisfies = (props: { tag: Types.CommentTagMap['@satisfies'] }) => (
+const TagSatisfies = (props: { tag: Docs.CommentTagMap['@satisfies'] }) => (
   <TagSection tag={props.tag}>
     <Type.Inline type={props.tag.type} text={props.tag.text} />
   </TagSection>
 )
 
-const TagExample = (props: { tag: Types.CommentTagMap['@example'] }) => (
+const TagExample = (props: { tag: Docs.CommentTagMap['@example'] }) => (
   <TagSection tag={props.tag} description={props.tag.caption}>
     <CodeBlock code={props.tag.code} lang={props.tag.lang} />
   </TagSection>
 )
 
-const TagSee = (props: { tag: Types.CommentTagMap['@see'] }) => (
+const TagSee = (props: { tag: Docs.CommentTagMap['@see'] }) => (
   <TagSection tag={props.tag}>
     <Show when={props.tag.target}>
       <div class="font-mono text-sm mb-1">
@@ -83,7 +83,7 @@ const TagSee = (props: { tag: Types.CommentTagMap['@see'] }) => (
   </TagSection>
 )
 
-const TagTemplate = (props: { tag: Types.CommentTagMap['@template'] }) => (
+const TagTemplate = (props: { tag: Docs.CommentTagMap['@template'] }) => (
   <TagSection tag={props.tag}>
     <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
       <For each={props.tag.generics}>
@@ -110,7 +110,7 @@ const TagTemplate = (props: { tag: Types.CommentTagMap['@template'] }) => (
   </TagSection>
 )
 
-const TagOther = (props: { tag: Types.CommentTag }) => (
+const TagOther = (props: { tag: Docs.CommentTag }) => (
   <TagSection tag={props.tag} description={(props.tag as { caption?: string }).caption}>
     <Markdown source={(props.tag as { text?: string }).text ?? ''} />
   </TagSection>

@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo } from 'solid-js'
 import cn from '@lickle/cn'
 
 import {
-  type Types,
+  type Docs,
   useDocVersions,
   useDocActiveVersion,
   createSlot,
@@ -26,7 +26,7 @@ export const MENU_TOGGLE_ID = 'lickle-menu-toggle'
  * Top bar: project name, version switcher (when several versions are
  * configured), search trigger, the config's `links` and the theme toggle.
  * Replaceable via the `header` slot.
-  * @group components
+ * @group components
  */
 export const Header = createSlot('header', (props) => {
   const docs = useDocs()
@@ -80,7 +80,7 @@ const VersionSelect = () => {
   const load = useLoadVersion()
   const nav = useNavigate()
 
-  const aliasOf = (v?: Types.DocsVersion) => v?.alias ?? v?.version
+  const aliasOf = (v?: Docs.DocsVersion) => v?.alias ?? v?.version
   const label = () => `v${aliasOf(active()) ?? versions()[0]?.version ?? ''}`
 
   let details: HTMLDetailsElement | undefined

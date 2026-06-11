@@ -51,3 +51,23 @@ export type DocLink = { target: number; alias: string; group?: Group; order?: nu
  * @internal
  */
 export type RoutePrefix = { doc?: string; page?: string }
+
+/** A list of items sharing a group name, emitted in resolved group order. */
+export type GroupedItems<T> = { group: string; items: T[] }
+
+/** A route in the sidebar tree, carrying its grouped children. */
+export type SidebarRoute = Route & { children: GroupedItems<SidebarRoute>[] }
+
+/** The resolved route table the UI navigates with. Build one with {@link createRouter}. */
+export interface ClientRouter {
+  /** Path prefix every slug is mounted under (project + version). */
+  base: string
+  /** Every route, slugs fully prefixed. */
+  items: Route[]
+  /** The navigation tree: top-level routes with grouped children. */
+  sidebar: GroupedItems<SidebarRoute>[]
+  /** Look up a route by full slug or by declaration id. */
+  get(match: { slug?: SlugPath; id?: number }): Route | undefined
+  /** Breadcrumb segments for a declaration's route; segments without a `slug` render as plain text. */
+  parts(id: number): { value: string; slug?: SlugPath }[]
+}

@@ -5,14 +5,14 @@ import { useHighlighter } from '../context/highlight/index.tsx'
 import { useMarkdown } from './markdown/index.ts'
 
 import { commentToMarkdown } from '../util/markdown.ts'
-import type { Types } from '../context/index.tsx'
+import type { Docs } from '../context/index.tsx'
 
-import { useDocRouter } from './router/index.ts'
+import { use } from './router/index.ts'
 import { useProject } from './project/index.ts'
 
+export * as DocRouter from './router/index.ts'
 export * from './project/index.ts'
 export * from './search/index.ts'
-export * from './router/index.ts'
 
 /**
  * The route matching the current URL, resolved through the active version's router.
@@ -20,7 +20,7 @@ export * from './router/index.ts'
  * */
 export const useRoute = () => {
   const params = useParams()
-  const router = useDocRouter()
+  const router = use()
   return createMemo(() => router()?.get({ slug: params['slug'] ?? '' }))
 }
 
@@ -28,7 +28,7 @@ export const useRoute = () => {
  * The declaration behind the current route — `undefined` on markdown pages and unmatched URLs.
  * @group hooks
  * */
-export const useDeclaration = (): Accessor<Types.Declaration | undefined> => {
+export const useDeclaration = (): Accessor<Docs.Declaration | undefined> => {
   const route = useRoute()
   const project = useProject()
   return createMemo(() => {
@@ -47,7 +47,7 @@ export const useDeclaration = (): Accessor<Types.Declaration | undefined> => {
  */
 export const useSlugFor = () => {
   const project = useProject()
-  const router = useDocRouter()
+  const router = use()
   const d = useDeclaration()
   return {
     byId: (id: number): string | undefined => router()?.get({ id })?.slug,
@@ -88,7 +88,7 @@ export const useRenderMarkdown = (text: string) => {
  * Flatten a structured doc comment to markdown, resolving `{@link Name}` references to page links.
  * @group hooks
  * */
-export const useCommentMarkdown = (comment: () => Types.Comment | undefined) => {
+export const useCommentMarkdown = (comment: () => Docs.Comment | undefined) => {
   const slugs = useSlugFor()
   const slugOf = (name: string) => slugs.byName(name)
   return createMemo(() => {

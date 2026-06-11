@@ -1,6 +1,6 @@
 import { createMemo, For, Show } from 'solid-js'
 
-import { createSlot, type Types } from '../../context/index.tsx'
+import { createSlot, type Docs } from '../../context/index.tsx'
 import { useCommentMarkdown } from '../../hooks/index.ts'
 import { staticComponent } from '../../util/solid.tsx'
 
@@ -40,7 +40,7 @@ export const Comment = createSlot('comment', (props) => {
 })
 
 const NamedTable = staticComponent(
-  (props: { title: string; tags: Types.CommentTagMap['@property'][] | Types.CommentTagMap['@param'][] }) => {
+  (props: { title: string; tags: Docs.CommentTagMap['@property'][] | Docs.CommentTagMap['@param'][] }) => {
     return (
       <section class="mt-6">
         <div class="flex items-baseline gap-2 mb-2">
@@ -54,44 +54,42 @@ const NamedTable = staticComponent(
   },
 )
 
-const NamedRow = staticComponent(
-  (props: { item: Types.CommentTagMap['@property'] | Types.CommentTagMap['@param'] }) => (
-    <>
-      <dt class="font-mono text-sm whitespace-nowrap">
-        <span class="font-semibold">{props.item.name}</span>
-        <Show when={props.item.optional}>
-          <span class="text-mute">?</span>
-        </Show>
-        <Show when={props.item.type}>
-          <>
-            <span class="text-mute">: </span>
-            <Type type={props.item.type!} />
-          </>
-        </Show>
-        <Show when={props.item.default}>
-          <span class="text-mute"> = {props.item.default}</span>
-        </Show>
-      </dt>
-      <dd class="text-sm text-mute min-w-0">
-        <Show when={trimLead(props.item.text)}>
-          <MarkdownInline source={trimLead(props.item.text)} />
-        </Show>
-      </dd>
-    </>
-  ),
-)
+const NamedRow = staticComponent((props: { item: Docs.CommentTagMap['@property'] | Docs.CommentTagMap['@param'] }) => (
+  <>
+    <dt class="font-mono text-sm whitespace-nowrap">
+      <span class="font-semibold">{props.item.name}</span>
+      <Show when={props.item.optional}>
+        <span class="text-mute">?</span>
+      </Show>
+      <Show when={props.item.type}>
+        <>
+          <span class="text-mute">: </span>
+          <Type type={props.item.type!} />
+        </>
+      </Show>
+      <Show when={props.item.default}>
+        <span class="text-mute"> = {props.item.default}</span>
+      </Show>
+    </dt>
+    <dd class="text-sm text-mute min-w-0">
+      <Show when={trimLead(props.item.text)}>
+        <MarkdownInline source={trimLead(props.item.text)} />
+      </Show>
+    </dd>
+  </>
+))
 
-type Named = Types.CommentTagMap['@property'] | Types.CommentTagMap['@param']
+type Named = Docs.CommentTagMap['@property'] | Docs.CommentTagMap['@param']
 
 /** Strip a single leading `- ` so `@param foo - desc` collapses cleanly. */
 const trimLead = (s: string): string => (s ?? '').replace(/^\s*-\s*/, '').trim()
 
 type Group =
-  | { kind: '@param'; items: Types.CommentTagMap['@param'][] }
-  | { kind: '@property'; items: Types.CommentTagMap['@property'][] }
-  | { kind: 'tag'; tag: Types.CommentTag }
+  | { kind: '@param'; items: Docs.CommentTagMap['@param'][] }
+  | { kind: '@property'; items: Docs.CommentTagMap['@property'][] }
+  | { kind: 'tag'; tag: Docs.CommentTag }
 
-const groupTags = (tags: Types.CommentTag[]): Group[] => {
+const groupTags = (tags: Docs.CommentTag[]): Group[] => {
   const out: Group[] = []
   const pushRun = <K extends '@param' | '@property'>(kind: K, item: Named) => {
     const last = out[out.length - 1]

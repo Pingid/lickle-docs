@@ -3,8 +3,8 @@ import cn from '@lickle/cn'
 
 import { A, useLocation } from '../util/router.tsx'
 
-import { createSlot, type Types } from '../context/index.tsx'
-import { useDocRouter, useProject } from '../hooks/index.ts'
+import { createSlot, type Docs } from '../context/index.tsx'
+import { DocRouter, useProject } from '../hooks/index.ts'
 import * as Type from './Type.tsx'
 import type { Route } from '../../core/route/types.ts'
 
@@ -16,7 +16,7 @@ import type { Route } from '../../core/route/types.ts'
  * @group components
  */
 export const Sidebar = createSlot('sidebar', (props) => {
-  const router = useDocRouter()
+  const router = DocRouter.use()
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
       <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
@@ -27,11 +27,7 @@ export const Sidebar = createSlot('sidebar', (props) => {
 })
 
 /** A flat run of sibling routes. */
-const NavList = (props: {
-  routes: Types.GroupedItems<Types.SidebarRoute>[]
-  depth: number
-  onNavigate?: () => void
-}) => (
+const NavList = (props: { routes: Docs.GroupedItems<Docs.SidebarRoute>[]; depth: number; onNavigate?: () => void }) => (
   <For each={props.routes}>
     {(route) => <NavChildren route={route} depth={props.depth} onNavigate={props.onNavigate} />}
   </For>
@@ -39,7 +35,7 @@ const NavList = (props: {
 
 /** The grouped children of a route, each group preceded by a {@link GroupLabel}. */
 const NavChildren = (props: {
-  route: Types.GroupedItems<Types.SidebarRoute>
+  route: Docs.GroupedItems<Docs.SidebarRoute>
   depth: number
   onNavigate?: () => void
 }) => {
@@ -68,7 +64,7 @@ const GroupLabel = (props: { label: string; depth: number }) => (
   </div>
 )
 
-type NodeProps = { route: Types.SidebarRoute; depth: number; onNavigate?: () => void }
+type NodeProps = { route: Docs.SidebarRoute; depth: number; onNavigate?: () => void }
 
 /**
  * A single navigation node.
@@ -82,7 +78,7 @@ type NodeProps = { route: Types.SidebarRoute; depth: number; onNavigate?: () => 
  */
 const NavNode = (props: NodeProps) => {
   const loc = useLocation()
-  const router = useDocRouter()
+  const router = DocRouter.use()
 
   const base = () => props.route.slug
   const isActive = () => {
@@ -133,7 +129,7 @@ const NavNode = (props: NodeProps) => {
   )
 }
 
-const NodeLink = (props: { route: Types.Route; active: boolean; onNavigate?: () => void; class?: string }) => (
+const NodeLink = (props: { route: DocRouter.Route; active: boolean; onNavigate?: () => void; class?: string }) => (
   <A
     href={props.route.slug}
     class={cn('flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 min-w-0', props.class)}

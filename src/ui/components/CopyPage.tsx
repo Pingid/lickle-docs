@@ -1,8 +1,7 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
 
-import { useDocRouter, useProject, useSlugFor } from '../hooks/index.ts'
+import { DocRouter, useProject, useSlugFor } from '../hooks/index.ts'
 import { routeToMarkdown } from '../util/markdown.ts'
-import { type Types } from '../context/index.tsx'
 import { clientOnly } from '../util/solid.tsx'
 
 const COPY = 'M9 9h10v10H9zM5 15H4V5h10v1'
@@ -13,8 +12,8 @@ const CHECK = 'm5 12 5 5 9-9'
  * module/namespace pages (which have members) it opens a small menu offering
  * to inline every member's documentation; elsewhere it copies on click.
  */
-export const CopyPageButton = clientOnly(() => (props: { route: Types.Route; class?: string }) => {
-  const router = useDocRouter()
+export const CopyPageButton = clientOnly(() => (props: { route: DocRouter.Route; class?: string }) => {
+  const router = DocRouter.use()
   const project = useProject()
   const slugs = useSlugFor()
   const [copied, setCopied] = createSignal(false)

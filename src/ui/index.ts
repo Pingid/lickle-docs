@@ -45,7 +45,7 @@ export {
   defineComponents,
   LanguagesProvider,
   loadHighlighter,
-  type Types,
+  type Docs as Types,
 } from './context/index.tsx'
 export { BASE_URL, withBaseUrl as withBase } from './util/base.ts'
 export * from './components/index.ts'

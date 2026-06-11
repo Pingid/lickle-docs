@@ -1,7 +1,7 @@
 import { For, Show, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
-import { createSlot, type Types } from '../context/index.tsx'
+import { createSlot, type Docs } from '../context/index.tsx'
 import { Comment } from './Comment/index.tsx'
 import { Syntax } from './Syntax.tsx'
 import * as Type from './Type.tsx'
@@ -16,10 +16,10 @@ export const Declaration = createSlot('declaration', (props) => (
   <Dynamic component={dispatch(props.decl.kind)} decl={props.decl} />
 ))
 
-const dispatch = (kind: Types.Declaration['kind']): Component<{ decl: any }> => RENDERERS[kind]
+const dispatch = (kind: Docs.Declaration['kind']): Component<{ decl: any }> => RENDERERS[kind]
 
 /** Heritage line — `extends A, B` / `implements C`. */
-const ExtendsLine = (props: { label: string; types?: Types.Type[] }) => (
+const ExtendsLine = (props: { label: string; types?: Docs.Type[] }) => (
   <Show when={props.types?.length}>
     <div class="text-sm text-mute font-mono mt-2">
       <span class="text-accent">{props.label} </span>
@@ -29,7 +29,7 @@ const ExtendsLine = (props: { label: string; types?: Types.Type[] }) => (
 )
 
 /** Function page body: one signature line + doc block per overload. */
-export const DeclarationFunction = (props: { decl: Types.Declaration<'function'> }) => (
+export const DeclarationFunction = (props: { decl: Docs.Declaration<'function'> }) => (
   <div class="mt-2">
     <For each={props.decl.signatures}>
       {(sig) => <Type.SignatureLine sig={sig} name={props.decl.name} id={props.decl.id} kind="function" />}
@@ -39,7 +39,7 @@ export const DeclarationFunction = (props: { decl: Types.Declaration<'function'>
 )
 
 /** Variable page body: `const name: type = default` plus the doc block. */
-export const DeclarationVariable = (props: { decl: Types.Declaration<'variable'> }) => (
+export const DeclarationVariable = (props: { decl: Docs.Declaration<'variable'> }) => (
   <div>
     <div class="font-mono text-sm leading-relaxed">
       <Syntax.Kw>const </Syntax.Kw>
@@ -59,7 +59,7 @@ export const DeclarationVariable = (props: { decl: Types.Declaration<'variable'>
  * an object type with members renders like an interface — member sections
  * with their doc comments — instead of one flattened inline line.
  */
-export const DeclarationTypeAlias = (props: { decl: Types.Declaration<'type-alias'> }) => {
+export const DeclarationTypeAlias = (props: { decl: Docs.Declaration<'type-alias'> }) => {
   const record = () => {
     const t = props.decl.type
     if (t?.kind !== 'record') return undefined
@@ -95,7 +95,7 @@ export const DeclarationTypeAlias = (props: { decl: Types.Declaration<'type-alia
 }
 
 /** Class page body: heritage lines, doc block, then constructors / properties / methods. */
-export const DeclarationClass = (props: { decl: Types.Declaration<'class'> }) => (
+export const DeclarationClass = (props: { decl: Docs.Declaration<'class'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
     <ExtendsLine label="implements" types={props.decl.implements} />
@@ -110,7 +110,7 @@ export const DeclarationClass = (props: { decl: Types.Declaration<'class'> }) =>
 )
 
 /** Interface page body: heritage line, doc block, then properties / methods / signatures. */
-export const DeclarationInterface = (props: { decl: Types.Declaration<'interface'> }) => (
+export const DeclarationInterface = (props: { decl: Docs.Declaration<'interface'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
     <Comment comment={props.decl.comment} />
@@ -134,7 +134,7 @@ const MemberSection = (props: { title: string; when: unknown; children: any }) =
   </Show>
 )
 
-const PropertyRow = (props: { prop: Types.Part<'property'> }) => (
+const PropertyRow = (props: { prop: Docs.Part<'property'> }) => (
   <div class="py-2">
     <div class="font-mono text-sm leading-relaxed">
       <span class="font-semibold">{props.prop.name}</span>
@@ -155,7 +155,7 @@ const PropertyRow = (props: { prop: Types.Part<'property'> }) => (
   </div>
 )
 
-const IndexRow = (props: { sig: Types.Part<'index-signature'> }) => (
+const IndexRow = (props: { sig: Docs.Part<'index-signature'> }) => (
   <div class="font-mono text-sm leading-relaxed py-2">
     <Syntax.Punct>[</Syntax.Punct>
     <span class="font-semibold">{props.sig.parameter.name}</span>
@@ -168,12 +168,12 @@ const IndexRow = (props: { sig: Types.Part<'index-signature'> }) => (
 
 /** Member listing shared by classes and interfaces. */
 const Members = (props: {
-  constructors?: Types.Part<'signature'>[]
-  properties?: Types.Part<'property'>[]
-  methods?: Types.Part<'method'>[]
-  callSignatures?: Types.Part<'signature'>[]
-  constructSignatures?: Types.Part<'signature'>[]
-  indexSignature?: Types.Part<'index-signature'>
+  constructors?: Docs.Part<'signature'>[]
+  properties?: Docs.Part<'property'>[]
+  methods?: Docs.Part<'method'>[]
+  callSignatures?: Docs.Part<'signature'>[]
+  constructSignatures?: Docs.Part<'signature'>[]
+  indexSignature?: Docs.Part<'index-signature'>
 }) => (
   <>
     <MemberSection title="Constructors" when={props.constructors?.length}>
@@ -200,7 +200,7 @@ const Members = (props: {
 )
 
 /** Enum page body: doc block plus the member table. */
-export const DeclarationEnum = (props: { decl: Types.Declaration<'enum'> }) => (
+export const DeclarationEnum = (props: { decl: Docs.Declaration<'enum'> }) => (
   <div>
     <Comment comment={props.decl.comment} />
     <MemberSection title="Members" when={props.decl.members?.length}>
@@ -209,7 +209,7 @@ export const DeclarationEnum = (props: { decl: Types.Declaration<'enum'> }) => (
   </div>
 )
 
-const EnumMemberRow = (props: { member: Types.Part<'enum-member'> }) => (
+const EnumMemberRow = (props: { member: Docs.Part<'enum-member'> }) => (
   <div class="py-2">
     <div class="font-mono text-sm leading-relaxed">
       <span class="font-semibold">{props.member.name}</span>
@@ -226,16 +226,16 @@ const EnumMemberRow = (props: { member: Types.Part<'enum-member'> }) => (
 )
 
 /** Module page body: the module banner comment. Member listings come from the route's links, rendered by `Page`. */
-export const DeclarationModule = (props: { decl: Types.Declaration<'module'> }) => (
+export const DeclarationModule = (props: { decl: Docs.Declaration<'module'> }) => (
   <Comment comment={props.decl.comment} />
 )
 
 /** Namespace page body: the namespace comment. Member listings come from the route's links, rendered by `Page`. */
-export const DeclarationNamespace = (props: { decl: Types.Declaration<'namespace'> }) => (
+export const DeclarationNamespace = (props: { decl: Docs.Declaration<'namespace'> }) => (
   <Comment comment={props.decl.comment} />
 )
 
-const RENDERERS: Record<Types.Declaration['kind'], Component<{ decl: any }>> = {
+const RENDERERS: Record<Docs.Declaration['kind'], Component<{ decl: any }>> = {
   class: DeclarationClass,
   interface: DeclarationInterface,
   enum: DeclarationEnum,

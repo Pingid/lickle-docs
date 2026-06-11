@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
 import { useNavigate } from '../util/router.tsx'
 
-import { useDocRouter, useSearch, type SearchHit } from '../hooks/index.ts'
+import { DocRouter, useSearch, type SearchHit } from '../hooks/index.ts'
 import { SearchIcon } from './icons.tsx'
 import * as Type from './Type.tsx'
 
@@ -32,7 +32,7 @@ const saveRecents = (hits: SearchHit[]): void => {
 
 export const SearchPalette = (props: { open: () => boolean; onClose: () => void }) => {
   const navigate = useNavigate()
-  const router = useDocRouter()
+  const router = DocRouter.use()
   const search = useSearch()
 
   const [engine] = createResource(props.open, async (isOpen) => (isOpen ? await search() : undefined))
