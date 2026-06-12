@@ -63,6 +63,7 @@ const Intrinsic = (props: { type: Reflect.Type<'intrinsic'> }) => <Syntax.Kw>{pr
 const Literal = (props: { type: Reflect.Type<'literal'> }) => {
   const t = props.type
   if (typeof t.value === 'string') return <span class="text-fg">"{t.value}"</span>
+  if (typeof t.value === 'bigint') return <span>{`${t.value}n`}</span>
   if (t.value === null) return <Syntax.Kw>null</Syntax.Kw>
   return <span>{String(t.value)}</span>
 }
@@ -72,9 +73,9 @@ const Reference = (props: { type: Reflect.Type<'reference'> }) => {
   return (
     <>
       <Link.Type
-        id={t.type === 'internal' ? t.targetId : undefined}
+        id={t.target.type === 'internal' ? t.target.id : undefined}
         name={t.name}
-        external={t.type === 'external' ? t.external : undefined}
+        external={t.target.type === 'external' ? t.target.external : undefined}
       />
       <TypeArgs args={t.args} />
     </>
@@ -127,9 +128,9 @@ const Conditional = (props: { type: Reflect.Type<'conditional'> }) => {
   })
   const head = (b: Reflect.Type<'conditional'>) => (
     <>
-      <Type type={b.check} />
+      <TypeP type={b.check} in="check" />
       <Syntax.Kw> extends </Syntax.Kw>
-      <Type type={b.extends} />
+      <TypeP type={b.extends} in="check" />
       <Syntax.Punct> ? </Syntax.Punct>
       <Type type={b.true} />
     </>
@@ -165,13 +166,15 @@ const Conditional = (props: { type: Reflect.Type<'conditional'> }) => {
   )
 }
 
-const Union = (props: { type: Reflect.Type<'union'> }) => <Join sep=" | " items={props.type.types} />
+const Union = (props: { type: Reflect.Type<'union'> }) => <Join sep=" | " items={props.type.types} in="union" />
 
-const Intersection = (props: { type: Reflect.Type<'intersection'> }) => <Join sep=" & " items={props.type.types} />
+const Intersection = (props: { type: Reflect.Type<'intersection'> }) => (
+  <Join sep=" & " items={props.type.types} in="intersection" />
+)
 
 const Array = (props: { type: Reflect.Type<'array'> }) => (
   <>
-    <Type type={props.type.elementType} />
+    <TypeP type={props.type.elementType} in="postfix" />
     <Syntax.Punct>[]</Syntax.Punct>
   </>
 )
@@ -193,17 +196,47 @@ const Tuple = (props: { type: Reflect.Type<'tuple'> }) => (
   </>
 )
 
-const FunctionType = (props: { type: Reflect.Type<'function-type'> }) => (
-  <Show when={props.type.signatures[0]} fallback={<Syntax.Kw>function</Syntax.Kw>}>
-    {(sig) => <SignatureExpr sig={sig()} arrow />}
-  </Show>
-)
+/**
+ * Single call signature renders as an arrow (`new (…) => R` for construct);
+ * several render in object form — `{ (…): A; (…): B }` — so overloads stay visible.
+ */
+const FunctionType = (props: { type: Reflect.Type<'function-type'> }) => {
+  const sigs = () => props.type.signatures
+  return (
+    <Show when={sigs().length} fallback={<Syntax.Kw>function</Syntax.Kw>}>
+      <Show
+        when={sigs().length === 1}
+        fallback={
+          <>
+            <Syntax.Punct>{'{ '}</Syntax.Punct>
+            <For each={sigs()}>
+              {(sig, i) => (
+                <>
+                  <Show when={i() > 0}>
+                    <Syntax.Punct>{'; '}</Syntax.Punct>
+                  </Show>
+                  <MemberExpr unit={{ member: sig }} />
+                </>
+              )}
+            </For>
+            <Syntax.Punct>{' }'}</Syntax.Punct>
+          </>
+        }
+      >
+        <Show when={sigs()[0]!.construct}>
+          <Syntax.Kw>new </Syntax.Kw>
+        </Show>
+        <SignatureExpr sig={sigs()[0]!} arrow />
+      </Show>
+    </Show>
+  )
+}
 
 const TypeOperator = (props: { type: Reflect.Type<'type-operator'> }) => (
   <>
     <Syntax.Kw>{props.type.operator}</Syntax.Kw>
     <span> </span>
-    <Type type={props.type.target} />
+    <TypeP type={props.type.target} in="operator" />
   </>
 )
 
@@ -222,7 +255,7 @@ const Infer = (props: { type: Reflect.Type<'infer'> }) => (
 
 const IndexedAccess = (props: { type: Reflect.Type<'indexed-access'> }) => (
   <>
-    <Type type={props.type.object} />
+    <TypeP type={props.type.object} in="postfix" />
     <Syntax.Punct>[</Syntax.Punct>
     <Type type={props.type.index} />
     <Syntax.Punct>]</Syntax.Punct>
@@ -356,15 +389,64 @@ const RENDERERS: { [K in Reflect.Type['kind']]: Component<{ type: Reflect.Type<K
 
 // --- Shared building blocks used by the variant renderers ---
 
+/**
+ * Embedding contexts that bind tighter than some type expressions. The scanner
+ * drops `ParenthesizedTypeNode`s, so renderers must reintroduce parens where
+ * the surrounding syntax would otherwise change the meaning — `(A | B)[]`,
+ * `A & (B | C)`, `(() => void) | null`.
+ */
+type ParenCtx = 'postfix' | 'operator' | 'union' | 'intersection' | 'check'
+
+const PAREN_IN: Record<ParenCtx, Set<T['kind']>> = {
+  /** Array `T[]` suffix, indexed-access object, optional tuple element `T?`. */
+  postfix: new Set(['union', 'intersection', 'function-type', 'conditional', 'type-operator', 'infer', 'query']),
+  /** `keyof` / `readonly` / `unique` operand. */
+  operator: new Set(['union', 'intersection', 'function-type', 'conditional', 'infer']),
+  union: new Set(['function-type', 'conditional', 'infer']),
+  intersection: new Set(['union', 'function-type', 'conditional', 'infer']),
+  /** Conditional `check extends extends` positions. */
+  check: new Set(['function-type', 'conditional', 'infer']),
+}
+
+/** `Type`, parenthesized when the embedding context requires it. */
+const TypeP = (props: { type: T | undefined; in: ParenCtx }) => {
+  const need = () => !!props.type && PAREN_IN[props.in].has(props.type.kind)
+  return (
+    <>
+      <Show when={need()}>
+        <Syntax.Punct>(</Syntax.Punct>
+      </Show>
+      <Type type={props.type} />
+      <Show when={need()}>
+        <Syntax.Punct>)</Syntax.Punct>
+      </Show>
+    </>
+  )
+}
+
+/**
+ * Drop a trailing `undefined` from a union when a rendered `?` marker already
+ * conveys it, the way declaration emit prints optionals. Inferred types carry
+ * the checker's truth (`string | undefined`); `x?: string | undefined` is noise.
+ */
+const stripUndefined = (t: T): T => {
+  if (t.kind !== 'union') return t
+  const types = t.types.filter((x) => !(x.kind === 'intrinsic' && x.name === 'undefined'))
+  if (types.length === t.types.length) return t
+  return types.length === 1 ? types[0]! : { ...t, types }
+}
+
 /** @internal */
-export const Join = (props: { sep: string; items: T[] }) => (
+export const Join = (props: { sep: string; items: T[]; in?: ParenCtx }) => (
   <For each={props.items}>
     {(t, i) => (
       <>
         <Show when={i() > 0}>
           <Syntax.Punct>{props.sep}</Syntax.Punct>
         </Show>
-        <Type type={t} />
+        <Show when={props.in} fallback={<Type type={t} />}>
+          <TypeP type={t} in={props.in!} />
+        </Show>
       </>
     )}
   </For>
@@ -398,7 +480,7 @@ const MemberExpr = (props: { unit: MemberUnit }) => {
           <Syntax.Punct>?</Syntax.Punct>
         </Show>
         <Syntax.Punct>: </Syntax.Punct>
-        <Type type={m.type} />
+        <Type type={m.optional ? stripUndefined(m.type) : m.type} />
         <Show when={m.defaultValue}>
           <Syntax.Punct>{` = ${m.defaultValue}`}</Syntax.Punct>
         </Show>
@@ -461,26 +543,31 @@ export const Members = (props: { members: Reflect.Member[] }) => (
   </Show>
 )
 
-const TupleElement = (props: { el: Reflect.Part<'tuple-element'> }) => (
-  <>
-    <Show when={props.el.rest}>
-      <Syntax.Punct>...</Syntax.Punct>
-    </Show>
-    <Show when={props.el.name}>
-      <>
-        <Syntax.Name>{props.el.name!}</Syntax.Name>
-        <Show when={props.el.optional}>
-          <Syntax.Punct>?</Syntax.Punct>
-        </Show>
-        <Syntax.Punct>: </Syntax.Punct>
-      </>
-    </Show>
-    <Type type={props.el.type} />
-    <Show when={!props.el.name && props.el.optional}>
-      <Syntax.Punct>?</Syntax.Punct>
-    </Show>
-  </>
-)
+const TupleElement = (props: { el: Reflect.Part<'tuple-element'> }) => {
+  const type = () => (props.el.optional ? stripUndefined(props.el.type) : props.el.type)
+  return (
+    <>
+      <Show when={props.el.rest}>
+        <Syntax.Punct>...</Syntax.Punct>
+      </Show>
+      <Show when={props.el.name}>
+        <>
+          <Syntax.Name>{props.el.name!}</Syntax.Name>
+          <Show when={props.el.optional}>
+            <Syntax.Punct>?</Syntax.Punct>
+          </Show>
+          <Syntax.Punct>: </Syntax.Punct>
+        </>
+      </Show>
+      <Show when={!props.el.name && props.el.optional} fallback={<Type type={type()} />}>
+        <TypeP type={type()} in="postfix" />
+      </Show>
+      <Show when={!props.el.name && props.el.optional}>
+        <Syntax.Punct>?</Syntax.Punct>
+      </Show>
+    </>
+  )
+}
 
 /** @internal */
 export const SignatureExpr = (props: { sig: Reflect.Part<'signature'>; arrow?: boolean }) => (
@@ -497,11 +584,11 @@ export const SignatureExpr = (props: { sig: Reflect.Part<'signature'>; arrow?: b
             <Syntax.Punct>...</Syntax.Punct>
           </Show>
           <Syntax.Name>{p.name}</Syntax.Name>
-          <Show when={p.optional || p.default != null}>
+          <Show when={isOptional(p)}>
             <Syntax.Punct>?</Syntax.Punct>
           </Show>
           <Syntax.Punct>: </Syntax.Punct>
-          <Type type={p.type} />
+          <Type type={isOptional(p) ? stripUndefined(p.type) : p.type} />
         </>
       )}
     </For>
@@ -646,7 +733,7 @@ export const SignatureLine = (props: {
             <Syntax.Punct>?</Syntax.Punct>
           </Show>
           <Syntax.Punct>: </Syntax.Punct>
-          <Type type={p.type} />
+          <Type type={isOptional(p) ? stripUndefined(p.type) : p.type} />
         </>
       )}
     </For>

@@ -1,4 +1,4 @@
-import { For, Show } from 'solid-js'
+import { createEffect, createSignal, on, For, Show } from 'solid-js'
 import cn from '@lickle/cn'
 
 import { A, useLocation } from '../util/router.tsx'
@@ -9,6 +9,29 @@ import * as Type from './Type.tsx'
 import type { Route } from '../../core/route/types.ts'
 
 /**
+ * The unique node occurrence the user is viewing, identified by its trail (the
+ * chain of slugs from the root). The same page can appear under several parents;
+ * the trail disambiguates which occurrence is active so only that branch opens.
+ * Shared across sidebar instances (e.g. desktop + mobile drawer) so they agree.
+ */
+const [selected, setSelected] = createSignal<{ trail: string; path: string } | null>(null)
+
+/** Trail of a child appended to its parent's trail. */
+const trailOf = (parent: string, slug: string) => `${parent}>${slug}`
+
+/** Trail of the first node in DFS order whose slug resolves to `pathname`, if any. */
+const findTrail = (routes: Reflect.GroupedItems<Reflect.SidebarRoute>[], pathname: string, parent = ''): string | null => {
+  for (const group of routes)
+    for (const route of group.items) {
+      const trail = trailOf(parent, route.slug)
+      if (pathOf(route.slug) === pathname) return trail
+      const child = findTrail(route.children, pathname, trail)
+      if (child) return child
+    }
+  return null
+}
+
+/**
  * Navigation tree built from the router's sidebar: grouped entries with
  * kind badges, collapsible branches, and the branch on the active path open
  * automatically. Replaceable via the `sidebar` slot; `onNavigate` fires on
@@ -17,10 +40,22 @@ import type { Route } from '../../core/route/types.ts'
  */
 export const Sidebar = createSlot('sidebar', (props) => {
   const router = DocRouter.use()
+  const loc = useLocation()
+
+  // Resolve the active occurrence from the URL when it isn't already pinned by a
+  // click. A missing match keeps the previous selection so navigating to a page
+  // outside the sidebar doesn't collapse the open branch.
+  createEffect(() => {
+    const path = loc.pathname
+    if (selected()?.path === path) return
+    const trail = findTrail(router()?.sidebar ?? [], path)
+    if (trail) setSelected({ trail, path })
+  })
+
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
       <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
-        <NavList routes={router()?.sidebar ?? []} depth={0} onNavigate={props.onNavigate} />
+        <NavList routes={router()?.sidebar ?? []} depth={0} trail="" onNavigate={props.onNavigate} />
       </nav>
     </aside>
   )
@@ -30,10 +65,11 @@ export const Sidebar = createSlot('sidebar', (props) => {
 const NavList = (props: {
   routes: Reflect.GroupedItems<Reflect.SidebarRoute>[]
   depth: number
+  trail: string
   onNavigate?: () => void
 }) => (
   <For each={props.routes}>
-    {(route) => <NavChildren route={route} depth={props.depth} onNavigate={props.onNavigate} />}
+    {(route) => <NavChildren route={route} depth={props.depth} trail={props.trail} onNavigate={props.onNavigate} />}
   </For>
 )
 
@@ -41,6 +77,7 @@ const NavList = (props: {
 const NavChildren = (props: {
   route: Reflect.GroupedItems<Reflect.SidebarRoute>
   depth: number
+  trail: string
   onNavigate?: () => void
 }) => {
   if (props.depth > 10) return <div>Too deep</div>
@@ -50,7 +87,7 @@ const NavChildren = (props: {
         <GroupLabel label={props.route.group} depth={props.depth} />
       </Show>
       <For each={props.route.items}>
-        {(child) => <NavNode route={child} depth={props.depth} onNavigate={props.onNavigate} />}
+        {(child) => <NavNode route={child} depth={props.depth} trail={props.trail} onNavigate={props.onNavigate} />}
       </For>
     </div>
   )
@@ -68,32 +105,44 @@ const GroupLabel = (props: { label: string; depth: number }) => (
   </div>
 )
 
-type NodeProps = { route: Reflect.SidebarRoute; depth: number; onNavigate?: () => void }
+type NodeProps = { route: Reflect.SidebarRoute; depth: number; trail: string; onNavigate?: () => void }
 
 /** Normalised app-absolute path of a route slug, for comparison with `location.pathname`. */
 const pathOf = (slug: string) => `/${slug}`.replace(/\/+/g, '/')
-
-/** Whether the current page lives anywhere in this node's subtree. */
-const containsCurrent = (route: Reflect.SidebarRoute, pathname: string): boolean =>
-  pathOf(route.slug) === pathname || route.children.some((g) => g.items.some((c) => containsCurrent(c, pathname)))
 
 /**
  * A single navigation node.
  *
  * - A route with children is a controlled disclosure: a chevron button toggles
- *   the section while the title stays a plain link. Branches whose subtree
- *   contains the current page open automatically — checked against the tree,
- *   not the slug, since the same route may appear under several parents and
- *   every occurrence should open. A native `<details>` can't be used here
- *   because its toggle swallows the router's delegated link clicks.
+ *   the section while the title stays a plain link. Only the branch on the
+ *   {@link selected} trail opens — the same route may appear under several
+ *   parents, so opening every occurrence would expand unrelated sections; the
+ *   trail pins the one the user actually navigated through. A native `<details>`
+ *   can't be used because its toggle swallows the router's delegated link clicks.
  * - A leaf route is a plain link.
  */
 const NavNode = (props: NodeProps) => {
-  const loc = useLocation()
+  const trail = () => trailOf(props.trail, props.route.slug)
 
-  const isActive = () => {
-    if (!props.route.children.length) return pathOf(props.route.slug) === loc.pathname
-    return containsCurrent(props.route, loc.pathname)
+  // Exactly this occurrence is highlighted; a branch is "on trail" when the
+  // selection is itself or a descendant.
+  const isActive = () => selected()?.trail === trail()
+  const onTrail = () => {
+    const cur = selected()?.trail
+    return cur === trail() || !!cur?.startsWith(`${trail()}>`)
+  }
+
+  // `open` is a real signal so it can't drift from the DOM: every navigation
+  // (selection change) re-syncs it to the active trail — opening the active
+  // branch and collapsing the rest — while `onToggle` keeps it honest when the
+  // user expands a section manually with the chevron between navigations.
+  const [open, setOpen] = createSignal(false)
+  createEffect(on(selected, () => setOpen(onTrail())))
+
+  // Pin this occurrence eagerly on click so it wins over the URL-derived fallback.
+  const pin = () => {
+    setSelected({ trail: trail(), path: pathOf(props.route.slug) })
+    props.onNavigate?.()
   }
 
   return (
@@ -106,12 +155,12 @@ const NavNode = (props: NodeProps) => {
             class={cn('text-mute hover:bg-hover hover:text-fg transition-colors ')}
             route={props.route}
             active={isActive()}
-            onNavigate={props.onNavigate}
+            onNavigate={pin}
           />
         </div>
       }
     >
-      <details open={isActive()}>
+      <details open={open()} onToggle={(e) => setOpen(e.currentTarget.open)}>
         <summary
           class={cn(
             'flex items-center list-none cursor-pointer [&::-webkit-details-marker]:hidden',
@@ -126,11 +175,11 @@ const NavNode = (props: NodeProps) => {
             class={cn('text-mute hover:bg-hover hover:text-fg transition-colors')}
             route={props.route}
             active={isActive()}
-            onNavigate={props.onNavigate}
+            onNavigate={pin}
           />
         </summary>
         <div class="pb-2">
-          <NavList routes={props.route.children} depth={props.depth + 1} onNavigate={props.onNavigate} />
+          <NavList routes={props.route.children} depth={props.depth + 1} trail={trail()} onNavigate={props.onNavigate} />
         </div>
       </details>
     </Show>

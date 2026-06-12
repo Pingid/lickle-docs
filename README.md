@@ -4,14 +4,6 @@ Generate a documentation site from your TypeScript source. `@lickle/docs` reflec
 
 > Early development (`0.0.0-dev.x`); APIs and output may change.
 
-## Features
-
-- **Reflection from source** — types, signatures, and doc comments via the TS compiler API.
-- **Zero-config** — `README.md` home page and name, version, links, entrypoints, inferred from `package.json`.
-- **Full-text search** — command palette over every declaration.
-- **Syntax highlighting** — via Shiki, with configurable languages.
-- **Custom components & live examples** — override any renderer; turn `@example` blocks into runnable previews.
-
 ## Install
 
 ```bash

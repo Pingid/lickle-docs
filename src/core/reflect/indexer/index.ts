@@ -88,9 +88,9 @@ const references = (): IndexBuilder<References, { references: T.Type<'reference'
   build: (b) => {
     const referencedIn = new Map<T.Id, Set<T.Id>>()
     for (const ref of b.references) {
-      if (ref.type !== 'internal') continue
-      let refs = referencedIn.get(ref.targetId)
-      if (!refs) referencedIn.set(ref.targetId, (refs = new Set()))
+      if (ref.target.type !== 'internal') continue
+      let refs = referencedIn.get(ref.target.id)
+      if (!refs) referencedIn.set(ref.target.id, (refs = new Set()))
       refs.add(ref.owner)
     }
     const EMPTY = new Set<T.Id>()

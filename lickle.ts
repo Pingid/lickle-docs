@@ -1,4 +1,4 @@
-import { defineConfig, Adapter } from './src/config/index.ts'
+import { defineConfig, Adapter } from './src/core/config/lib.ts'
 
 export default defineConfig({
   name: '@lickle/docs',
@@ -10,7 +10,7 @@ export default defineConfig({
   },
   versions: './docs/version/*.json',
   provider: Adapter.compose(
-    Adapter.filter((d) => !d.tags.has('@internal')),
+    Adapter.filter((d) => !d.tags.has('@internal') && d.exposure.is()),
     Adapter.groupBy((d, v) => {
       if (d.kind === 'interface' || d.kind === 'type-alias') return { name: 'types', order: v?.order }
       if (Adapter.is('function', d) && Adapter.is('reference', d.raw.signatures?.[0]?.return)) {

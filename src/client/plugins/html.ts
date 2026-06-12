@@ -7,11 +7,11 @@ export const html = (opts: ViteContext): vite.Plugin => {
   const htmlShell = htmlShellGenerator()
 
   const load = async () => {
-    const json = await opts.json()
+    const c = await opts.current()
     const html = (await htmlShell)({
       body: '<div id="root"></div>',
       head: `<script type="module" src="${clientFiles.entry.main}"></script>`,
-      title: json.name,
+      title: c.json.name,
     })
     return html
   }

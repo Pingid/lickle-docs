@@ -68,7 +68,7 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
       .filter(defined)
 
   const exposed: DeclarationFacade<any>['exposure'] = {
-    is: () => index.isExposed(id),
+    is: () => index.exposures(id).length > 0 || index.isRoot(id),
     parents: () => fromExposures(index.exposedBy(id)),
     ancestors: () => index.exposures(id).map((x) => fromExposures(x)),
     children: () => fromExposures(index.exposes(id)),

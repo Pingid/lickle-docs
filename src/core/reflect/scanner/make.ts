@@ -10,9 +10,9 @@ export const statement = <K extends keyof T.DeclarationMap>(
   s: State,
   node: ts.Node,
   kind: K,
-  fields: () => Omit<T.DeclarationMap[K], keyof T.Base | 'kind'> & Partial<T.Base>,
+  fields: () => Omit<T.DeclarationMap[K], keyof T.DeclarationBase | 'kind'> & Partial<T.DeclarationBase>,
 ): T.Declaration<K> => {
-  const b: T.Base = base(s, node) as any
+  const b: T.DeclarationBase = base(s, node) as any
   b.id = s.nextId()
   b.name = Ast.getName(node) ?? 'unknown'
   b.exported = Ast.isExported(node)
@@ -34,9 +34,9 @@ export const type = <K extends keyof T.TypeMap>(
   s: State,
   node: ts.Node,
   kind: K,
-  fields: Omit<T.TypeMap[K], keyof T.Base | 'kind'> & Partial<T.Base>,
+  fields: Omit<T.TypeMap[K], keyof T.DeclarationBase | 'kind'> & Partial<T.DeclarationBase>,
 ): T.Type<K> => {
-  const nd = base(s, node) as T.Type
+  const nd = base(s, node) as unknown as T.Type<K>
   Object.assign(nd, { kind }, fields)
   return nd as any
 }
@@ -45,9 +45,9 @@ export const part = <K extends keyof T.PartMap>(
   s: State,
   node: ts.Node,
   kind: K,
-  fields: Omit<T.PartMap[K], 'kind' | 'name' | keyof T.Typebase> & { name?: string },
+  fields: Omit<T.PartMap[K], 'kind' | 'name' | keyof T.NodeBase> & { name?: string },
 ): T.Part<K> => {
-  const nd = base(s, node) as T.Typebase & { kind?: string; name?: string }
+  const nd = base(s, node) as T.NodeBase & { kind?: string; name?: string }
   Object.assign(nd, { kind }, fields)
   if (nd.name === undefined) {
     const n = Ast.getName(node)
@@ -56,8 +56,8 @@ export const part = <K extends keyof T.PartMap>(
   return nd as any
 }
 
-const base = (s: State, node: ts.Node): T.Typebase => {
-  const result: T.Typebase = { parent: s.parent, sources: [] } as T.Typebase
+const base = (s: State, node: ts.Node): T.NodeBase => {
+  const result: T.NodeBase = { parent: s.parent, sources: [] } as T.NodeBase
 
   const named = (node as { name?: ts.Node }).name
   const sym = s.checker.getSymbolAtLocation(named ?? node)

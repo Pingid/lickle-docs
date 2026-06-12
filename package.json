@@ -18,9 +18,9 @@
   },
   "exports": {
     "./config": {
-      "types": "./dist/config/index.d.ts",
-      "import": "./dist/config/index.js",
-      "require": "./dist/config/index.js"
+      "types": "./dist/core/config/lib.d.ts",
+      "import": "./dist/core/config/lib.js",
+      "require": "./dist/core/config/lib.js"
     },
     "./ui": {
       "types": "./dist/ui/index.d.ts",

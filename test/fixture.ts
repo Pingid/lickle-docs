@@ -52,11 +52,13 @@ export const multiScanFixture = (
       },
       errors: [],
     }
-    const scanned = reflect.scanSync({ cmd, dir, srcDir: dir, include: (sf) => fileNames.includes(sf.fileName) })
-    return reflect.index(
-      reflect.resolve(scanned),
-      entries.map((e) => ({ as: e.as, path: path.join(dir, e.file) })),
-    )
+    return reflect.build({
+      cmd,
+      dir,
+      srcDir: dir,
+      include: (sf) => fileNames.includes(sf.fileName),
+      entrypoints: entries.map((e) => ({ as: e.as, path: path.join(dir, e.file) })),
+    })
   })
 
 /**

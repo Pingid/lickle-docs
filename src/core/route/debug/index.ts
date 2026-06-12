@@ -15,11 +15,11 @@ export const printRoutes = (opts: {
   const s = printer(opts.routes, opts.declarations, opts.write)
   const router = createRouter(opts)
 
-  if (opts.sidebar !== false) printSidebar(s, router)
-  if (opts.content !== false) printContent(s, router)
+  if (opts.sidebar !== false) printSidebar(router, s)
+  if (opts.content !== false) printContent(router, s)
 }
 
-const printContent = (s: Styler, router: ClientRouter) => {
+export const printContent = (router: ClientRouter, s: Styler) => {
   s.l('-'.repeat(40))
   s.l(pc.bold('Routes'))
   s.l('-'.repeat(40))
@@ -60,7 +60,7 @@ const printContent = (s: Styler, router: ClientRouter) => {
   }
 }
 
-const printSidebar = (s: Styler, router: ClientRouter) => {
+export const printSidebar = (router: ClientRouter, s: Styler) => {
   const printSidebarGroup = (s: Styler, group: GroupedItems<SidebarRoute>) => {
     const s2 = s.child()
     if (group.group !== '') s2.group(group.group)

@@ -38,21 +38,37 @@ const DeclarationFunction = (props: { decl: Reflect.Declaration<'function'> }) =
   </div>
 )
 
-/** Variable page body: `const name: type = default` plus the doc block. */
-const DeclarationVariable = (props: { decl: Reflect.Declaration<'variable'> }) => (
-  <div>
-    <div class="font-mono text-sm leading-relaxed">
-      <Syntax.Kw>const </Syntax.Kw>
-      <span class="font-semibold">{props.decl.name}</span>
-      <Syntax.Punct>: </Syntax.Punct>
-      <Type.Type type={props.decl.type} />
-      <Show when={props.decl.defaultValue}>
-        <Syntax.Punct>{` = ${props.decl.defaultValue}`}</Syntax.Punct>
-      </Show>
+/**
+ * Variable page body: `const name: type = default` plus the doc block. A
+ * variable holding an object type renders like an interface — member sections
+ * below — instead of one long inline record, mirroring the type-alias page.
+ */
+const DeclarationVariable = (props: { decl: Reflect.Declaration<'variable'> }) => {
+  const record = () => {
+    const t = props.decl.type
+    return t?.kind === 'record' && t.members.length > RECORD_INLINE_MAX ? t : undefined
+  }
+  return (
+    <div>
+      <div class="font-mono text-sm leading-relaxed">
+        <Syntax.Kw>const </Syntax.Kw>
+        <span class="font-semibold">{props.decl.name}</span>
+        <Show when={!record()}>
+          <Syntax.Punct>: </Syntax.Punct>
+          <Type.Type type={props.decl.type} />
+          <Show when={props.decl.defaultValue}>
+            <Syntax.Punct>{` = ${props.decl.defaultValue}`}</Syntax.Punct>
+          </Show>
+        </Show>
+      </div>
+      <Comment comment={props.decl.comment} />
+      <Show when={record()}>{(t) => <Type.Members members={t().members} />}</Show>
     </div>
-    <Comment comment={props.decl.comment} />
-  </div>
-)
+  )
+}
+
+/** Records up to this many members stay inline on the variable signature line. */
+const RECORD_INLINE_MAX = 3
 
 /**
  * Type-alias page body: `type Name<T> = …` plus the doc block. An alias to

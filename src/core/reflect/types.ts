@@ -5,84 +5,249 @@ import type { t } from '../../_lib/index.ts'
 export type Id = t.Brand<'reflect-id', number>
 
 /** A location in the scanned source, with `file` relative to the project root. */
-export type Source = { file: string; line: number; column: number }
+export interface Source {
+  file: string
+  line: number
+  column: number
+}
+
 /**
  * Fields every scanned node carries: its parent declaration id, doc comment and source locations.
- * @internal
  */
-export type Typebase = { parent: Id; comment?: Comment; sources: Source[] }
-/**
- * {@link Typebase} plus identity — what makes a node a declaration rather than an anonymous part.
- * @internal
- */
-export type Base = Typebase & { id: Id; name: string; exported: boolean }
-
-/**
- * Per-kind payloads of a {@link Declaration} — what each kind of statement
- * carries beyond {@link Base}. The rendered union is {@link DeclarationMap}.
- * @internal
- */
-export interface DeclarationDefinitions {
-  variable: { type: Type; defaultValue?: string }
-  function: { signatures: Part<'signature'>[] }
-  class: {
-    generics?: Part<'generic'>[]
-    extends?: Type[]
-    implements?: Type[]
-    members: Member[]
-  }
-  interface: {
-    generics?: Part<'generic'>[]
-    extends?: Type[]
-    members: Member[]
-  }
-  'type-alias': { generics?: Part<'generic'>[]; type: Type }
-  export: { names: { name: string; ref: Id; type: boolean }[]; star: boolean }
-  enum: { const?: boolean; members: Part<'enum-member'>[] }
-  namespace: {}
-  module: { path: string }
+export interface NodeBase {
+  parent: Id
+  comment?: Comment
+  sources: Source[]
 }
 
 /**
- * The two flavours of a `reference` type: `internal` points at a documented declaration by id; `external` classifies everything else.
- * @internal
+ * {@link NodeBase} plus identity — what makes a node a declaration rather than an anonymous part.
  */
-export type ReferenceTypeMap = t.MapKind<
-  {
-    internal: { targetId: Id }
-    external: { external: 'stdlib' | 'package' | 'anonymous' | 'type-parameter' }
-  },
-  'type'
->
+export interface DeclarationBase extends NodeBase {
+  id: Id
+  name: string
+  exported: boolean
+}
+
+// ---------------- DECLARATIONS ----------------
+export interface Module extends DeclarationBase {
+  kind: 'module'
+  path: string
+}
+
+export interface Variable extends DeclarationBase {
+  kind: 'variable'
+  type: Type
+  defaultValue?: string
+}
+
+export interface Function extends DeclarationBase {
+  kind: 'function'
+  signatures: Part<'signature'>[]
+}
+
+export interface Class extends DeclarationBase {
+  kind: 'class'
+  generics?: Part<'generic'>[]
+  extends?: Type[]
+  implements?: Type[]
+  members: Member[]
+}
+
+export interface Interface extends DeclarationBase {
+  kind: 'interface'
+  generics?: Part<'generic'>[]
+  extends?: Type[]
+  members: Member[]
+}
+
+export interface TypeAlias extends DeclarationBase {
+  kind: 'type-alias'
+  generics?: Part<'generic'>[]
+  type: Type
+}
+
+export interface Export extends DeclarationBase {
+  kind: 'export'
+  names: { name: string; ref: Id; type: boolean }[]
+  star: boolean
+}
+
+export interface Enum extends DeclarationBase {
+  kind: 'enum'
+  const?: boolean
+  members: Part<'enum-member'>[]
+}
+
+export interface Namespace extends DeclarationBase {
+  kind: 'namespace'
+}
+
+export interface DeclarationMap {
+  module: Module
+  variable: Variable
+  function: Function
+  class: Class
+  interface: Interface
+  'type-alias': TypeAlias
+  export: Export
+  enum: Enum
+  namespace: Namespace
+}
 
 /**
- * Per-kind payloads of a {@link Type} — one entry for each type-expression
- * shape the scanner emits, from `intrinsic` to `template-literal`. The
- * rendered union is {@link TypeMap}.
- * @internal
+ * A documented statement — module, function, class, interface, type alias,
+ * variable, enum or namespace. Discriminated on `kind`; narrow with the type
+ * argument: `Declaration<'function'>`.
  */
-export interface TypeDefinitions {
-  intrinsic: { name: IntrinsicName }
-  literal: { value: string | number | boolean | bigint | null }
-  reference: { id: Id; name: string; owner: Id; args?: Type[] } & ReferenceTypeMap[keyof ReferenceTypeMap]
-  union: { types: Type[] }
-  intersection: { types: Type[] }
-  array: { elementType: Type }
-  tuple: { elements: Part<'tuple-element'>[] }
-  'function-type': { signatures: Part<'signature'>[] }
-  'type-operator': { operator: 'keyof' | 'readonly' | 'unique'; target: Type }
-  /** Inline object type, e.g. `{ x: number; f(): void }`. */
-  record: { members: Member[] }
-  conditional: { check: Type; extends: Type; true: Type; false: Type }
-  infer: { name: string; constraint?: Type }
-  'indexed-access': { object: Type; index: Type }
-  mapped: { typeParameter: Part<'generic'>; nameType?: Type; type?: Type; optional?: boolean; readonly?: boolean }
-  query: { name: string; args?: Type[] }
-  'template-literal': { head: string; spans: { type: Type; literal: string }[] }
-  predicate: { parameter: string; asserts?: boolean; type?: Type }
-  'import-type': { argument: string; qualifier?: string; isTypeOf?: boolean; args?: Type[] }
-  unknown: { text: string; nodeType: string }
+export type Declaration<K extends keyof DeclarationMap = keyof DeclarationMap> = DeclarationMap[K]
+
+// ---------------- TYPES ----------------
+export interface TypeIntrinsic {
+  kind: 'intrinsic'
+  name: IntrinsicName
 }
+
+export interface TypeLiteral {
+  kind: 'literal'
+  value: string | number | boolean | bigint | null
+}
+
+export interface TypeReference {
+  kind: 'reference'
+  id: Id
+  name: string
+  owner: Id
+  target: TypeReferenceTarget
+  args?: Type[]
+}
+
+export type TypeReferenceTarget =
+  | { type: 'internal'; id: Id }
+  | { type: 'external'; external: 'stdlib' | 'package' | 'anonymous' | 'type-parameter' }
+
+export interface TypeUnion {
+  kind: 'union'
+  types: Type[]
+}
+
+export interface TypeIntersection {
+  kind: 'intersection'
+  types: Type[]
+}
+
+export interface TypeArray {
+  kind: 'array'
+  elementType: Type
+}
+
+export interface TypeTuple {
+  kind: 'tuple'
+  elements: Part<'tuple-element'>[]
+}
+
+export interface TypeFunctionType {
+  kind: 'function-type'
+  signatures: Part<'signature'>[]
+}
+
+export interface TypeTypeOperator {
+  kind: 'type-operator'
+  operator: 'keyof' | 'readonly' | 'unique'
+  target: Type
+}
+
+export interface TypeRecord {
+  kind: 'record'
+  members: Member[]
+}
+
+export interface TypeConditional {
+  kind: 'conditional'
+  check: Type
+  extends: Type
+  true: Type
+  false: Type
+}
+
+export interface TypeInfer {
+  kind: 'infer'
+  name: string
+  constraint?: Type
+}
+
+export interface TypeIndexedAccess {
+  kind: 'indexed-access'
+  object: Type
+  index: Type
+}
+
+export interface TypeMapped {
+  kind: 'mapped'
+  typeParameter: Part<'generic'>
+  nameType?: Type
+  type?: Type
+  optional?: boolean
+  readonly?: boolean
+}
+
+export interface TypeQuery {
+  kind: 'query'
+  name: string
+  args?: Type[]
+}
+
+export interface TypeTemplateLiteral {
+  kind: 'template-literal'
+  head: string
+  spans: { type: Type; literal: string }[]
+}
+
+export interface TypePredicate {
+  kind: 'predicate'
+  parameter: string
+  asserts?: boolean
+  type?: Type
+}
+
+export interface TypeImportType {
+  kind: 'import-type'
+  argument: string
+  qualifier?: string
+  isTypeOf?: boolean
+  args?: Type[]
+}
+
+export interface TypeUnknown {
+  kind: 'unknown'
+  text: string
+  nodeType: string
+}
+
+export interface TypeMap {
+  intrinsic: TypeIntrinsic
+  literal: TypeLiteral
+  reference: TypeReference
+  union: TypeUnion
+  intersection: TypeIntersection
+  array: TypeArray
+  tuple: TypeTuple
+  'function-type': TypeFunctionType
+  'type-operator': TypeTypeOperator
+  record: TypeRecord
+  conditional: TypeConditional
+  infer: TypeInfer
+  'indexed-access': TypeIndexedAccess
+  mapped: TypeMapped
+  query: TypeQuery
+  'template-literal': TypeTemplateLiteral
+  predicate: TypePredicate
+  'import-type': TypeImportType
+  unknown: TypeUnknown
+}
+
+/** A type expression as the scanner models it. Discriminated on `kind`; narrow with the type argument: `Type<'union'>`. */
+export type Type<K extends keyof TypeMap = keyof TypeMap> = TypeMap[K]
 
 /**
  * Per-kind payloads of a {@link Part} — the named pieces inside declarations
@@ -90,7 +255,7 @@ export interface TypeDefinitions {
  * rendered union is {@link PartMap}.
  * @internal
  */
-export interface TypeComponentDefinitions {
+export type TypeComponentDefinitions = {
   signature: { generics?: Part<'generic'>[]; params: Part<'parameter'>[]; return: Type; construct?: boolean }
   parameter: { name: string; type: Type; rest?: boolean; default?: string; optional: boolean }
   generic: { name: string; constraint?: Type; default?: Type }
@@ -122,14 +287,6 @@ export type IntrinsicName =
 
 // export type Reference = TypeMap['reference']
 
-/**
- * A documented statement — module, function, class, interface, type alias,
- * variable, enum or namespace. Discriminated on `kind`; narrow with the type
- * argument: `Declaration<'function'>`.
- */
-export type Declaration<K extends keyof DeclarationMap = keyof DeclarationMap> = DeclarationMap[K]
-/** A type expression as the scanner models it. Discriminated on `kind`; narrow with the type argument: `Type<'union'>`. */
-export type Type<K extends keyof TypeMap = keyof TypeMap> = TypeMap[K]
 /** A named piece inside a declaration or type — signature, parameter, property, method, …. Narrow with the type argument: `Part<'property'>`. */
 export type Part<K extends keyof PartMap = keyof PartMap> = PartMap[K]
 /** A member of a class, interface or inline object type. */
@@ -174,20 +331,10 @@ export const match = <K extends keyof KindsMap>(kind: K, x: unknown): x is Kinds
 
 // ---------------- Remapped with kind and base ----------------
 /**
- * {@link DeclarationDefinitions} with `kind` discriminants and {@link Base} merged in — the concrete declaration shapes.
+ * {@link TypeComponentDefinitions} with `kind` discriminants and {@link NodeBase} merged in — the concrete part shapes.
  * @internal
  */
-export type DeclarationMap = t.MapKind<DeclarationDefinitions, 'kind', Base>
-/**
- * {@link TypeDefinitions} with `kind` discriminants and {@link Typebase} merged in — the concrete type shapes.
- * @internal
- */
-export type TypeMap = t.MapKind<TypeDefinitions, 'kind', Typebase>
-/**
- * {@link TypeComponentDefinitions} with `kind` discriminants and {@link Typebase} merged in — the concrete part shapes.
- * @internal
- */
-export type PartMap = t.MapKind<TypeComponentDefinitions, 'kind', Typebase>
+export type PartMap = t.MapKind<TypeComponentDefinitions, 'kind', NodeBase>
 /**
  * Every scanned node shape, keyed by `kind`.
  * @internal

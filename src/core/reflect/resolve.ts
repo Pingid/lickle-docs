@@ -130,14 +130,14 @@ const asExternal = (
   ref: T.Type<'reference'>,
   external: 'stdlib' | 'package' | 'anonymous' | 'type-parameter',
 ): void => {
-  const r = ref as Extract<T.Type<'reference'>, { type: 'external' }>
+  const r = ref.target as Extract<T.TypeReferenceTarget, { type: 'external' }>
   r.type = 'external'
   r.external = external
 }
 const asInternal = (ref: T.Type<'reference'>, targetId: T.Id): void => {
-  const r = ref as Extract<T.Type<'reference'>, { type: 'internal' }>
+  const r = ref.target as Extract<T.TypeReferenceTarget, { type: 'internal' }>
   r.type = 'internal'
-  r.targetId = targetId
+  r.id = targetId
 }
 
 const symbolSourceFile = (sym?: ts.Symbol): ts.SourceFile | undefined =>

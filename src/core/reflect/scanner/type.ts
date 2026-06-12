@@ -1,11 +1,12 @@
 import ts from 'typescript'
 
-import { t } from '../../../_lib/index.ts'
-
 import { type ScanState as State } from '../state.ts'
 import type * as T from '../types.ts'
 import * as Make from './make.ts'
 import * as Ast from './ast.ts'
+import { inferAt, inferReturn } from './infer.ts'
+
+export { inferAt, inferReturn }
 
 const INTRINSICS: Partial<Record<ts.SyntaxKind, T.IntrinsicName>> = {
   [ts.SyntaxKind.StringKeyword]: 'string',
@@ -168,14 +169,6 @@ export const parameter = (s: State, node: ts.ParameterDeclaration): T.Part<'para
     ...(node.initializer ? { default: node.initializer.getText() } : {}),
   })
 
-export const inferAt = (s: State, node: ts.Node): T.Type =>
-  fromType(s, node, s.checker.getTypeAtLocation(node), new Set())
-
-export const inferReturn = (s: State, node: ts.SignatureDeclarationBase): T.Type => {
-  const sig = s.checker.getSignatureFromDeclaration(node as ts.SignatureDeclaration)
-  return sig ? fromType(s, node, sig.getReturnType(), new Set()) : Intrinsic(s, node, 'unknown')
-}
-
 export const objectMembers = (s: State, members: ts.NodeArray<ts.TypeElement>): T.Member[] => {
   const out: T.Member[] = []
   for (const m of members) {
@@ -189,7 +182,7 @@ export const objectMembers = (s: State, members: ts.NodeArray<ts.TypeElement>): 
 }
 
 const reference = (s: State, node: ts.Node, typeArguments?: ts.NodeArray<ts.TypeNode>): T.Type<'reference'> => {
-  const r = Make.type(s, node, 'reference', { type: 'internal', targetId: 0 } as any)
+  const r = Make.type(s, node, 'reference', { target: { type: 'internal', id: 0 } } as any)
   r.id = s.nextId()
   r.owner = s.currentStmt
   r.name = Ast.getName(node) ?? 'unknown'
@@ -197,122 +190,6 @@ const reference = (s: State, node: ts.Node, typeArguments?: ts.NodeArray<ts.Type
   s.references.push(r)
   s.referenceOrigins.set(r.id, node)
   return r
-}
-
-const fromType = (s: State, ctx: ts.Node, type: ts.Type, seen: Set<ts.Type>): T.Type =>
-  structured(s, ctx, type, seen) ?? inferredText(s, ctx, type)
-
-const inferredText = (s: State, ctx: ts.Node, type: ts.Type): T.Type =>
-  inode(s, 'unknown', {
-    text: s.checker.typeToString(type, ctx, ts.TypeFormatFlags.NoTruncation),
-    nodeType: 'inferred',
-  })
-
-const structured = (s: State, ctx: ts.Node, type: ts.Type, seen: Set<ts.Type>): T.Type | undefined => {
-  const f = type.flags
-  if (f & ts.TypeFlags.StringLiteral) return inode(s, 'literal', { value: (type as ts.StringLiteralType).value })
-  if (f & ts.TypeFlags.NumberLiteral) return inode(s, 'literal', { value: (type as ts.NumberLiteralType).value })
-  if (f & ts.TypeFlags.BigIntLiteral) {
-    const v = (type as ts.BigIntLiteralType).value
-    return inode(s, 'literal', { value: BigInt((v.negative ? '-' : '') + v.base10Value) })
-  }
-  if (f & ts.TypeFlags.BooleanLiteral) return inode(s, 'literal', { value: (type as any).intrinsicName === 'true' })
-  const intr = intrinsicName(f)
-  if (intr) return inode(s, 'intrinsic', { name: intr })
-  const alias = type.aliasSymbol
-  if (alias && isNamed(alias))
-    return inferRef(s, alias.getName(), alias, mapArgs(s, ctx, type.aliasTypeArguments, seen))
-  if (type.isUnion()) return inode(s, 'union', { types: type.types.map((t) => fromType(s, ctx, t, seen)) })
-  if (type.isIntersection())
-    return inode(s, 'intersection', { types: type.types.map((t) => fromType(s, ctx, t, seen)) })
-  return objectType(s, ctx, type, seen)
-}
-
-const objectType = (s: State, ctx: ts.Node, type: ts.Type, seen: Set<ts.Type>): T.Type | undefined => {
-  if (!(type.flags & ts.TypeFlags.Object)) return undefined
-  const obj = type as ts.ObjectType
-  if (obj.objectFlags & ts.ObjectFlags.Reference) {
-    const ref = type as ts.TypeReference
-    if (ref.target.objectFlags & ts.ObjectFlags.Tuple) return undefined
-    const args = s.checker.getTypeArguments(ref)
-    const tname = ref.target.symbol?.getName()
-    if ((tname === 'Array' || tname === 'ReadonlyArray') && args.length === 1)
-      return inode(s, 'array', { elementType: fromType(s, ctx, args[0]!, seen) })
-    const sym = type.getSymbol()
-    if (sym && isNamed(sym)) return inferRef(s, sym.getName(), sym, mapArgs(s, ctx, args, seen))
-  }
-  const sym = type.getSymbol()
-  if (sym && isNamed(sym)) return inferRef(s, sym.getName(), sym, undefined)
-  if (type.getCallSignatures().length || type.getConstructSignatures().length) return undefined
-  const props = type.getProperties()
-  if (!props.length || seen.has(type)) return undefined
-  seen.add(type)
-  return inode(s, 'record', { members: props.map((p) => inferProp(s, ctx, p, seen)) })
-}
-
-const inferProp = (s: State, ctx: ts.Node, sym: ts.Symbol, seen: Set<ts.Type>): T.Part<'property'> => {
-  const decl = sym.valueDeclaration ?? sym.declarations?.[0] ?? ctx
-  const pt = s.checker.getTypeOfSymbolAtLocation(sym, decl)
-  return {
-    kind: 'property',
-    parent: s.parent,
-    sources: [],
-    name: sym.getName(),
-    type: fromType(s, ctx, pt, seen),
-    ...(sym.flags & ts.SymbolFlags.Optional ? { optional: true } : {}),
-  } as T.Part<'property'>
-}
-
-const inferRef = (s: State, name: string, symbol: ts.Symbol, args?: T.Type[]): T.Type<'reference'> => {
-  const r = {
-    kind: 'reference',
-    parent: s.parent,
-    sources: [],
-    type: 'internal',
-    targetId: t.brand<T.Id>(0),
-    id: s.nextId(),
-    name,
-    owner: s.currentStmt,
-    ...(args?.length ? { args } : {}),
-  } as T.Type<'reference'>
-  s.references.push(r)
-  s.referenceSymbols.set(r.id, symbol)
-  return r
-}
-
-const mapArgs = (
-  s: State,
-  ctx: ts.Node,
-  args: readonly ts.Type[] | undefined,
-  seen: Set<ts.Type>,
-): T.Type[] | undefined => (args?.length ? args.map((a) => fromType(s, ctx, a, seen)) : undefined)
-
-const isNamed = (sym: ts.Symbol): boolean => {
-  if (sym.flags & ts.SymbolFlags.TypeParameter) return false
-  const n = sym.getName()
-  return !!n && !n.startsWith('__')
-}
-
-const inode = <K extends keyof T.TypeMap>(
-  s: State,
-  kind: K,
-  fields: Omit<T.TypeMap[K], keyof T.Typebase | 'kind'>,
-): T.Type<K> => ({ kind, parent: s.parent, sources: [], ...fields }) as unknown as T.Type<K>
-
-const intrinsicName = (f: ts.TypeFlags): T.IntrinsicName | undefined => {
-  if (f & ts.TypeFlags.String) return 'string'
-  if (f & ts.TypeFlags.Number) return 'number'
-  if (f & ts.TypeFlags.Boolean) return 'boolean'
-  if (f & ts.TypeFlags.BigInt) return 'bigint'
-  if (f & (ts.TypeFlags.ESSymbol | ts.TypeFlags.UniqueESSymbol)) return 'symbol'
-  if (f & ts.TypeFlags.Void) return 'void'
-  if (f & ts.TypeFlags.Undefined) return 'undefined'
-  if (f & ts.TypeFlags.Null) return 'null'
-  if (f & ts.TypeFlags.Never) return 'never'
-  if (f & ts.TypeFlags.Any) return 'any'
-  if (f & ts.TypeFlags.Unknown) return 'unknown'
-  if (f & ts.TypeFlags.NonPrimitive) return 'object'
-  return undefined
 }
 
 const property = (s: State, node: ts.PropertyDeclaration | ts.PropertySignature): T.Part<'property'> =>

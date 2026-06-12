@@ -23,10 +23,10 @@
  * })
  * ```
  */
-import type { UserConfig } from '../core/config/types.ts'
-export type * from '../core/config/types.ts'
+import type { UserConfig } from './types.ts'
+export type * from './types.ts'
 
-export * as Adapter from '../core/route/adapter/index.ts'
+export * as Adapter from '../route/adapter/index.ts'
 
 /**
  * Declare the project configuration with type checking.

@@ -125,7 +125,7 @@ export const EnumDeclaration = function* (s: State, node: ts.EnumDeclaration): G
   }))
 }
 
-const functionBody = (s: State, node: ts.SignatureDeclarationBase): T.DeclarationDefinitions['function'] => ({
+const functionBody = (s: State, node: ts.SignatureDeclarationBase): { signatures: T.Part<'signature'>[] } => ({
   signatures: [Type.signature(s, node)],
 })
 
