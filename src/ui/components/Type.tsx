@@ -5,6 +5,7 @@ import { Dynamic } from 'solid-js/web'
 import { type Reflect } from '../context/index.tsx'
 
 import { type Kind, labelOf, shortOf } from '../util/kind.ts'
+import { commentSummaryText } from '../util/comment.ts'
 import { useSlugFor } from '../hooks/index.ts'
 
 import { staticComponent } from '../util/solid.tsx'
@@ -81,43 +82,29 @@ const Reference = (props: { type: Reflect.Type<'reference'> }) => {
 }
 
 const Record = (props: { type: Reflect.Type<'record'> }) => {
-  const decl = props.type
-  const onlySignature = decl.members.length === 1 && decl.members[0]!.kind === 'signature' && !decl.members[0]!.construct
-  if (onlySignature) return <SignatureExpr sig={decl.members[0]! as Reflect.Part<'signature'>} arrow />
-
-  // Members in source order, flattened to renderers so a single `<For>` lays
-  // them out with consistent `; ` separators.
-  const members = (): (() => any)[] =>
-    decl.members.flatMap((m) => {
-      if (m.kind === 'property') return [() => <RecordProperty prop={m} />]
-      if (m.kind === 'method') return m.signatures.map((sig) => () => <RecordMethod name={m.name} sig={sig} />)
-      if (m.kind === 'index-signature') return [() => <RecordIndex sig={m} />]
-      if (m.construct)
-        return [
-          () => (
-            <>
-              <Syntax.Kw>new </Syntax.Kw>
-              <SignatureExpr sig={m} />
-            </>
-          ),
-        ]
-      return [() => <SignatureExpr sig={m} />]
-    })
-
+  // A record of exactly one bare call signature renders as an arrow type.
+  const onlySig = (): Reflect.Part<'signature'> | undefined => {
+    const m = props.type.members
+    const first = m.length === 1 ? m[0] : undefined
+    return first?.kind === 'signature' && !first.construct ? first : undefined
+  }
+  const units = () => memberUnits(props.type.members)
   return (
-    <Show when={members().length} fallback={<Syntax.Punct>{'{}'}</Syntax.Punct>}>
-      <Syntax.Punct>{'{ '}</Syntax.Punct>
-      <For each={members()}>
-        {(render, i) => (
-          <>
-            <Show when={i() > 0}>
-              <Syntax.Punct>{'; '}</Syntax.Punct>
-            </Show>
-            {render()}
-          </>
-        )}
-      </For>
-      <Syntax.Punct>{' }'}</Syntax.Punct>
+    <Show when={!onlySig()} fallback={<SignatureExpr sig={onlySig()!} arrow />}>
+      <Show when={units().length} fallback={<Syntax.Punct>{'{}'}</Syntax.Punct>}>
+        <Syntax.Punct>{'{ '}</Syntax.Punct>
+        <For each={units()}>
+          {(u, i) => (
+            <>
+              <Show when={i() > 0}>
+                <Syntax.Punct>{'; '}</Syntax.Punct>
+              </Show>
+              <MemberExpr unit={u} />
+            </>
+          )}
+        </For>
+        <Syntax.Punct>{' }'}</Syntax.Punct>
+      </Show>
     </Show>
   )
 }
@@ -391,33 +378,87 @@ const TypeArgs = (props: { args?: T[] }) => (
   </Show>
 )
 
-const RecordProperty = (props: { prop: Reflect.Part<'property'> }) => (
-  <>
-    <Syntax.Name>{props.prop.name}</Syntax.Name>
-    <Show when={props.prop.optional}>
-      <Syntax.Punct>?</Syntax.Punct>
-    </Show>
-    <Syntax.Punct>: </Syntax.Punct>
-    <Type type={props.prop.type} />
-  </>
-)
+/** A member paired with one of its signatures — methods expand to one unit per overload. */
+type MemberUnit = { member: Reflect.Member; sig?: Reflect.Part<'signature'> }
 
-const RecordMethod = (props: { name: string; sig: Reflect.Part<'signature'> }) => (
-  <>
-    <Syntax.Name>{props.name}</Syntax.Name>
-    <SignatureExpr sig={props.sig} />
-  </>
-)
+/** Flatten members to units in source order, splitting methods across their overloads. */
+const memberUnits = (members: Reflect.Member[]): MemberUnit[] =>
+  members.flatMap((member): MemberUnit[] =>
+    member.kind === 'method' ? member.signatures.map((sig) => ({ member, sig })) : [{ member }],
+  )
 
-const RecordIndex = (props: { sig: Reflect.Part<'index-signature'> }) => (
-  <>
-    <Syntax.Punct>[</Syntax.Punct>
-    <Syntax.Name>{props.sig.parameter.name}</Syntax.Name>
-    <Syntax.Punct>: </Syntax.Punct>
-    <Type type={props.sig.parameter.type} />
-    <Syntax.Punct>]: </Syntax.Punct>
-    <Type type={props.sig.type} />
-  </>
+/** One member inline: `name?: T`, `name(sig)`, `[k: K]: V`, `(sig)` or `new (sig)`. */
+const MemberExpr = (props: { unit: MemberUnit }) => {
+  const m = props.unit.member
+  if (m.kind === 'property')
+    return (
+      <>
+        <Syntax.Name>{m.name}</Syntax.Name>
+        <Show when={m.optional}>
+          <Syntax.Punct>?</Syntax.Punct>
+        </Show>
+        <Syntax.Punct>: </Syntax.Punct>
+        <Type type={m.type} />
+        <Show when={m.defaultValue}>
+          <Syntax.Punct>{` = ${m.defaultValue}`}</Syntax.Punct>
+        </Show>
+      </>
+    )
+  if (m.kind === 'index-signature')
+    return (
+      <>
+        <Syntax.Punct>[</Syntax.Punct>
+        <Syntax.Name>{m.parameter.name}</Syntax.Name>
+        <Syntax.Punct>: </Syntax.Punct>
+        <Type type={m.parameter.type} />
+        <Syntax.Punct>]: </Syntax.Punct>
+        <Type type={m.type} />
+      </>
+    )
+  if (m.kind === 'method')
+    return (
+      <>
+        <Syntax.Name>{m.name}</Syntax.Name>
+        <SignatureExpr sig={props.unit.sig!} />
+      </>
+    )
+  return (
+    <>
+      <Show when={m.construct}>
+        <Syntax.Kw>new </Syntax.Kw>
+      </Show>
+      <SignatureExpr sig={m} />
+    </>
+  )
+}
+
+/**
+ * Block listing of class / interface / object-type members in source order:
+ * each member on its own line with a muted one-line summary, mirroring the
+ * module link list. Methods render one line per overload. Shared by the
+ * declaration pages and record type alias.
+ * @internal
+ */
+export const Members = (props: { members: Reflect.Member[] }) => (
+  <Show when={props.members.length}>
+    <ul class="mt-8 space-y-3">
+      <For each={memberUnits(props.members)}>
+        {(u) => {
+          const summary = commentSummaryText(u.sig?.comment ?? u.member.comment)
+          return (
+            <li>
+              <div class="font-mono text-sm leading-relaxed">
+                <MemberExpr unit={u} />
+              </div>
+              <Show when={summary}>
+                <p class="text-sm text-mute mt-0.5 line-clamp-2">{summary}</p>
+              </Show>
+            </li>
+          )
+        }}
+      </For>
+    </ul>
+  </Show>
 )
 
 const TupleElement = (props: { el: Reflect.Part<'tuple-element'> }) => (

@@ -2,7 +2,6 @@ import { For, Match, Show, Switch, createMemo } from 'solid-js'
 
 import { createSlot, type Reflect } from '../context/index.tsx'
 import { DocRouter, useProject } from '../hooks/index.ts'
-import { groupItems } from '../../core/client/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
 import { staticComponent } from '../util/solid.tsx'
 import { labelOf } from '../util/kind.ts'
@@ -111,7 +110,7 @@ export const Source = staticComponent((props: { decl: Reflect.Declaration }) => 
  * exactly as the router lays them out. Each group becomes a titled section.
  */
 const Links = (props: { links: DocRouter.DocLink[] }) => {
-  const groups = createMemo(() => groupItems(props.links, (l) => l.group))
+  const groups = createMemo(() => DocRouter.groupItems(props.links, (l) => l.group))
 
   return (
     <For each={groups()}>
@@ -182,7 +181,7 @@ const Signature = (props: { decl: Reflect.Declaration }) => {
  * ordered with the same {@link groupItems} the sidebar and member lists use.
  */
 export const References = staticComponent((props: { referenced: DocRouter.DocLink[] }) => {
-  const groups = createMemo(() => groupItems(props.referenced, (r) => r.group))
+  const groups = createMemo(() => DocRouter.groupItems(props.referenced, (r) => r.group))
   return (
     <Show when={props.referenced.length}>
       <section class="mt-10 lk-references">

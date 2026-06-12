@@ -4,9 +4,9 @@ import { Node } from '../../_lib/index.ts'
 
 import { Router, Build } from '../../core/index.ts'
 
-export const json = cmd.command({
-  name: 'json',
-  description: 'Generate the project\u2019s JSON reflection data into the docs directory',
+export const generate = cmd.command({
+  name: 'generate',
+  description: 'Generate the project\u2019s JSON reflection data',
   args: {
     print: cmd.flag({
       long: 'print',
@@ -17,7 +17,7 @@ export const json = cmd.command({
       long: 'file',
       short: 'f',
       type: cmd.string,
-      defaultValue: () => 'docs/project.json' as const,
+      defaultValue: () => 'ldocs.json' as const,
       defaultValueIsSerializable: true,
       description: 'File to write the project JSON to',
     }),

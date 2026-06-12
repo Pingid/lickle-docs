@@ -1,7 +1,5 @@
-import { groupItems } from '../../core/client/index.ts'
-
-import type { Reflect } from '../context/index.tsx'
 import { DocRouter, type Project } from '../hooks/index.ts'
+import type { Reflect } from '../context/index.tsx'
 import { withBaseUrl } from './base.ts'
 import { labelOf } from './kind.ts'
 
@@ -58,7 +56,7 @@ const statementMd = (route: DocRouter.DocRoute, ctx: Ctx, depth: number): string
 const childrenMd = (route: DocRouter.DocRoute, ctx: Ctx, depth: number): string => {
   if (!route.links.length) return ''
   let out = ''
-  for (const g of groupItems(route.links, (l) => l.group)) {
+  for (const g of DocRouter.groupItems(route.links, (l) => l.group)) {
     if (ctx.inline) {
       for (const item of g.items) {
         const child = ctx.router.get({ id: item.target })

@@ -4,6 +4,7 @@ import { useDocActiveProject, useDocs, type Reflect } from '../../context/index.
 import { createRouter, type ClientRouter } from '../../../core/route/client/index.ts'
 
 export type { ClientRouter, Route, DocRoute, DocLink } from '../../../core/route/types.ts'
+export { groupItems } from '../../../core/route/client/index.ts'
 
 const INSTANCE = new WeakMap<Reflect.DocsVersion, ClientRouter>()
 

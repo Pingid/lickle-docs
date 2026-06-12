@@ -77,7 +77,7 @@ export const DeclarationTypeAlias = (props: { decl: Reflect.Declaration<'type-al
         </Show>
       </div>
       <Comment comment={props.decl.comment} />
-      <Show when={record()}>{(t) => <Members members={t().members} />}</Show>
+      <Show when={record()}>{(t) => <Type.Members members={t().members} />}</Show>
     </div>
   )
 }
@@ -88,7 +88,7 @@ export const DeclarationClass = (props: { decl: Reflect.Declaration<'class'> }) 
     <ExtendsLine label="extends" types={props.decl.extends} />
     <ExtendsLine label="implements" types={props.decl.implements} />
     <Comment comment={props.decl.comment} />
-    <Members members={props.decl.members} />
+    <Type.Members members={props.decl.members} />
   </div>
 )
 
@@ -97,7 +97,7 @@ export const DeclarationInterface = (props: { decl: Reflect.Declaration<'interfa
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
     <Comment comment={props.decl.comment} />
-    <Members members={props.decl.members} />
+    <Type.Members members={props.decl.members} />
   </div>
 )
 
@@ -110,57 +110,6 @@ const MemberSection = (props: { title: string; when: unknown; children: any }) =
     </section>
   </Show>
 )
-
-const PropertyRow = (props: { prop: Reflect.Part<'property'> }) => (
-  <div class="py-2">
-    <div class="font-mono text-sm leading-relaxed">
-      <span class="font-semibold">{props.prop.name}</span>
-      <Show when={props.prop.optional}>
-        <Syntax.Punct>?</Syntax.Punct>
-      </Show>
-      <Syntax.Punct>: </Syntax.Punct>
-      <Type.Type type={props.prop.type} />
-      <Show when={props.prop.defaultValue}>
-        <Syntax.Punct>{` = ${props.prop.defaultValue}`}</Syntax.Punct>
-      </Show>
-    </div>
-    <Show when={props.prop.comment}>
-      <div class="mt-1">
-        <Comment comment={props.prop.comment} />
-      </div>
-    </Show>
-  </div>
-)
-
-const IndexRow = (props: { sig: Reflect.Part<'index-signature'> }) => (
-  <div class="font-mono text-sm leading-relaxed py-2">
-    <Syntax.Punct>[</Syntax.Punct>
-    <span class="font-semibold">{props.sig.parameter.name}</span>
-    <Syntax.Punct>: </Syntax.Punct>
-    <Type.Type type={props.sig.parameter.type} />
-    <Syntax.Punct>]: </Syntax.Punct>
-    <Type.Type type={props.sig.type} />
-  </div>
-)
-
-/** Member listing shared by classes, interfaces and object types, in source order. */
-const Members = (props: { members: Reflect.Member[] }) => (
-  <Show when={props.members.length}>
-    <section class="mt-8">
-      <For each={props.members}>{(m) => <MemberRow member={m} />}</For>
-    </section>
-  </Show>
-)
-
-/** Dispatch a single member to its row renderer. */
-const MemberRow = (props: { member: Reflect.Member }) => {
-  const m = props.member
-  if (m.kind === 'property') return <PropertyRow prop={m} />
-  if (m.kind === 'index-signature') return <IndexRow sig={m} />
-  if (m.kind === 'method')
-    return <For each={m.signatures}>{(sig) => <Type.TypeSignature sig={sig} name={m.name} kind="method" />}</For>
-  return <Type.TypeSignature sig={m} kind={m.construct ? 'constructor' : undefined} />
-}
 
 /** Enum page body: doc block plus the member table. */
 export const DeclarationEnum = (props: { decl: Reflect.Declaration<'enum'> }) => (

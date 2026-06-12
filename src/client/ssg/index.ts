@@ -7,8 +7,8 @@ import * as Core from '../../core/index.ts'
 import { Node } from '../../_lib/index.ts'
 
 import type { ServerEntry } from '../entrypoints/entry-server.tsx'
+import { createRouter } from '../../core/route/client/index.ts'
 import { createShellStreamer } from '../context/index.ts'
-import { createRouter } from '../../core/client/index.ts'
 
 type GenerateStaticOptions = {
   json: Core.Config.ProjectVersion
