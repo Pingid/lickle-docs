@@ -25,37 +25,31 @@ export const resolve = (s: ScanState) => {
     return file ? idByDecl.get(file) : undefined
   }
 
-  for (const c1 of s.exports) {
-    const exp = s.declarations.get(c1)
-    if (!exp || exp.kind !== 'export') continue
-    resolveExport(s, exp, idByDecl, moduleIdForSpecifier)
-  }
-
-  return s
+  for (const dec of s.exports) resolveExport(s, dec, idByDecl, moduleIdForSpecifier)
 }
 
 const resolveExport = (
-  s: ScanState,
+  state: ScanState,
   exp: T.Declaration<'export'>,
   idByDecl: Map<ts.Node, T.Id>,
   moduleIdForSpecifier: (origin: ts.ExportDeclaration) => T.Id | undefined,
 ): void => {
-  const form = s.exportsForm.get(exp.id)
-  const origin = s.exportsOrigin.get(exp.id)
+  const form = state.exportsForm.get(exp.id)
+  const origin = state.exportsOrigin.get(exp.id)
   if (!form || !origin) return
 
   // export default <expr> / export = <expr>  →  one name pointing at the target.
   if (ts.isExportAssignment(origin)) {
-    const sym = s.checker.getSymbolAtLocation(origin.expression)
+    const sym = state.checker.getSymbolAtLocation(origin.expression)
     if (!sym) return
-    const id = idsForSymbol(idByDecl, s.checker, sym)[0]
+    const id = idsForSymbol(idByDecl, state.checker, sym)[0]
     if (id !== undefined) exp.names.push({ name: origin.isExportEquals ? 'export=' : 'default', ref: id, type: false })
     return
   }
 
   // export * as foo from './x'  →  one name, points at the module itself.
   if (form === 'namespace-from') {
-    const alias = s.exportsAlias.get(exp.id)
+    const alias = state.exportsAlias.get(exp.id)
     const moduleId = moduleIdForSpecifier(origin)
     if (alias && moduleId !== undefined) exp.names.push({ name: alias, ref: moduleId, type: origin.isTypeOnly })
     return
@@ -64,28 +58,28 @@ const resolveExport = (
   // export * from './x'  →  re-export every named export of the module.
   if (form === 'star') {
     if (!origin.moduleSpecifier) return
-    const moduleSym = s.checker.getSymbolAtLocation(origin.moduleSpecifier)
+    const moduleSym = state.checker.getSymbolAtLocation(origin.moduleSpecifier)
     if (!moduleSym) return
     exp.star = true
-    for (const sym of s.checker.getExportsOfModule(moduleSym)) {
-      const id = idsForSymbol(idByDecl, s.checker, sym)[0]
+    for (const sym of state.checker.getExportsOfModule(moduleSym)) {
+      const id = idsForSymbol(idByDecl, state.checker, sym)[0]
       if (id !== undefined) exp.names.push({ name: sym.getName(), ref: id, type: origin.isTypeOnly })
     }
     return
   }
 
-  const entries = s.exportsEntries.get(exp.id) ?? []
+  const entries = state.exportsEntries.get(exp.id) ?? []
 
   // export { a, b as c } from './x'  →  resolve each name in the module's exports.
   if (form === 'named-from') {
     if (!origin.moduleSpecifier) return
-    const moduleSym = s.checker.getSymbolAtLocation(origin.moduleSpecifier)
+    const moduleSym = state.checker.getSymbolAtLocation(origin.moduleSpecifier)
     if (!moduleSym) return
-    const exportSyms = s.checker.getExportsOfModule(moduleSym)
+    const exportSyms = state.checker.getExportsOfModule(moduleSym)
     for (const e of entries) {
       const sym = exportSyms.find((x) => x.getName() === e.name)
       if (!sym) continue
-      const id = idsForSymbol(idByDecl, s.checker, sym)[0]
+      const id = idsForSymbol(idByDecl, state.checker, sym)[0]
       if (id !== undefined) exp.names.push({ name: e.as ?? e.name, ref: id, type: e.type })
     }
     return
@@ -94,17 +88,17 @@ const resolveExport = (
   // named-local: export { a, b as c }  →  look each name up in local scope.
   if (origin.exportClause && ts.isNamedExports(origin.exportClause)) {
     for (const el of origin.exportClause.elements) {
-      const sym = s.checker.getSymbolAtLocation(el.propertyName ?? el.name)
+      const sym = state.checker.getSymbolAtLocation(el.propertyName ?? el.name)
       if (!sym) continue
-      const id = idsForSymbol(idByDecl, s.checker, sym)[0]
+      const id = idsForSymbol(idByDecl, state.checker, sym)[0]
       if (id !== undefined) exp.names.push({ name: el.name.text, ref: id, type: origin.isTypeOnly || el.isTypeOnly })
     }
   }
 }
 
 const idsForSymbol = (idByDecl: Map<ts.Node, T.Id>, checker: ts.TypeChecker, sym: ts.Symbol): T.Id[] => {
-  const collect = (s: ts.Symbol, out: number[]): void => {
-    for (const decl of s.declarations ?? []) {
+  const collect = (sym: ts.Symbol, out: number[]): void => {
+    for (const decl of sym.declarations ?? []) {
       const id = idByDecl.get(decl)
       if (id !== undefined && !out.includes(id)) out.push(id)
     }

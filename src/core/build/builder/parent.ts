@@ -1,6 +1,6 @@
 import { fork } from 'node:child_process'
 
-import { Node, Util } from '../../../_lib/index.ts'
+import { Node } from '../../../_lib/index.ts'
 
 import { on, send, type Result } from './types.ts'
 import { build } from '../build.ts'
@@ -55,14 +55,21 @@ export const loadBuilder = (dir: string) => {
 
   let initial = Promise.withResolvers<Result>()
   let current: Promise<Result> = initial.promise
+  let abort: AbortController = new AbortController()
 
-  const rebuild = Util.serial(async () => {
-    const c = await build(dir)
-    initial.resolve(c)
-    current = Promise.resolve(c)
-    subs.forEach((cb) => cb())
-    return c
-  })
+  const rebuild = async () => {
+    abort.abort()
+    abort = new AbortController()
+    try {
+      const c = await build(dir, abort.signal)
+      initial.resolve(c)
+      current = Promise.resolve(c)
+      subs.forEach((cb) => cb())
+    } catch (error) {
+      if (error instanceof DOMException) return
+      console.error(error)
+    }
+  }
 
   return {
     rebuild,

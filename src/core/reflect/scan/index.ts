@@ -160,7 +160,7 @@ scan.ExportDeclaration = (s: State, node: ts.ExportDeclaration, queue: ts.Source
 
   // Emit an `export` declaration node (ref filled by resolver).
   const exp = statement(s, node, 'export', () => ({ names: [], star: false }))
-  s.exports.add(exp.id)
+  s.exports.add(exp)
 
   if (!node.exportClause) {
     if (!spec) return
@@ -192,7 +192,7 @@ scan.ExportDeclaration = (s: State, node: ts.ExportDeclaration, queue: ts.Source
 // `export default <expr>` / `export = <expr>`. The target is resolved later.
 scan.ExportAssignment = (s: State, node: ts.ExportAssignment) => {
   const exp = statement(s, node, 'export', () => ({ names: [], star: false }))
-  s.exports.add(exp.id)
+  s.exports.add(exp)
   s.exportsForm.set(exp.id, 'assignment')
   s.exportsOrigin.set(exp.id, node)
   return exp

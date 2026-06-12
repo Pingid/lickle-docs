@@ -35,7 +35,7 @@ export interface ScanState extends ScanOptions {
   /** References to other declarations. resolved later. */
   references: T.Type<'reference'>[]
   /** Export declarations, which are populated later. */
-  exports: Set<T.Id>
+  exports: Set<T.Declaration<'export'>>
 
   /** Symbols by id. Used to resolve references. */
   symbolsById: Map<T.Id, ts.Symbol>
