@@ -170,6 +170,8 @@ const ISK = is.or(ISD, IST, ISP)
  */
 export const isKind = (x: any): x is Any => ISK(x)
 
+export const match = <K extends keyof KindsMap>(kind: K, x: unknown): x is KindsMap[K] => isKind(x) && x.kind === kind
+
 // ---------------- Remapped with kind and base ----------------
 /**
  * {@link DeclarationDefinitions} with `kind` discriminants and {@link Base} merged in — the concrete declaration shapes.

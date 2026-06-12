@@ -28,7 +28,7 @@ import { compose } from '../provider/core.ts'
 import { type DeclarationFacade } from '../provider/facade.ts'
 import { kindOrder, pluralLabel } from '../naming.ts'
 import type { Adapter } from '../provider/core.ts'
-import type { Reflect } from '../../../core/index.ts'
+import { Reflect } from '../../../core/index.ts'
 
 export type { DeclarationFacade, ModuleFacade } from '../provider/facade.ts'
 export type * from '../provider/core.ts'
@@ -169,3 +169,6 @@ export const sortByHash = (text: string) => {
   return Math.abs(hash)
 }
 sortByHash.MAX = 2_147_483_647
+
+export const match = <K extends string, T extends { kind: string }>(kind: K, x?: T): x is Extract<T, { kind: K }> =>
+  x?.kind === kind

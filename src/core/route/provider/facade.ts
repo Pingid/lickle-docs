@@ -1,23 +1,20 @@
+import type { t } from '../../../_lib/index.ts'
 import { memo } from '../../../_lib/util/index.ts'
 import type { Reflect } from '../../index.ts'
 
 /** A facade over a declaration that can expose members: a module or namespace. */
 export type ModuleFacade = DeclarationFacade<'module' | 'namespace'>
 
-/**
- * The declaration view adapter hooks receive: the raw declaration plus
- * index-aware helpers for the questions hooks usually ask — where it came
- * from, whether it is an entrypoint, whether it is public.
- */
-export interface DeclarationFacade<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap> {
-  /** The declaration id */
-  id: Reflect.Id
-  /** The declaration kind */
-  kind: K
-  /** The declaration name */
-  name: string
-  /** The raw declaration */
-  raw: Reflect.Declaration<K>
+export type DeclarationFacade<K extends keyof DeclarationFacadeMap = keyof DeclarationFacadeMap> =
+  DeclarationFacadeMap[K]
+
+export type DeclarationFacadeMap = {
+  [K in keyof Reflect.DeclarationMap]: t.Compute<
+    { id: Reflect.Id; name: string; kind: K; raw: Reflect.DeclarationMap[K] } & DeclarationFacadeApi
+  >
+}
+
+export interface DeclarationFacadeApi {
   /** Get another declaration by id */
   get<K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap>(
     id: Reflect.Id,
@@ -91,7 +88,7 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
     kind: declaration.kind as K,
     id: declaration.id,
     name: declaration.name,
-    get: (id) => createFacade(index, id),
+    get: (id: Reflect.Id) => createFacade(index, id),
     parent: () => createFacade<'module'>(index, declaration.parent),
     members: () =>
       Array.from(index.children(id))
@@ -106,7 +103,7 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
       return tags()
     },
     exposure: exposed,
-  }
+  } as DeclarationFacade<any>
 }
 
 const defined = <T>(x: T | undefined): x is T => x !== undefined

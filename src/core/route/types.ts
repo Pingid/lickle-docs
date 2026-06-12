@@ -4,7 +4,7 @@ import type * as Reflect from '../reflect/types.ts'
 export type Route = DocRoute | PageRoute
 
 /** Fields shared by every route. The `slug` is the route's identity — unique across the project. */
-export interface RouteBase {
+export type RouteBase = {
   /** Display title, shown in the sidebar, breadcrumbs and page header. */
   title: string
   /** URL path of the page, and its unique identity. */
@@ -14,7 +14,7 @@ export interface RouteBase {
 }
 
 /** A page generated for a declaration. */
-export interface DocRoute extends RouteBase {
+export type DocRoute = RouteBase & {
   kind: 'doc'
   /** Id of the declaration this page documents. */
   decl: Reflect.Id
@@ -25,7 +25,7 @@ export interface DocRoute extends RouteBase {
 }
 
 /** A standalone markdown page, e.g. the README home page. */
-export interface PageRoute extends RouteBase {
+export type PageRoute = RouteBase & {
   kind: 'page'
   /** Markdown sections rendered in order. */
   body: string[]
@@ -65,7 +65,7 @@ export type GroupedItems<T> = { group: string; items: T[] }
 export type SidebarRoute = Route & { children: GroupedItems<SidebarRoute>[]; alias?: string }
 
 /** The resolved route table the UI navigates with. Build one with {@link createRouter}. */
-export interface ClientRouter {
+export type ClientRouter = {
   /** Path prefix every slug is mounted under (project + version). */
   base: string
   /** Every route, slugs fully prefixed. */

@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createMemo } from 'solid-js'
+import { For, Match, Show, Switch, createMemo, type Component } from 'solid-js'
 
 import { createSlot, type Reflect } from '../context/index.tsx'
 import { DocRouter, useProject } from '../hooks/index.ts'
@@ -77,7 +77,7 @@ export const PageHeader = createSlot('page.header', (props: { decl: Reflect.Decl
 ))
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
-export const Source = staticComponent((props: { decl: Reflect.Declaration }) => {
+export const Source: Component<{ decl: Reflect.Declaration }> = staticComponent((props) => {
   const project = useProject()
   const sources = createMemo(() => {
     return (props.decl.sources ?? []).map((s) => ({
@@ -180,7 +180,7 @@ const Signature = (props: { decl: Reflect.Declaration }) => {
  * "Referenced In" backlinks from the route's `referenced` refs, grouped and
  * ordered with the same {@link groupItems} the sidebar and member lists use.
  */
-export const References = staticComponent((props: { referenced: DocRouter.DocLink[] }) => {
+export const References: Component<{ referenced: DocRouter.DocLink[] }> = staticComponent((props) => {
   const groups = createMemo(() => DocRouter.groupItems(props.referenced, (r) => r.group))
   return (
     <Show when={props.referenced.length}>
