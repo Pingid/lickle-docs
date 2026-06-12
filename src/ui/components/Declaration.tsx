@@ -62,10 +62,8 @@ export const DeclarationVariable = (props: { decl: Reflect.Declaration<'variable
 export const DeclarationTypeAlias = (props: { decl: Reflect.Declaration<'type-alias'> }) => {
   const record = () => {
     const t = props.decl.type
-    if (t?.kind !== 'record') return undefined
-    const hasMembers =
-      t.properties.length || t.methods.length || t.callSignatures?.length || t.constructSignatures?.length
-    return hasMembers ? t : undefined
+    if (t?.kind !== 'record' || !t.members.length) return undefined
+    return t
   }
   return (
     <div>
@@ -79,17 +77,7 @@ export const DeclarationTypeAlias = (props: { decl: Reflect.Declaration<'type-al
         </Show>
       </div>
       <Comment comment={props.decl.comment} />
-      <Show when={record()}>
-        {(t) => (
-          <Members
-            properties={t().properties}
-            methods={t().methods}
-            callSignatures={t().callSignatures}
-            constructSignatures={t().constructSignatures}
-            indexSignature={t().indexSignature}
-          />
-        )}
-      </Show>
+      <Show when={record()}>{(t) => <Members members={t().members} />}</Show>
     </div>
   )
 }
@@ -100,27 +88,16 @@ export const DeclarationClass = (props: { decl: Reflect.Declaration<'class'> }) 
     <ExtendsLine label="extends" types={props.decl.extends} />
     <ExtendsLine label="implements" types={props.decl.implements} />
     <Comment comment={props.decl.comment} />
-    <Members
-      constructors={props.decl.constructors}
-      properties={props.decl.properties}
-      methods={props.decl.methods}
-      indexSignature={props.decl.indexSignature}
-    />
+    <Members members={props.decl.members} />
   </div>
 )
 
-/** Interface page body: heritage line, doc block, then properties / methods / signatures. */
+/** Interface page body: heritage line, doc block, then members in source order. */
 export const DeclarationInterface = (props: { decl: Reflect.Declaration<'interface'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
     <Comment comment={props.decl.comment} />
-    <Members
-      properties={props.decl.properties}
-      methods={props.decl.methods}
-      callSignatures={props.decl.callSignatures}
-      constructSignatures={props.decl.constructSignatures}
-      indexSignature={props.decl.indexSignature}
-    />
+    <Members members={props.decl.members} />
   </div>
 )
 
@@ -166,38 +143,24 @@ const IndexRow = (props: { sig: Reflect.Part<'index-signature'> }) => (
   </div>
 )
 
-/** Member listing shared by classes and interfaces. */
-const Members = (props: {
-  constructors?: Reflect.Part<'signature'>[]
-  properties?: Reflect.Part<'property'>[]
-  methods?: Reflect.Part<'method'>[]
-  callSignatures?: Reflect.Part<'signature'>[]
-  constructSignatures?: Reflect.Part<'signature'>[]
-  indexSignature?: Reflect.Part<'index-signature'>
-}) => (
-  <>
-    <MemberSection title="Constructors" when={props.constructors?.length}>
-      <For each={props.constructors}>
-        {(sig) => <Type.TypeSignature sig={sig} name="constructor" kind="constructor" />}
-      </For>
-    </MemberSection>
-    <MemberSection title="Properties" when={props.properties?.length || props.indexSignature}>
-      <For each={props.properties}>{(p) => <PropertyRow prop={p} />}</For>
-      <Show when={props.indexSignature}>{(sig) => <IndexRow sig={sig()} />}</Show>
-    </MemberSection>
-    <MemberSection title="Methods" when={props.methods?.length}>
-      <For each={props.methods}>
-        {(m) => <For each={m.signatures}>{(sig) => <Type.TypeSignature sig={sig} name={m.name} kind="method" />}</For>}
-      </For>
-    </MemberSection>
-    <MemberSection title="Call Signatures" when={props.callSignatures?.length}>
-      <For each={props.callSignatures}>{(sig) => <Type.TypeSignature sig={sig} />}</For>
-    </MemberSection>
-    <MemberSection title="Construct Signatures" when={props.constructSignatures?.length}>
-      <For each={props.constructSignatures}>{(sig) => <Type.TypeSignature sig={sig} kind="constructor" />}</For>
-    </MemberSection>
-  </>
+/** Member listing shared by classes, interfaces and object types, in source order. */
+const Members = (props: { members: Reflect.Member[] }) => (
+  <Show when={props.members.length}>
+    <section class="mt-8">
+      <For each={props.members}>{(m) => <MemberRow member={m} />}</For>
+    </section>
+  </Show>
 )
+
+/** Dispatch a single member to its row renderer. */
+const MemberRow = (props: { member: Reflect.Member }) => {
+  const m = props.member
+  if (m.kind === 'property') return <PropertyRow prop={m} />
+  if (m.kind === 'index-signature') return <IndexRow sig={m} />
+  if (m.kind === 'method')
+    return <For each={m.signatures}>{(sig) => <Type.TypeSignature sig={sig} name={m.name} kind="method" />}</For>
+  return <Type.TypeSignature sig={m} kind={m.construct ? 'constructor' : undefined} />
+}
 
 /** Enum page body: doc block plus the member table. */
 export const DeclarationEnum = (props: { decl: Reflect.Declaration<'enum'> }) => (

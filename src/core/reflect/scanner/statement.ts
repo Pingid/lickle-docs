@@ -89,23 +89,17 @@ export const FunctionDeclaration = function* (s: State, decl: ts.FunctionDeclara
 }
 
 export const ClassDeclaration = function* (s: State, node: ts.ClassDeclaration): Gen {
-  const constructors: T.Part<'signature'>[] = []
-  const properties: T.Part<'property'>[] = []
-  const methods: T.Part<'method'>[] = []
-  let indexSignature: T.Part<'index-signature'> | undefined
+  const members: T.Member[] = []
   for (const m of node.members) {
-    if (ts.isConstructorDeclaration(m)) constructors.push(Type.signature(s, m))
-    else if (ts.isPropertyDeclaration(m) && ts.isIdentifier(m.name)) properties.push(classProperty(s, m))
-    else if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name)) methods.push(classMethod(s, m))
-    else if (ts.isIndexSignatureDeclaration(m)) indexSignature = classIndexSignature(s, m)
+    if (ts.isConstructorDeclaration(m)) members.push({ ...Type.signature(s, m), construct: true })
+    else if (ts.isPropertyDeclaration(m) && ts.isIdentifier(m.name)) members.push(classProperty(s, m))
+    else if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name)) members.push(classMethod(s, m))
+    else if (ts.isIndexSignatureDeclaration(m)) members.push(classIndexSignature(s, m))
   }
   yield Make.statement(s, node, 'class', () => ({
     ...generics(s, node),
     ...heritage(s, node),
-    constructors,
-    properties,
-    methods,
-    ...(indexSignature ? { indexSignature } : {}),
+    members,
   }))
 }
 
@@ -113,7 +107,7 @@ export const InterfaceDeclaration = function* (s: State, node: ts.InterfaceDecla
   yield Make.statement(s, node, 'interface', () => ({
     ...generics(s, node),
     ...interfaceExtends(s, node),
-    ...Type.objectMembers(s, node.members),
+    members: Type.objectMembers(s, node.members),
   }))
 }
 

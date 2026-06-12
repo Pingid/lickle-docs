@@ -29,19 +29,12 @@ export interface DeclarationDefinitions {
     generics?: Part<'generic'>[]
     extends?: Type[]
     implements?: Type[]
-    constructors: Part<'signature'>[]
-    properties: Part<'property'>[]
-    methods: Part<'method'>[]
-    indexSignature?: Part<'index-signature'>
+    members: Member[]
   }
   interface: {
     generics?: Part<'generic'>[]
     extends?: Type[]
-    properties: Part<'property'>[]
-    methods: Part<'method'>[]
-    callSignatures?: Part<'signature'>[]
-    constructSignatures?: Part<'signature'>[]
-    indexSignature?: Part<'index-signature'>
+    members: Member[]
   }
   'type-alias': { generics?: Part<'generic'>[]; type: Type }
   export: { names: { name: string; ref: Id; type: boolean }[]; star: boolean }
@@ -79,13 +72,7 @@ export interface TypeDefinitions {
   'function-type': { signatures: Part<'signature'>[] }
   'type-operator': { operator: 'keyof' | 'readonly' | 'unique'; target: Type }
   /** Inline object type, e.g. `{ x: number; f(): void }`. */
-  record: {
-    properties: Part<'property'>[]
-    methods: Part<'method'>[]
-    callSignatures?: Part<'signature'>[]
-    constructSignatures?: Part<'signature'>[]
-    indexSignature?: Part<'index-signature'>
-  }
+  record: { members: Member[] }
   conditional: { check: Type; extends: Type; true: Type; false: Type }
   infer: { name: string; constraint?: Type }
   'indexed-access': { object: Type; index: Type }
@@ -104,7 +91,7 @@ export interface TypeDefinitions {
  * @internal
  */
 export interface TypeComponentDefinitions {
-  signature: { generics?: Part<'generic'>[]; params: Part<'parameter'>[]; return: Type }
+  signature: { generics?: Part<'generic'>[]; params: Part<'parameter'>[]; return: Type; construct?: boolean }
   parameter: { name: string; type: Type; rest?: boolean; default?: string; optional: boolean }
   generic: { name: string; constraint?: Type; default?: Type }
   property: { name: string; type: Type; defaultValue?: string; optional?: boolean }
@@ -145,6 +132,8 @@ export type Declaration<K extends keyof DeclarationMap = keyof DeclarationMap> =
 export type Type<K extends keyof TypeMap = keyof TypeMap> = TypeMap[K]
 /** A named piece inside a declaration or type — signature, parameter, property, method, …. Narrow with the type argument: `Part<'property'>`. */
 export type Part<K extends keyof PartMap = keyof PartMap> = PartMap[K]
+/** A member of a class, interface or inline object type. */
+export type Member = Part<'property' | 'method' | 'signature' | 'index-signature'>
 /** Any scanned node: {@link Declaration}, {@link Type} or {@link Part}. */
 export type Any<K extends keyof KindsMap = keyof KindsMap> = KindsMap[K]
 

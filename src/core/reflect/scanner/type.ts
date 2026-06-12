@@ -75,7 +75,7 @@ export const FunctionType = (s: State, node: ts.FunctionTypeNode | ts.Constructo
   Make.type(s, node, 'function-type', { signatures: [signature(s, node)] })
 
 export const Record = (s: State, node: ts.TypeLiteralNode): T.Type<'record'> =>
-  Make.type(s, node, 'record', objectMembers(s, node.members))
+  Make.type(s, node, 'record', { members: objectMembers(s, node.members) })
 
 export const Conditional = (s: State, node: ts.ConditionalTypeNode): T.Type<'conditional'> =>
   Make.type(s, node, 'conditional', {
@@ -176,26 +176,16 @@ export const inferReturn = (s: State, node: ts.SignatureDeclarationBase): T.Type
   return sig ? fromType(s, node, sig.getReturnType(), new Set()) : Intrinsic(s, node, 'unknown')
 }
 
-export const objectMembers = (s: State, members: ts.NodeArray<ts.TypeElement>) => {
-  const properties: T.Part<'property'>[] = []
-  const methods: T.Part<'method'>[] = []
-  const callSignatures: T.Part<'signature'>[] = []
-  const constructSignatures: T.Part<'signature'>[] = []
-  let indexSignature: T.Part<'index-signature'> | undefined
+export const objectMembers = (s: State, members: ts.NodeArray<ts.TypeElement>): T.Member[] => {
+  const out: T.Member[] = []
   for (const m of members) {
-    if (ts.isPropertySignature(m) && ts.isIdentifier(m.name)) properties.push(property(s, m))
-    else if (ts.isMethodSignature(m) && ts.isIdentifier(m.name)) methods.push(method(s, m))
-    else if (ts.isCallSignatureDeclaration(m)) callSignatures.push(signature(s, m))
-    else if (ts.isConstructSignatureDeclaration(m)) constructSignatures.push(signature(s, m))
-    else if (ts.isIndexSignatureDeclaration(m)) indexSignature = indexSignatureDecl(s, m)
+    if (ts.isPropertySignature(m) && ts.isIdentifier(m.name)) out.push(property(s, m))
+    else if (ts.isMethodSignature(m) && ts.isIdentifier(m.name)) out.push(method(s, m))
+    else if (ts.isCallSignatureDeclaration(m)) out.push(signature(s, m))
+    else if (ts.isConstructSignatureDeclaration(m)) out.push({ ...signature(s, m), construct: true })
+    else if (ts.isIndexSignatureDeclaration(m)) out.push(indexSignatureDecl(s, m))
   }
-  return {
-    properties,
-    methods,
-    ...(callSignatures.length ? { callSignatures } : {}),
-    ...(constructSignatures.length ? { constructSignatures } : {}),
-    ...(indexSignature ? { indexSignature } : {}),
-  }
+  return out
 }
 
 const reference = (s: State, node: ts.Node, typeArguments?: ts.NodeArray<ts.TypeNode>): T.Type<'reference'> => {
@@ -257,7 +247,7 @@ const objectType = (s: State, ctx: ts.Node, type: ts.Type, seen: Set<ts.Type>): 
   const props = type.getProperties()
   if (!props.length || seen.has(type)) return undefined
   seen.add(type)
-  return inode(s, 'record', { properties: props.map((p) => inferProp(s, ctx, p, seen)), methods: [] })
+  return inode(s, 'record', { members: props.map((p) => inferProp(s, ctx, p, seen)) })
 }
 
 const inferProp = (s: State, ctx: ts.Node, sym: ts.Symbol, seen: Set<ts.Type>): T.Part<'property'> => {

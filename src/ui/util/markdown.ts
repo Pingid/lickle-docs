@@ -111,39 +111,15 @@ const enumValue = (m: Reflect.Part<'enum-member'>): string =>
 const heritage = (label: string, types?: Reflect.Type[]): string =>
   types?.length ? `*${label}* ${types.map(typeStr).join(', ')}\n\n` : ''
 
-/** Shared class/interface member sections, each a `###` subsection of `- ` rows. */
-const members = (
-  m: {
-    constructors?: Reflect.Part<'signature'>[]
-    properties?: Reflect.Part<'property'>[]
-    methods?: Reflect.Part<'method'>[]
-    callSignatures?: Reflect.Part<'signature'>[]
-    constructSignatures?: Reflect.Part<'signature'>[]
-    indexSignature?: Reflect.Part<'index-signature'>
-  },
-  s: SlugOf,
-): string => {
-  let out = ''
-  if (m.constructors?.length)
-    out += subsection('Constructors', m.constructors.map((sig) => sigItem(sig, s, 'constructor')).join(''))
-  if (m.properties?.length || m.indexSignature) {
-    const props = (m.properties ?? []).map((p) => propItem(p, s)).join('')
-    const idx = m.indexSignature ? `- \`${indexSig(m.indexSignature)}\`\n` : ''
-    out += subsection('Properties', props + idx)
-  }
-  if (m.methods?.length)
-    out += subsection(
-      'Methods',
-      m.methods.flatMap((mm) => mm.signatures.map((sig) => sigItem(sig, s, undefined, mm.name))).join(''),
-    )
-  if (m.callSignatures?.length)
-    out += subsection('Call Signatures', m.callSignatures.map((sig) => sigItem(sig, s)).join(''))
-  if (m.constructSignatures?.length)
-    out += subsection(
-      'Construct Signatures',
-      m.constructSignatures.map((sig) => sigItem(sig, s, 'constructor')).join(''),
-    )
-  return out
+/** Shared class/interface/record member listing — one flat `### Members` subsection of `- ` rows in source order. */
+const members = (m: { members?: Reflect.Member[] }, s: SlugOf): string =>
+  subsection('Members', (m.members ?? []).map((member) => memberItem(member, s)).join(''))
+
+const memberItem = (m: Reflect.Member, s: SlugOf): string => {
+  if (m.kind === 'property') return propItem(m, s)
+  if (m.kind === 'index-signature') return `- \`${indexSig(m)}\`\n`
+  if (m.kind === 'method') return m.signatures.map((sig) => sigItem(sig, s, undefined, m.name)).join('')
+  return sigItem(m, s, m.construct ? 'constructor' : undefined)
 }
 
 const propItem = (p: Reflect.Part<'property'>, s: SlugOf): string =>
@@ -272,20 +248,14 @@ const TYPE: { [K in T['kind']]?: (t: Reflect.Type<K>) => string } = {
 }
 
 const recordStr = (t: Reflect.Type<'record'>): string => {
-  const onlySig =
-    t.callSignatures?.length === 1 &&
-    !t.properties.length &&
-    !t.methods?.length &&
-    !t.indexSignature &&
-    !t.constructSignatures?.length
-  if (onlySig) return sigExpr(t.callSignatures![0]!, true)
-  const items = [
-    ...t.properties.map((p) => `${p.name}${p.optional ? '?' : ''}: ${typeStr(p.type)}`),
-    ...(t.methods ?? []).flatMap((m) => m.signatures.map((sig) => `${m.name}${sigExpr(sig)}`)),
-    ...(t.indexSignature ? [indexSig(t.indexSignature)] : []),
-    ...(t.callSignatures ?? []).map((sig) => sigExpr(sig)),
-    ...(t.constructSignatures ?? []).map((sig) => `new ${sigExpr(sig)}`),
-  ]
+  const onlySig = t.members.length === 1 && t.members[0]!.kind === 'signature' && !t.members[0]!.construct
+  if (onlySig) return sigExpr(t.members[0]! as Reflect.Part<'signature'>, true)
+  const items = t.members.flatMap((m) => {
+    if (m.kind === 'property') return [`${m.name}${m.optional ? '?' : ''}: ${typeStr(m.type)}`]
+    if (m.kind === 'method') return m.signatures.map((sig) => `${m.name}${sigExpr(sig)}`)
+    if (m.kind === 'index-signature') return [indexSig(m)]
+    return [`${m.construct ? 'new ' : ''}${sigExpr(m)}`]
+  })
   return items.length ? `{ ${items.join('; ')} }` : '{}'
 }
 

@@ -48,7 +48,8 @@ test('scans type predicates and the this type', () => {
   expect(pred.kind).toBe('predicate')
   expect(pred.parameter).toBe('x')
 
-  const self = byName<'class'>(idx, 'B').methods[0]!.signatures[0]!.return as T.Type<'intrinsic'>
+  const method = byName<'class'>(idx, 'B').members.find((m) => m.kind === 'method') as T.Part<'method'>
+  const self = method.signatures[0]!.return as T.Type<'intrinsic'>
   expect(self.kind).toBe('intrinsic')
   expect(self.name).toBe('this')
 })

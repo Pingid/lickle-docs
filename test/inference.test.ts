@@ -32,8 +32,9 @@ test('infers arrays, unions, and nested object literals', () => {
 
   const obj = typeOf(idx, 'obj') as T.Type<'record'>
   expect(obj.kind).toBe('record')
-  expect(obj.properties.map((p) => p.name)).toEqual(['x', 'nested'])
-  const nested = obj.properties.find((p) => p.name === 'nested')!.type as T.Type<'record'>
+  const props = obj.members.filter((m) => m.kind === 'property') as T.Part<'property'>[]
+  expect(props.map((p) => p.name)).toEqual(['x', 'nested'])
+  const nested = props.find((p) => p.name === 'nested')!.type as T.Type<'record'>
   expect(nested.kind).toBe('record')
 })
 

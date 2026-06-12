@@ -82,28 +82,27 @@ const Reference = (props: { type: Reflect.Type<'reference'> }) => {
 
 const Record = (props: { type: Reflect.Type<'record'> }) => {
   const decl = props.type
-  const onlySignatures =
-    decl.callSignatures?.length === 1 &&
-    !decl.properties.length &&
-    !decl.methods?.length &&
-    !decl.indexSignature &&
-    !decl.constructSignatures?.length
-  if (onlySignatures) return <SignatureExpr sig={decl.callSignatures![0]!} arrow />
+  const onlySignature = decl.members.length === 1 && decl.members[0]!.kind === 'signature' && !decl.members[0]!.construct
+  if (onlySignature) return <SignatureExpr sig={decl.members[0]! as Reflect.Part<'signature'>} arrow />
 
-  // Every member kind, flattened to renderers so a single `<For>` lays them
-  // out with consistent `; ` separators.
-  const members = (): (() => any)[] => [
-    ...decl.properties.map((p) => () => <RecordProperty prop={p} />),
-    ...(decl.methods ?? []).flatMap((m) => m.signatures.map((sig) => () => <RecordMethod name={m.name} sig={sig} />)),
-    ...(decl.indexSignature ? [() => <RecordIndex sig={decl.indexSignature!} />] : []),
-    ...(decl.callSignatures ?? []).map((sig) => () => <SignatureExpr sig={sig} />),
-    ...(decl.constructSignatures ?? []).map((sig) => () => (
-      <>
-        <Syntax.Kw>new </Syntax.Kw>
-        <SignatureExpr sig={sig} />
-      </>
-    )),
-  ]
+  // Members in source order, flattened to renderers so a single `<For>` lays
+  // them out with consistent `; ` separators.
+  const members = (): (() => any)[] =>
+    decl.members.flatMap((m) => {
+      if (m.kind === 'property') return [() => <RecordProperty prop={m} />]
+      if (m.kind === 'method') return m.signatures.map((sig) => () => <RecordMethod name={m.name} sig={sig} />)
+      if (m.kind === 'index-signature') return [() => <RecordIndex sig={m} />]
+      if (m.construct)
+        return [
+          () => (
+            <>
+              <Syntax.Kw>new </Syntax.Kw>
+              <SignatureExpr sig={m} />
+            </>
+          ),
+        ]
+      return [() => <SignatureExpr sig={m} />]
+    })
 
   return (
     <Show when={members().length} fallback={<Syntax.Punct>{'{}'}</Syntax.Punct>}>
