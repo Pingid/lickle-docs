@@ -25,9 +25,9 @@
  * ```
  */
 import { compose } from '../provider/core.ts'
-import { type DeclarationFacade } from '../provider/facade.ts'
+import { type DeclarationFacade, type DeclarationFacadeMap } from '../provider/facade.ts'
 import { kindOrder, pluralLabel } from '../naming.ts'
-import type { Adapter } from '../provider/core.ts'
+import type { Adapter, Hook } from '../provider/core.ts'
 import { Reflect } from '../../../core/index.ts'
 
 export type { DeclarationFacade, ModuleFacade } from '../provider/facade.ts'
@@ -59,12 +59,12 @@ export const groupBy = (
   ) => { name: string; order?: number } | undefined,
 ) =>
   compose({
-    links: (value, d) => value.map((l) => ({ ...l, group: cb(d.get(l.target)!, l.group) })),
-    sidebar: (value, d) => {
+    links: (d, value) => value.map((l) => ({ ...l, group: cb(d.get(l.target)!, l.group) })),
+    sidebar: (d, value) => {
       if (!value?.children) return value
       return { ...value, children: value.children.map((l) => ({ ...l, group: cb(d.get(l.target)!, l.group) })) }
     },
-    referenced: (value, d) => value.map((r) => ({ ...r, group: cb(d.get(r.target)!, r.group) })),
+    referenced: (d, value) => value.map((r) => ({ ...r, group: cb(d.get(r.target)!, r.group) })),
   })
 
 /**
@@ -115,7 +115,7 @@ export const groupByTag = (tag: `@${string}`) =>
  * ```
  */
 export const section = (title: string, names: string[], opts?: { order?: number }): Adapter => ({
-  sidebar: (value, d) => {
+  sidebar: (d, value) => {
     const index = names.indexOf(d.name)
     if (index < 0) return value
     return { ...(value ?? {}), root: index, group: { name: title, order: opts?.order ?? -1 } }
@@ -132,7 +132,7 @@ export const section = (title: string, names: string[], opts?: { order?: number 
  * ```
  */
 export const filter = (cb: (d: DeclarationFacade) => boolean): Adapter => ({
-  route: (v, d) => (cb(d) ? v : undefined),
+  route: (d, v) => (cb(d) ? v : undefined),
 })
 
 /**
@@ -145,7 +145,7 @@ export const filter = (cb: (d: DeclarationFacade) => boolean): Adapter => ({
  * ```
  */
 export const mapComment = (cb: (d: Reflect.Comment) => Reflect.Comment): Adapter => ({
-  declaration: (v, d) => {
+  declaration: (d, v) => {
     if (d.raw.comment) d.raw.comment = cb(d.raw.comment)
     return v
   },
@@ -170,5 +170,16 @@ export const sortByHash = (text: string) => {
 }
 sortByHash.MAX = 2_147_483_647
 
-export const match = <K extends string, T extends { kind: string }>(kind: K, x?: T): x is Extract<T, { kind: K }> =>
+export const is = <K extends string, T extends { kind: string }>(kind: K, x?: T): x is Extract<T, { kind: K }> =>
   x?.kind === kind
+
+export const m = <T>(m: {
+  [K in keyof DeclarationFacadeMap]?: (d: DeclarationFacadeMap[K], v: T) => T
+}): Hook<T> => {
+  return (d, v) => {
+    const kind = d.kind
+    const matcher = m[kind]
+    if (matcher) return matcher(d as any, v)
+    return v
+  }
+}

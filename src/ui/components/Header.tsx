@@ -4,7 +4,7 @@ import cn from '@lickle/cn'
 import {
   type Reflect,
   useDocVersions,
-  useDocActiveVersion,
+  useDocVersionsCurrent,
   createSlot,
   useLoadVersion,
   useDocs,
@@ -76,7 +76,7 @@ export const Header = createSlot('header', (props) => {
 /** Current version label, upgraded to a switcher when more than one version exists. */
 const VersionSelect = () => {
   const versions = useDocVersions()
-  const active = useDocActiveVersion()
+  const active = useDocVersionsCurrent()
   const load = useLoadVersion()
   const nav = useNavigate()
 

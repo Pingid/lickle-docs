@@ -41,13 +41,15 @@ export {
   ThemeProvider,
   ComponentsProvider,
   DocsProvider,
+  useDocs,
   useDocVersions,
+  useDocVersionsCurrent,
   defineComponents,
   LanguagesProvider,
   loadHighlighter,
   type Reflect,
 } from './context/index.tsx'
-export { BASE_URL, withBaseUrl as withBase } from './util/base.ts'
+export { useCodeHighlight, useSearch, useCommentMarkdown, useRoute, useProject, useDeclaration } from './hooks/index.ts'
+export { withBaseUrl } from './util/base.ts'
 export * from './components/index.ts'
-export * from './hooks/index.ts'
 export * from './App.tsx'

@@ -9,7 +9,7 @@ import type { DocRoute, Sidebar, DocLink } from '../types.ts'
  * produced, the declaration it belongs to and the shared {@link RouteContext};
  * returns the value to use instead.
  */
-export type Hook<V> = (value: V, declarationFacade: DeclarationFacade) => V
+export type Hook<V> = (d: DeclarationFacade, v: V) => V
 
 /**
  * A record of hooks refining route generation, one per facet. Every hook is
@@ -89,7 +89,7 @@ const mergeHook = <V>(a?: Hook<V>, b?: Hook<V>): Hook<V> | undefined => {
   if (!a && !b) return undefined
   if (!a) return b
   if (!b) return a
-  return (curr, id) => b(a(curr, id), id)
+  return (curr, id) => b(curr, a(curr, id))
 }
 
 /**
@@ -105,9 +105,9 @@ export const provideAdapter = (base: Provider, adapter?: Adapter): Provider => {
   ) as Provider
 }
 
-const applyHook = <V>(hook: Hook<V> | undefined, def: (id: DeclarationFacade) => V): ((id: DeclarationFacade) => V) => {
+const applyHook = <V>(hook: Hook<V> | undefined, def: (d: DeclarationFacade) => V): ((d: DeclarationFacade) => V) => {
   if (!hook) return def
-  return (id) => hook(def(id), id)
+  return (d) => hook(d, def(d))
 }
 
 /**

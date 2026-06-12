@@ -87,7 +87,7 @@ export const useDocVersions = (): Accessor<Reflect.DocsVersion[]> => useDocs().v
  * The version owning the current location.
  * @group hooks
  * */
-export const useDocActiveVersion = (): Accessor<Reflect.DocsVersion | undefined> => {
+export const useDocVersionsCurrent = (): Accessor<Reflect.DocsVersion | undefined> => {
   const docs = useDocs()
   const loc = useLocation()
   return createMemo(() => docs.active(loc.pathname))

@@ -13,12 +13,12 @@ export default defineConfig({
     Adapter.filter((d) => !d.tags.has('@internal')),
     Adapter.groupBy((d, v) => {
       if (d.kind === 'interface' || d.kind === 'type-alias') return { name: 'types', order: v?.order }
-      if (Adapter.match('function', d) && Adapter.match('reference', d.raw.signatures?.[0]?.return)) {
+      if (Adapter.is('function', d) && Adapter.is('reference', d.raw.signatures?.[0]?.return)) {
         const sig = d.raw.signatures?.[0]?.return
         if (sig.name === 'Element') return { name: 'components', order: v?.order }
       }
-      if (Adapter.match('variable', d) && Adapter.match('reference', d.raw.type)) {
-        if (d.raw.type.name === 'Component') return { name: 'components', order: v?.order }
+      if (Adapter.is('variable', d) && Adapter.is('reference', d.raw.type)) {
+        if (d.raw.type?.name === 'Component') return { name: 'components', order: v?.order }
       }
       return v
     }),

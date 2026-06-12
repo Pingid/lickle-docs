@@ -29,7 +29,7 @@ const ExtendsLine = (props: { label: string; types?: Reflect.Type[] }) => (
 )
 
 /** Function page body: one signature line + doc block per overload. */
-export const DeclarationFunction = (props: { decl: Reflect.Declaration<'function'> }) => (
+const DeclarationFunction = (props: { decl: Reflect.Declaration<'function'> }) => (
   <div class="mt-2">
     <For each={props.decl.signatures}>
       {(sig) => <Type.SignatureLine sig={sig} name={props.decl.name} id={props.decl.id} kind="function" />}
@@ -39,7 +39,7 @@ export const DeclarationFunction = (props: { decl: Reflect.Declaration<'function
 )
 
 /** Variable page body: `const name: type = default` plus the doc block. */
-export const DeclarationVariable = (props: { decl: Reflect.Declaration<'variable'> }) => (
+const DeclarationVariable = (props: { decl: Reflect.Declaration<'variable'> }) => (
   <div>
     <div class="font-mono text-sm leading-relaxed">
       <Syntax.Kw>const </Syntax.Kw>
@@ -59,7 +59,7 @@ export const DeclarationVariable = (props: { decl: Reflect.Declaration<'variable
  * an object type with members renders like an interface — member sections
  * with their doc comments — instead of one flattened inline line.
  */
-export const DeclarationTypeAlias = (props: { decl: Reflect.Declaration<'type-alias'> }) => {
+const DeclarationTypeAlias = (props: { decl: Reflect.Declaration<'type-alias'> }) => {
   const record = () => {
     const t = props.decl.type
     if (t?.kind !== 'record' || !t.members.length) return undefined
@@ -83,7 +83,7 @@ export const DeclarationTypeAlias = (props: { decl: Reflect.Declaration<'type-al
 }
 
 /** Class page body: heritage lines, doc block, then constructors / properties / methods. */
-export const DeclarationClass = (props: { decl: Reflect.Declaration<'class'> }) => (
+const DeclarationClass = (props: { decl: Reflect.Declaration<'class'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
     <ExtendsLine label="implements" types={props.decl.implements} />
@@ -93,7 +93,7 @@ export const DeclarationClass = (props: { decl: Reflect.Declaration<'class'> }) 
 )
 
 /** Interface page body: heritage line, doc block, then members in source order. */
-export const DeclarationInterface = (props: { decl: Reflect.Declaration<'interface'> }) => (
+const DeclarationInterface = (props: { decl: Reflect.Declaration<'interface'> }) => (
   <div>
     <ExtendsLine label="extends" types={props.decl.extends} />
     <Comment comment={props.decl.comment} />
@@ -112,7 +112,7 @@ const MemberSection = (props: { title: string; when: unknown; children: any }) =
 )
 
 /** Enum page body: doc block plus the member table. */
-export const DeclarationEnum = (props: { decl: Reflect.Declaration<'enum'> }) => (
+const DeclarationEnum = (props: { decl: Reflect.Declaration<'enum'> }) => (
   <div>
     <Comment comment={props.decl.comment} />
     <MemberSection title="Members" when={props.decl.members?.length}>
@@ -138,12 +138,10 @@ const EnumMemberRow = (props: { member: Reflect.Part<'enum-member'> }) => (
 )
 
 /** Module page body: the module banner comment. Member listings come from the route's links, rendered by `Page`. */
-export const DeclarationModule = (props: { decl: Reflect.Declaration<'module'> }) => (
-  <Comment comment={props.decl.comment} />
-)
+const DeclarationModule = (props: { decl: Reflect.Declaration<'module'> }) => <Comment comment={props.decl.comment} />
 
 /** Namespace page body: the namespace comment. Member listings come from the route's links, rendered by `Page`. */
-export const DeclarationNamespace = (props: { decl: Reflect.Declaration<'namespace'> }) => (
+const DeclarationNamespace = (props: { decl: Reflect.Declaration<'namespace'> }) => (
   <Comment comment={props.decl.comment} />
 )
 
