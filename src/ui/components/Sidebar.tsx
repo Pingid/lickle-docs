@@ -137,7 +137,7 @@ const NavNode = (props: NodeProps) => {
   )
 }
 
-const NodeLink = (props: { route: DocRouter.Route; active: boolean; onNavigate?: () => void; class?: string }) => (
+const NodeLink = (props: { route: Reflect.SidebarRoute; active: boolean; onNavigate?: () => void; class?: string }) => (
   <A
     href={props.route.slug}
     class={cn('flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 min-w-0', props.class)}
@@ -145,7 +145,7 @@ const NodeLink = (props: { route: DocRouter.Route; active: boolean; onNavigate?:
     onClick={() => props.onNavigate?.()}
   >
     <KindCue route={props.route} />
-    <span class="font-mono truncate">{props.route.title}</span>
+    <span class="font-mono truncate">{props.route.alias ?? props.route.title}</span>
   </A>
 )
 

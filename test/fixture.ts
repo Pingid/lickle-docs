@@ -52,7 +52,7 @@ export const multiScanFixture = (
       },
       errors: [],
     }
-    const scanned = reflect.scan({ cmd, dir, srcDir: dir, include: (sf) => fileNames.includes(sf.fileName) })
+    const scanned = reflect.scanSync({ cmd, dir, srcDir: dir, include: (sf) => fileNames.includes(sf.fileName) })
     return reflect.index(
       reflect.resolve(scanned),
       entries.map((e) => ({ as: e.as, path: path.join(dir, e.file) })),
@@ -129,6 +129,10 @@ const childrenOf = (router: ClientRouter, id: number): GroupedItems<SidebarRoute
 /** Member titles under a declaration id, flattened across groups in resolved order. */
 export const memberTitles = (router: ClientRouter, id: number): string[] =>
   childrenOf(router, id).flatMap((g) => g.items.map((r) => r.title))
+
+/** Branch-contextual sidebar aliases under a declaration id, flattened in resolved order. */
+export const memberAliases = (router: ClientRouter, id: number): string[] =>
+  childrenOf(router, id).flatMap((g) => g.items.map((r) => r.alias ?? r.title))
 
 /** Group names (in resolved order) of a declaration's members. */
 export const memberGroups = (router: ClientRouter, id: number): string[] => childrenOf(router, id).map((g) => g.group)

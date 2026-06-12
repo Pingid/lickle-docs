@@ -57,7 +57,8 @@ const createSearchEngine = async (
       const decl = byId(route.decl)
       const kind = decl?.kind ?? 'module'
 
-      // Owning module from the slug hierarchy — slugs encode the canonical chain.
+      // Owning module from the slug hierarchy. Multi-exposed declarations
+      // have bare slugs, so the lookup misses and they index without a module.
       const parentSlug = route.slug.split('/').slice(0, -1).join('/')
       const parent = parentSlug ? router.get({ slug: parentSlug }) : undefined
 

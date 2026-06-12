@@ -71,7 +71,7 @@ const childrenMd = (route: DocRouter.DocRoute, ctx: Ctx, depth: number): string 
       for (const item of g.items) {
         const child = ctx.router.get({ id: item.target })
         const d = child?.kind === 'doc' ? ctx.project.byId(child.decl) : undefined
-        out += `- \`${child?.title ?? item.alias}\`${inlineComment(d?.comment, ctx.slugOf)}\n`
+        out += `- \`${item.alias}\`${inlineComment(d?.comment, ctx.slugOf)}\n`
       }
     }
   }

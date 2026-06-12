@@ -62,8 +62,14 @@ export type RoutePrefix = { doc?: string; page?: string }
 /** A list of items sharing a group name, emitted in resolved group order. */
 export type GroupedItems<T> = { group: string; items: T[] }
 
-/** A route in the sidebar tree, carrying its grouped children. */
-export type SidebarRoute = Route & { children: GroupedItems<SidebarRoute>[] }
+/**
+ * A route in the sidebar tree, carrying its grouped children and the
+ * branch-contextual display name of this occurrence — the same route may
+ * appear under several parents, qualified differently in each
+ * (`Types.UserConfig` under one branch, `UserConfig` under another). Root
+ * rows have no `alias` and display the route title.
+ */
+export type SidebarRoute = Route & { children: GroupedItems<SidebarRoute>[]; alias?: string }
 
 /** The resolved route table the UI navigates with. Build one with {@link createRouter}. */
 export interface ClientRouter {

@@ -4,8 +4,7 @@ import type { ScanState } from './state.ts'
 import * as T from './types.ts'
 
 export const resolve = (s: ScanState) => {
-  const idByDecl = new Map<ts.Node, T.Id>()
-  for (const [id, sym] of s.symbolsById) sym.declarations?.forEach((d) => idByDecl.set(d, id))
+  const idByDecl = s.idByNode
 
   for (const ref of s.references) {
     const sym = s.referenceSymbols.get(ref.id) ?? symbolAt(s.checker, s.referenceOrigins.get(ref.id))
@@ -26,7 +25,11 @@ export const resolve = (s: ScanState) => {
     return file ? idByDecl.get(file) : undefined
   }
 
-  for (const c1 of s.exports) resolveExport(s, c1, idByDecl, moduleIdForSpecifier)
+  for (const c1 of s.exports) {
+    const exp = s.declarations.get(c1)
+    if (!exp || exp.kind !== 'export') continue
+    resolveExport(s, exp, idByDecl, moduleIdForSpecifier)
+  }
 
   return s
 }

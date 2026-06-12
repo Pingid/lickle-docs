@@ -146,7 +146,7 @@ const LinkRow = (props: { link: DocRouter.DocLink }) => {
           <div class="flex items-baseline gap-2.5 min-w-0">
             <Type.KindBadge kind={r().decl.kind} class="w-3.5 shrink-0" />
             <A href={r().route.slug} class="font-mono font-semibold text-sm hover:opacity-70">
-              {r().route.title}
+              {props.link.alias}
             </A>
             <Show when={r().decl}>{(d) => <Signature decl={d()} />}</Show>
           </div>

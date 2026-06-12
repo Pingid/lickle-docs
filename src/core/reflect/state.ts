@@ -18,8 +18,11 @@ export interface ScanState extends ScanOptions {
   checker: ts.TypeChecker
   compilerOptions: ts.CompilerOptions
 
+  /** Source files to scan. */
+  files: ts.SourceFile[]
+
   /** Declarations found in the source files. */
-  declarations: T.Declaration[]
+  declarations: Map<T.Id, T.Declaration>
 
   /** Monotonic id source. Every node that needs identity calls this. */
   nextId: () => T.Id
@@ -32,7 +35,7 @@ export interface ScanState extends ScanOptions {
   /** References to other declarations. resolved later. */
   references: T.Type<'reference'>[]
   /** Export declarations, which are populated later. */
-  exports: T.Declaration<'export'>[]
+  exports: Set<T.Id>
 
   /** Symbols by id. Used to resolve references. */
   symbolsById: Map<T.Id, ts.Symbol>
@@ -40,6 +43,8 @@ export interface ScanState extends ScanOptions {
   referenceOrigins: Map<T.Id, ts.Node>
   /** Symbol for inferred references, which have no syntactic origin to re-resolve. */
   referenceSymbols: Map<T.Id, ts.Symbol>
+  /** Node to id mapping. Used to resolve references. */
+  idByNode: Map<ts.Node, T.Id>
 
   // ---- deferred export population ----
   /** exports id -> which population strategy resolve should use. */
@@ -61,16 +66,28 @@ export interface ScanState extends ScanOptions {
   langs: Set<string>
 }
 
-export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): ScanState => {
+export const makeScanState = (options: ScanOptions): ScanState => {
   const relPath = new WeakMap<ts.SourceFile, string>()
   let id = 0
   const getPath = (sf: ts.SourceFile) => relPath.get(sf) ?? path.relative(options.srcDir, sf.fileName)
+
+  const program = ts.createProgram(options.cmd.fileNames, options.cmd.options)
+  const checker = program.getTypeChecker()
+
+  const files = new Array<ts.SourceFile>()
+  for (const file of program.getSourceFiles()) {
+    if (!options.include(file)) continue
+    const sf = program.getSourceFile(file.fileName)
+    if (!sf) continue
+    files.push(sf)
+  }
 
   return {
     ...options,
     include: (sf: ts.SourceFile) => {
       return options.include(sf)
     },
+    files,
     compilerOptions: options.cmd.options,
     root: t.brand<T.Id>(0),
     parent: t.brand<T.Id>(0),
@@ -79,11 +96,12 @@ export const makeScanState = (checker: ts.TypeChecker, options: ScanOptions): Sc
     nextId: () => t.brand<T.Id>(++id),
     getPath,
     references: [],
-    exports: [],
-    declarations: [],
+    exports: new Set(),
+    declarations: new Map(),
     symbolsById: new Map(),
     referenceOrigins: new Map(),
     referenceSymbols: new Map(),
+    idByNode: new Map(),
     exportsForm: new Map(),
     exportsSpec: new Map(),
     exportsEntries: new Map(),

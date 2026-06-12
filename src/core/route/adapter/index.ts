@@ -3,15 +3,16 @@
  *
  * Route generation walks every documented declaration through a provider; an
  * `Adapter` is a record of hooks that refine the provider's output — each
- * hook receives the default value (placement, title, slug, member links)
+ * hook receives the default value (title, slug, sidebar edges, member links)
  * together with the declaration and returns a replacement. Pass an adapter
  * as the `provider` field of the config; combine several with `compose`.
  *
- * Two families of combinators cover the common cases. `groupBy` regroups
- * the sidebar and member listings (`groupByKind` is the stock grouping).
- * `placeIn` and `place` choose which module owns the page of a declaration
- * that is re-exported in several places — both built on the `exposure` hook,
- * which relocates slug, title and sidebar placement together.
+ * The defaults mirror the export graph: a declaration appears under every
+ * module that exposes it; its page nests under a sole direct exposer and
+ * flattens to the bare name when several modules expose it directly.
+ * Combinators cover the common refinements — `groupBy`/`groupByKind`/
+ * `groupByTag` regroup the listings, `section` curates a top-level sidebar
+ * group, `filter` hides declarations, `mapComment` rewrites doc comments.
  *
  * @example Group members by source directory instead of kind
  * ```ts
@@ -19,16 +20,11 @@
  *
  * export default defineConfig({
  *   name: 'My Library',
- *   provider: Adapter.groupBy((d) => ({ name: d.sources[0]?.file.split('/')[0] ?? '' })),
+ *   provider: Adapter.groupBy((d) => ({ name: d.raw.sources[0]?.file.split('/')[0] ?? '' })),
  * })
  * ```
- *
- * @example Let the `core` entrypoint own everything it re-exports
- * ```ts
- * provider: Adapter.compose(Adapter.placeIn('./core'), Adapter.groupByKind)
- * ```
  */
-import { compose, type ExposurePath } from '../provider/core.ts'
+import { compose } from '../provider/core.ts'
 import { type DeclarationFacade } from '../provider/facade.ts'
 import { kindOrder, pluralLabel } from '../naming.ts'
 import type { Adapter } from '../provider/core.ts'
@@ -103,56 +99,6 @@ export const groupByTag = (tag: `@${string}`) =>
   })
 
 /**
- * Prefer the entrypoint `entry` as home: whenever a declaration is
- * re-exported by several entrypoints, the shortest chain through `entry`
- * becomes canonical — its page, title and sidebar entry move there, and the
- * other exposers link to it. Declarations `entry` does not expose keep their
- * default placement.
- *
- * @param entry The entrypoint label from the config, e.g. `./config` (a
- * leading `./` is optional).
- *
- * @example Shared types live under the main module
- * ```ts
- * import { defineConfig, Adapter } from '@lickle/docs/config'
- *
- * export default defineConfig({ name: 'My Library', provider: Adapter.placeIn('.') })
- * ```
- */
-export const placeIn = (entry: string): Adapter => ({
-  exposure: (path, d) => {
-    const through = d.exposure.ancestors().filter((p) => sameEntry(p[0]?.entry()?.as, entry))
-    return through.sort((a, b) => a.length - b.length)[0] ?? path
-  },
-})
-
-/**
- * Pin declarations to a home by name. Keys are declaration names; values
- * name the owning module as the entrypoint label optionally followed by
- * re-export aliases, slash-separated. Declarations whose name is absent —
- * or that the named module does not expose — keep their default placement.
- *
- * @param homes Map of declaration name to owning module.
- *
- * @example
- * ```ts
- * import { defineConfig, Adapter } from '@lickle/docs/config'
- *
- * export default defineConfig({
- *   name: 'My Library',
- *   provider: Adapter.place({ UserConfig: 'config', Route: 'config/Adapter' }),
- * })
- * ```
- */
-export const place = (homes: Record<string, string>): Adapter => ({
-  exposure: (path, d) => {
-    const home = homes[d.name]
-    if (home === undefined) return path
-    return d.exposure.ancestors().find((p) => pathLabel(p) === normalize(home)) ?? path
-  },
-})
-
-/**
  * Add a curated top-level sidebar section. Declarations whose name is listed
  * become roots grouped under `title` — *in addition to* their normal place
  * in the tree, so the same page is reachable from both. Names resolve by
@@ -204,17 +150,6 @@ export const mapComment = (cb: (d: Reflect.Comment) => Reflect.Comment): Adapter
     return v
   },
 })
-
-/**
- * The module chain of an exposure path as a slash-joined label: the
- * entrypoint label plus the alias of every intermediate module. The last
- * hop names the declaration itself, so it is excluded.
- */
-const pathLabel = (p: ExposurePath): string =>
-  [normalize(p[0]?.entry()?.as ?? ''), ...p.slice(0, -1).map((f) => f.alias() ?? f.name)].join('/')
-
-const sameEntry = (a: string | undefined, b: string) => a !== undefined && normalize(a) === normalize(b)
-const normalize = (s: string) => s.replace(/^\.\/?/, '')
 
 /**
  * Stable order key derived from a string, so grouped items get a

@@ -24,7 +24,6 @@ export type * from '../types.ts'
  */
 export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: string }): ClientRouter => {
   const prefix = Slug.join(p.base?.replace(/^\/+|\/+$/g, ''))
-  const routes = upgradeLegacy(p.routes)
 
   let matchedHome = false
   const getSlug = (route: Route) => {
@@ -39,15 +38,16 @@ export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: 
 
   const _byId = new Map<number, Route>()
   const _bySlug = new Map<SlugPath, Route>()
-  const _byNextSlug = new Map<SlugPath, SlugPath>()
+  // Pre-prefix slugs, kept for breadcrumb segments.
+  const _rawSlug = new Map<Route, SlugPath>()
 
   const allRoutes: Route[] = []
 
-  for (const route of routes) {
+  for (const route of p.routes) {
     const next = { ...route, slug: getSlug(route) }
     allRoutes.push(next)
     _bySlug.set(next.slug, next)
-    _byNextSlug.set(next.slug, route.slug)
+    _rawSlug.set(next, route.slug)
     if (next.kind === 'doc') _byId.set(next.decl, next)
 
     if (next.slug === '/') _bySlug.set('', next)
@@ -56,18 +56,23 @@ export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: 
   // Build a node for `route` reached from `ancestry` (slugs of its ancestors,
   // itself included): child edges resolve declarations to their routes and
   // recurse; edges back into the ancestry are dropped, so the same route may
-  // render under several parents but cycles stop.
-  const node = (route: Route, ancestry: Set<SlugPath>): SidebarRoute => {
+  // render under several parents but cycles stop. `display` is this
+  // occurrence's branch-contextual name: children of a root show their hop
+  // alias, deeper nodes qualify it with the parent occurrence's display.
+  const node = (route: Route, ancestry: Set<SlugPath>, display?: string): SidebarRoute => {
     const path = new Set(ancestry).add(route.slug)
     const edges = (route.sidebar?.children ?? [])
       .map((edge) => ({ edge, target: _byId.get(edge.target) }))
       .filter((x): x is { edge: DocLink; target: Route } => x.target !== undefined && !path.has(x.target.slug))
-    const pairs = edges.map(({ edge, target }) => ({ edge, node: node(target, path) }))
+    const pairs = edges.map(({ edge, target }) => ({
+      edge,
+      node: node(target, path, display === undefined ? edge.alias : `${display}.${edge.alias}`),
+    }))
     const children = groupItems(pairs, (x) => x.edge.group).map((g) => ({
       group: g.group,
       items: g.items.sort((a, b) => (a.edge.order ?? 0) - (b.edge.order ?? 0)).map((x) => x.node),
     }))
-    return { ...route, children }
+    return { ...route, ...(display !== undefined ? { alias: display } : {}), children }
   }
 
   const roots = allRoutes.filter((r) => r.sidebar?.root !== undefined)
@@ -86,10 +91,9 @@ export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: 
     },
     parts: (id: number) => {
       const route = _byId.get(id)
-      if (!route) return []
-      const old = _byNextSlug.get(route.slug)
-      if (typeof old !== 'string') return []
-      const segs = [p?.prefix?.doc, ...old.split('/')].filter((s) => s !== undefined)
+      const raw = route && _rawSlug.get(route)
+      if (typeof raw !== 'string') return []
+      const segs = [p?.prefix?.doc, ...raw.split('/')].filter((s) => s !== undefined)
       return segs.map((seg, i) => {
         const s = Slug.join(prefix || undefined, segs.slice(0, i + 1).join('/'))
         return { value: seg, slug: _bySlug.has(s) ? s : undefined }
@@ -97,58 +101,6 @@ export const createRouter = (p: { routes: Route[]; prefix?: RoutePrefix; base?: 
     },
     sidebar,
   }
-}
-
-/** The pre-inversion sidebar shape: child routes pointed at their parent by slug. */
-type LegacySidebar = { parent?: SlugPath; group?: Group; order?: number }
-
-/**
- * Upgrade routes from older `project.json` files (loaded through the
- * `versions` config): convert child→parent slug pointers into parent-owned
- * `children` edges. Legacy data is detected by sidebars carrying none of the
- * current fields — old sidebars were `{}`, `{ order }` or `{ parent, … }`.
- */
-const upgradeLegacy = (routes: Route[]): Route[] => {
-  const isLegacy = (sb: object) => !('root' in sb) && !('children' in sb)
-  if (!routes.some((r) => r.sidebar && isLegacy(r.sidebar))) return routes
-
-  const upgraded: Route[] = routes.map((r) => ({ ...r }))
-  const bySlug = new Map(upgraded.map((r) => [r.slug, r]))
-  const childrenOf = new Map<Route, DocLink[]>()
-
-  for (const r of upgraded) {
-    const sb = r.sidebar as LegacySidebar | undefined
-    if (!sb) continue
-    if (typeof sb.parent === 'string') {
-      const parent = bySlug.get(sb.parent)
-      if (parent && r.kind === 'doc') {
-        let edges = childrenOf.get(parent)
-        if (!edges) childrenOf.set(parent, (edges = []))
-        edges.push({
-          target: r.decl,
-          alias: r.title,
-          ...(sb.group ? { group: sb.group } : {}),
-          ...(sb.order !== undefined ? { order: sb.order } : {}),
-        })
-        r.sidebar = undefined
-      } else if (parent) {
-        // A legacy page nested under a parent — edges target declarations,
-        // so the closest visible equivalent is a root.
-        r.sidebar = { root: sb.order ?? 0, ...(sb.group ? { group: sb.group } : {}) }
-      } else {
-        // Dangling parent pointers never rendered; keep them hidden.
-        r.sidebar = undefined
-      }
-    } else {
-      r.sidebar = { root: sb.order ?? 0, ...(sb.group ? { group: sb.group } : {}) }
-    }
-  }
-
-  for (const [parent, children] of childrenOf) {
-    parent.sidebar = { ...(parent.sidebar ?? {}), children }
-  }
-
-  return upgraded
 }
 
 /**

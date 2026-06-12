@@ -33,7 +33,7 @@ export const fromConfig = async (
     include: (sf) => config.include(sf, true),
   }
 
-  const scanned = abortSignal ? await Reflect.scanAsync(scanOptions, abortSignal) : Reflect.scan(scanOptions)
+  const scanned = abortSignal ? await Reflect.scanAsync(scanOptions, abortSignal) : Reflect.scanSync(scanOptions)
   const resolved = Reflect.resolve(scanned)
   const indexed = Reflect.index(resolved, config.entrypoints ?? [])
   const builder = Router.builder({ docs: indexed, name: config.name, adapter: config.provider })

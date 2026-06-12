@@ -1,7 +1,7 @@
 import type * as Reflect from '../../reflect/index.ts'
 import { memo1 } from '../../../_lib/util/index.ts'
 
-import { type DeclarationFacade, type ModuleFacade } from './facade.ts'
+import { type DeclarationFacade } from './facade.ts'
 import type { DocRoute, Sidebar, DocLink } from '../types.ts'
 
 /**
@@ -12,27 +12,11 @@ import type { DocRoute, Sidebar, DocLink } from '../types.ts'
 export type Hook<V> = (value: V, declarationFacade: DeclarationFacade) => V
 
 /**
- * A re-export chain from an entrypoint to a declaration — the shape
- * `d.exposure.ancestors()` returns. Each element is an exposing module,
- * carrying the alias of the next hop; the first element must be an
- * entrypoint module for the path to produce a slug. An empty path places
- * the declaration by source path and hides it from the sidebar.
- */
-export type ExposurePath = ModuleFacade[]
-
-/**
  * A record of hooks refining route generation, one per facet. Every hook is
  * optional; omitted facets keep the default behaviour. Combine adapters with
  * {@link compose} and pass the result as the config `provider`.
  */
 export interface Adapter {
-  /**
-   * Canonical exposure path — where the declaration's page lives when it is
-   * re-exported in several places. The default picks the shortest chain from
-   * the earliest entrypoint; return another `d.exposure.ancestors()` path to
-   * relocate the page. Slug, title and sidebar placement all follow.
-   */
-  exposure?: Hook<ExposurePath>
   /** Display title of a declaration's page and links to it. */
   alias?: Hook<string>
   /** URL path of a declaration's page. */
@@ -65,8 +49,6 @@ export type RouteContext = { docs: Reflect.Index; provider: Provider; name: stri
  * @internal
  */
 export type Provider = {
-  /** Canonical exposure path for the declaration — empty when placed by source path. */
-  exposure(id: DeclarationFacade): ExposurePath
   /** Display title for the declaration. */
   alias(id: DeclarationFacade): string
   /** URL path for the declaration's page. */
@@ -88,7 +70,7 @@ export type Provider = {
  */
 export const compose = (...adapters: (Adapter | undefined)[]): Adapter => adapters.reduce<Adapter>(merge, {})
 
-const hooks = ['exposure', 'alias', 'slug', 'declare', 'sidebar', 'referenced', 'links'] as const
+const hooks = ['alias', 'slug', 'declare', 'sidebar', 'referenced', 'links'] as const
 const merge = (a: Adapter | undefined, b: Adapter | undefined): Adapter => {
   if (!a) return b ?? {}
   if (!b) return a ?? {}

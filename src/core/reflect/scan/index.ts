@@ -6,44 +6,35 @@ import type * as T from '../types.ts'
 import { commentForModule, commentForNode } from './comment.ts'
 import { t } from '../../../_lib/index.ts'
 
-export const scan = (options: ScanOptions) => {
-  const { s, files } = setup(options)
-
-  while (files.length) {
-    const sf = files.shift()!
-    scan.SourceFile(s, sf, files)
-  }
-
-  return s
+/** Drain the scan generator in one go. */
+export const scanSync = (options: ScanOptions): State => {
+  const gen = scan(options)
+  let r = gen.next()
+  while (!r.done) r = gen.next()
+  return r.value
 }
 
-export const scanAsync = async (options: ScanOptions, abortSignal?: AbortSignal) => {
-  const { s, files } = setup(options)
-
-  while (files.length) {
-    const sf = files.shift()!
-    scan.SourceFile(s, sf, files)
+export const scanAsync = async (options: ScanOptions, abortSignal?: AbortSignal): Promise<State> => {
+  const gen = scan(options)
+  while (true) {
+    const { value, done } = gen.next()
+    if (done) return value
     await new Promise((resolve) => setTimeout(resolve, 0))
-    if (abortSignal?.aborted) throw new Error('Aborted')
+    abortSignal?.throwIfAborted()
+  }
+}
+
+const scan = function* (options: ScanOptions) {
+  const s = makeScanState(options)
+
+  let i = 0
+  while (i < s.files.length) {
+    const sf = s.files[i++]!
+    scan.SourceFile(s, sf, s.files)
+    yield s
   }
 
   return s
-}
-
-const setup = (options: ScanOptions) => {
-  const program = ts.createProgram(options.cmd.fileNames, options.cmd.options)
-  const checker = program.getTypeChecker()
-  const s = makeScanState(checker, options)
-
-  const files = new Array<ts.SourceFile>()
-  for (const file of program.getSourceFiles()) {
-    if (!options.include(file)) continue
-    const sf = program.getSourceFile(file.fileName)
-    if (!sf) continue
-    files.push(sf)
-  }
-
-  return { s, files }
 }
 
 scan.SourceFile = (s: State, node: ts.SourceFile, queue: ts.SourceFile[]) => {
@@ -87,28 +78,6 @@ scan.VariableDeclaration = (s: State, node: ts.VariableDeclaration) => {
     type: node.type ? scan.Type(s, node.type) : inferAt(s, node),
     defaultValue: defaultValueOf(node.initializer),
   }))
-}
-
-/**
- * Initializer source, kept only when it reads as a value: one line, at most
- * 80 characters. Longer initializers (function bodies, big objects) are
- * implementation, not documentation — the type and comment carry the page.
- */
-const defaultValueOf = (init?: ts.Expression): string | undefined => {
-  const text = init?.getText()
-  if (!text || text.length > 80 || text.includes('\n')) return undefined
-  return text
-}
-
-/** Signature declarations of a function-type or a pure call-signature object type. */
-const callSignaturesOf = (node: ts.TypeNode): ts.SignatureDeclarationBase[] | undefined => {
-  const t = ts.isParenthesizedTypeNode(node) ? node.type : node
-  if (ts.isFunctionTypeNode(t)) return [t]
-  if (ts.isTypeLiteralNode(t)) {
-    const calls = t.members.filter(ts.isCallSignatureDeclaration)
-    if (calls.length && calls.length === t.members.length) return calls
-  }
-  return undefined
 }
 
 scan.FunctionDeclaration = (s: State, decl: ts.FunctionDeclaration) => {
@@ -191,7 +160,7 @@ scan.ExportDeclaration = (s: State, node: ts.ExportDeclaration, queue: ts.Source
 
   // Emit an `export` declaration node (ref filled by resolver).
   const exp = statement(s, node, 'export', () => ({ names: [], star: false }))
-  s.exports.push(exp)
+  s.exports.add(exp.id)
 
   if (!node.exportClause) {
     if (!spec) return
@@ -223,7 +192,7 @@ scan.ExportDeclaration = (s: State, node: ts.ExportDeclaration, queue: ts.Source
 // `export default <expr>` / `export = <expr>`. The target is resolved later.
 scan.ExportAssignment = (s: State, node: ts.ExportAssignment) => {
   const exp = statement(s, node, 'export', () => ({ names: [], star: false }))
-  s.exports.push(exp)
+  s.exports.add(exp.id)
   s.exportsForm.set(exp.id, 'assignment')
   s.exportsOrigin.set(exp.id, node)
   return exp
@@ -370,6 +339,28 @@ scan.TypeParam = (s: State, node: ts.TypeParameterDeclaration): T.Part<'generic'
     constraint: node.constraint ? scan.Type(s, node.constraint) : undefined,
     default: node.default ? scan.Type(s, node.default) : undefined,
   })
+}
+
+/**
+ * Initializer source, kept only when it reads as a value: one line, at most
+ * 80 characters. Longer initializers (function bodies, big objects) are
+ * implementation, not documentation — the type and comment carry the page.
+ */
+const defaultValueOf = (init?: ts.Expression): string | undefined => {
+  const text = init?.getText()
+  if (!text || text.length > 80 || text.includes('\n')) return undefined
+  return text
+}
+
+/** Signature declarations of a function-type or a pure call-signature object type. */
+const callSignaturesOf = (node: ts.TypeNode): ts.SignatureDeclarationBase[] | undefined => {
+  const t = ts.isParenthesizedTypeNode(node) ? node.type : node
+  if (ts.isFunctionTypeNode(t)) return [t]
+  if (ts.isTypeLiteralNode(t)) {
+    const calls = t.members.filter(ts.isCallSignatureDeclaration)
+    if (calls.length && calls.length === t.members.length) return calls
+  }
+  return undefined
 }
 
 // ---------------- Inference ----------------
@@ -536,7 +527,7 @@ const statement = <K extends keyof T.DeclarationMap>(
   const b = base(s, node)
   s.currentStmt = b.id
   Object.assign(b, fields(), { kind })
-  s.declarations.push(b as any)
+  s.declarations.set(b.id, b as any)
   return b as any
 }
 
@@ -567,13 +558,16 @@ const part = <K extends keyof T.PartMap>(
 }
 const base = (s: State, node: ts.Node): T.Base => {
   const result: T.Base = typeBase(s, node) as any
-  result.id = t.brand<T.Id>(s.nextId())
+  result.id = s.nextId()
   result.name = getName(node) ?? 'unknown'
   result.exported = isExported(node)
 
   const named = (node as { name?: ts.Node }).name
   const sym = s.checker.getSymbolAtLocation(named ?? node)
-  if (sym) s.symbolsById.set(result.id, sym)
+  if (sym) {
+    s.symbolsById.set(result.id, sym)
+    for (const d of sym.declarations ?? []) s.idByNode.set(d, result.id)
+  }
 
   return result
 }
@@ -586,7 +580,7 @@ const typeBase = (s: State, node: ts.Node): T.Typebase => {
   if (sym?.declarations?.length) result.sources = sym.declarations!.map((d) => sourceOf(s, d))
   else result.sources = [sourceOf(s, node)]
 
-  const comment = ts.isSourceFile(node) ? commentForModule(s, node) : commentForNode(s, node)
+  const comment = ts.isSourceFile(node) ? commentForModule(s, scan, node) : commentForNode(s, scan, node)
   if (comment) result.comment = comment
 
   return result

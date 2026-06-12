@@ -3,26 +3,28 @@ import ts from 'typescript'
 
 import type * as T from '../types.ts'
 
-import { scan } from './index.ts'
+type Scanner = {
+  Type: (s: State, node: ts.TypeNode) => T.Type
+  TypeParam: (s: State, node: ts.TypeParameterDeclaration) => T.Part<'generic'>
+}
 
 /** JSDoc attached to a declaration. */
-export const commentForNode = (s: State, node: ts.Node): T.Comment | undefined => {
+export const commentForNode = (s: State, scan: Scanner, node: ts.Node): T.Comment | undefined => {
   const parts: T.CommentPart[] = []
   const tags: T.CommentTag[] = []
   let seen = false
   for (const doc of ts.getJSDocCommentsAndTags(node)) {
     if (!ts.isJSDoc(doc)) continue
     seen = true
-    collectDoc(s, doc, parts, tags)
+    collectDoc(s, scan, doc, parts, tags)
   }
   return finish(parts, tags, seen)
 }
 
 /**
- * The module banner: leading comments on the first statement. A range counts as
- * the banner when it is followed by another comment or carries `@module`.
+ * The module banner: leading comments on the first statement.
  */
-export const commentForModule = (s: State, sf: ts.SourceFile): T.Comment | undefined => {
+export const commentForModule = (s: State, scan: Scanner, sf: ts.SourceFile): T.Comment | undefined => {
   const first = sf.statements[0]
   if (!first) return undefined
   const text = sf.getFullText()
@@ -38,7 +40,7 @@ export const commentForModule = (s: State, sf: ts.SourceFile): T.Comment | undef
       const doc = reparseJsDoc(raw)
       if (doc) {
         seen = true
-        collectDoc(s, doc, parts, tags)
+        collectDoc(s, scan, doc, parts, tags)
       }
     }
   })
@@ -46,10 +48,10 @@ export const commentForModule = (s: State, sf: ts.SourceFile): T.Comment | undef
 }
 
 /** Walk a JSDoc block into `parts`/`tags` */
-const collectDoc = (s: State, doc: ts.JSDoc, parts: T.CommentPart[], tags: T.CommentTag[]): void => {
+const collectDoc = (s: State, scan: Scanner, doc: ts.JSDoc, parts: T.CommentPart[], tags: T.CommentTag[]): void => {
   appendCommentBody(doc.comment, parts)
   for (const t of doc.tags ?? []) {
-    const tag = buildTag(s, t)
+    const tag = buildTag(s, scan, t)
     tags.push(tag)
   }
 }
@@ -89,7 +91,7 @@ const appendCommentBody = (
   }
 }
 
-const buildTag = (s: State, tag: ts.JSDocTag): T.CommentTag => {
+const buildTag = (s: State, scan: Scanner, tag: ts.JSDocTag): T.CommentTag => {
   const text = ts.getTextOfJSDocComment(tag.comment)?.trim() ?? ''
   const exprType = (te?: ts.JSDocTypeExpression) => (te ? scan.Type(s, te.type) : undefined)
   if (ts.isJSDocPropertyTag(tag)) {

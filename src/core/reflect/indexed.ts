@@ -169,14 +169,24 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
   const _exposedBy = new Map<T.Id, Exposure[]>()
   const _exposesIn = new Map<T.Id, Exposure[]>()
 
-  // Records id under exposer/alias. Returns whether this (exposer → id) edge
-  // is new — used to stop infinite recursion on cycles, NOT to globally
-  // dedup, since the same id can be exposed by many exposers.
-  const seenEdge = new Set<string>()
-  const record = (id: T.Id, exposer: T.Id, alias?: string): boolean => {
+  // Records id under exposer/alias. Returns whether the target's members
+  // should be walked: true on first sight, and once more when an edge first
+  // recorded through a type-only export is seen again as a value export —
+  // value exposure subsumes type-only, so the member walk re-runs unfiltered.
+  // Edge tracking stops infinite recursion on cycles, NOT global dedup; the
+  // first-recorded alias wins either way.
+  const seenEdge = new Map<string, boolean>()
+  const record = (id: T.Id, exposer: T.Id, alias: string | undefined, typeOnly: boolean): boolean => {
     const edge = exposer + ':' + id
-    if (seenEdge.has(edge)) return false
-    seenEdge.add(edge)
+    const prev = seenEdge.get(edge)
+    if (prev !== undefined) {
+      if (prev && !typeOnly) {
+        seenEdge.set(edge, false)
+        return true
+      }
+      return false
+    }
+    seenEdge.set(edge, typeOnly)
 
     let items = _exposesIn.get(exposer)
     if (!items) _exposesIn.set(exposer, (items = []))
@@ -195,39 +205,34 @@ export const exposerIndex: Indexer<ExposerIndex, Roots & TreeIndex> = (b, deps) 
     for (const child of deps.children(id)) if (child.exported) yield child
   }
 
-  const expose = (id: T.Id, exposer: T.Id, alias?: string): void => {
+  /**
+   * Walk one exposure: record `id` under `exposer` and recurse into what it
+   * exposes in turn. `typeOnly` marks edges reached through `export type`:
+   * value-only declarations (functions, variables) do not propagate through
+   * them, and the constraint carries into the members of type-only-exported
+   * modules and namespaces.
+   */
+  const expose = (id: T.Id, exposer: T.Id, alias?: string, typeOnly = false): void => {
     const d = deps.get(id)
     if (!d) return
     if (d.kind === 'export') {
+      // Resolution emits per-symbol names for every export form (`export *`
+      // included), so each name recurses uniformly.
       for (const name of d.names) {
-        if (d.star && name.name) {
-          if (record(name.ref, exposer, name.name)) {
-            for (const child of members(name.ref)) expose(child.id, name.ref)
-          }
-        } else if (d.star) {
-          for (const child of members(name.ref)) expose(child.id, exposer)
-        } else {
-          expose(name.ref, exposer, name.name)
-        }
+        const t = typeOnly || name.type
+        if (name.name) expose(name.ref, exposer, name.name, t)
+        else for (const child of members(name.ref)) expose(child.id, exposer, undefined, t)
       }
       return
     }
-    if (d.kind === 'namespace') {
-      if (record(id, exposer, alias ?? d.name)) {
-        for (const child of members(id)) expose(child.id, id)
+    if (typeOnly && (d.kind === 'function' || d.kind === 'variable')) return
+    if (d.kind === 'namespace' || d.kind === 'module') {
+      if (record(id, exposer, alias ?? d.name, typeOnly)) {
+        for (const child of members(id)) expose(child.id, id, undefined, typeOnly)
       }
       return
     }
-    // A re-exported module (`export * as ns from './m'`) nests its members.
-    if (d.kind === 'module') {
-      if (record(id, exposer, alias ?? d.name)) {
-        for (const child of members(id)) {
-          expose(child.id, id)
-        }
-      }
-      return
-    }
-    record(id, exposer, alias ?? d.name)
+    record(id, exposer, alias ?? d.name, typeOnly)
   }
 
   b.after(() => {
@@ -274,7 +279,7 @@ export const index = <const T extends Indexer<any, any>[]>(
   // `acc` accumulates results and is passed as `deps` to each subsequent indexer.
   const acc = {} as any
   for (const indexer of indexers) Object.assign(acc, indexer(builder, acc))
-  for (const d of s.declarations) for (const init of inits) init(d)
+  for (const [_, d] of s.declarations) for (const init of inits) init(d)
   for (const after of afters) after()
 
   return acc

@@ -8,7 +8,7 @@ export type { ScanOptions } from './state.ts'
 export { type Index } from './indexed.ts'
 export type * from './types.ts'
 
-export const scan = (options: ScanOptions) => Scan.scan(options)
+export const scanSync = (options: ScanOptions) => Scan.scanSync(options)
 
 export const scanAsync = (options: ScanOptions, abortSignal?: AbortSignal) => Scan.scanAsync(options, abortSignal)
 

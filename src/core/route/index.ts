@@ -2,10 +2,10 @@ import type * as Reflect from '../reflect/index.ts'
 
 import { Slug } from '../../_lib/index.ts'
 
-import { compose, withMemo, provide, type RouteContext, type Adapter } from './provider/index.ts'
+import { compose, withMemo, provide, lexicalSlug, type RouteContext, type Adapter } from './provider/index.ts'
 import { createFacade } from './provider/facade.ts'
 import { groupByKind } from './adapter/index.ts'
-import type { Route } from './types.ts'
+import type { DocRoute, Route } from './types.ts'
 
 export type * from './provider/index.ts'
 export * from './debug/index.ts'
@@ -84,6 +84,24 @@ export const builder = (opts: ContextOptions) => {
         if (route.sidebar?.children) {
           route.sidebar = { ...route.sidebar, children: route.sidebar.children.filter((e) => routed.has(e.target)) }
         }
+      }
+
+      // Two multi-exposed declarations sharing a bare name collide on slug;
+      // move every colliding doc route to its source-path slug. Identity is
+      // the declaration id — sidebar and link edges resolve by id, so only
+      // the URL (and breadcrumb segments) change. Doc-vs-page collisions are
+      // out of scope (different route prefixes); colliding lexical slugs keep
+      // the router's last-wins behaviour.
+      const bySlug = new Map<string, DocRoute[]>()
+      for (const route of r) {
+        if (route.kind !== 'doc') continue
+        const group = bySlug.get(route.slug)
+        if (group) group.push(route)
+        else bySlug.set(route.slug, [route])
+      }
+      for (const group of bySlug.values()) {
+        if (group.length < 2) continue
+        for (const route of group) route.slug = lexicalSlug(cx, route.decl)
       }
 
       r = r.sort((a, b) => {

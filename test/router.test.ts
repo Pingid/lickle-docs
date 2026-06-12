@@ -74,12 +74,31 @@ test('doc routes carry their referenced backlinks, grouped by group', () => {
   expect(doc.referenced[0]!.target).toBe(5)
 })
 
-test('legacy parent-pointer sidebars upgrade: parent-less routes root, children nest by slug', () => {
-  const root = route({ slug: 'p', decl: 1, sidebar: {} })
-  const child = route({ slug: 'p/c', decl: 2, sidebar: { parent: 'p', group: { name: 'fns', order: 0 } } as never })
+test('sidebar roots come from `root`; children edges nest and group beneath them', () => {
+  const root = route({
+    slug: 'p',
+    decl: 1,
+    sidebar: { root: 1, children: [{ target: 2, alias: 'c', group: { name: 'fns', order: 0 } }] },
+  })
+  const child = route({ slug: 'p/c', decl: 2 })
   const router = createRouter({ routes: [root, child], prefix: { doc: 'l' } })
 
   const roots = router.sidebar.flatMap((g) => g.items)
   expect(roots.map((r) => r.slug)).toEqual(['l/p'])
+  expect(roots[0]!.children.map((g) => g.group)).toEqual(['fns'])
   expect(roots[0]!.children.flatMap((g) => g.items).map((r) => r.slug)).toEqual(['l/p/c'])
+})
+
+test('sidebar node aliases compound down the branch: hop alias under a root, qualified deeper', () => {
+  const root = route({ slug: 'p', decl: 1, sidebar: { root: 1, children: [{ target: 2, alias: 'c' }] } })
+  const child = route({ slug: 'p/c', decl: 2, sidebar: { children: [{ target: 3, alias: 'g' }] } })
+  const grandchild = route({ slug: 'p/c/g', decl: 3 })
+  const router = createRouter({ routes: [root, child, grandchild], prefix: { doc: 'l' } })
+
+  const rootNode = router.sidebar.flatMap((g) => g.items)[0]!
+  expect(rootNode.alias).toBeUndefined()
+  const childNode = rootNode.children.flatMap((g) => g.items)[0]!
+  expect(childNode.alias).toBe('c')
+  const grandNode = childNode.children.flatMap((g) => g.items)[0]!
+  expect(grandNode.alias).toBe('c.g')
 })

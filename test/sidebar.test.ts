@@ -59,17 +59,18 @@ it('edges to unknown declarations are dropped', () => {
   expect(occurrences(router.sidebar, 1)[0]!.children).toEqual([])
 })
 
-it('section() lists declarations at the root while their canonical entry remains', () => {
+it('section() lists declarations at the root while their exposed entries remain', () => {
   const fx = multiRoutesFixture(FILES, ENTRIES, section('essentials', ['Foo']))
   const fooId = byName(fx.index, 'Foo').id
 
+  // root section entry, plus the exposure placements under `a` and `b/Stuff`
   const nodes = occurrences(fx.router.sidebar, fooId)
-  expect(nodes).toHaveLength(2)
+  expect(nodes).toHaveLength(3)
 
   // one occurrence is a root in the curated group, listed first
   expect(fx.router.sidebar[0]?.group).toBe('essentials')
   expect(fx.router.sidebar[0]?.items.map((n) => (n.kind === 'doc' ? n.decl : undefined))).toEqual([fooId])
-  // both occurrences link to the same canonical page
+  // every occurrence links to the same page
   expect(new Set(nodes.map((n) => n.slug)).size).toBe(1)
 })
 
@@ -85,18 +86,6 @@ it('a sidebar hook can append an edge to duplicate a declaration under another p
   }
   const fx = multiRoutesFixture(FILES, ENTRIES, dup)
   const fooId = byName(fx.index, 'Foo').id
-  // canonical placement under `a`, plus the appended edge under `b`
-  expect(occurrences(fx.router.sidebar, fooId)).toHaveLength(2)
-})
-
-it('legacy parent-pointer sidebars upgrade to children edges', () => {
-  const root = doc({ decl: 1, slug: 'p', sidebar: { order: 1 } as never })
-  const child = doc({ decl: 2, slug: 'p/c', sidebar: { parent: 'p', group: { name: 'fns', order: 0 } } as never })
-  const router = createRouter({ routes: [root, child], prefix: { doc: 'l' } })
-
-  const roots = router.sidebar.flatMap((g) => g.items)
-  expect(roots.map((r) => r.slug)).toEqual(['l/p'])
-  const children = roots[0]!.children
-  expect(children.map((g) => g.group)).toEqual(['fns'])
-  expect(children.flatMap((g) => g.items).map((r) => r.slug)).toEqual(['l/p/c'])
+  // exposure placements under `a` and `b/Stuff`, plus the appended edge under `b`
+  expect(occurrences(fx.router.sidebar, fooId)).toHaveLength(3)
 })

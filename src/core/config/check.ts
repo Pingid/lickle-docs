@@ -33,7 +33,6 @@ const entry = v.struct.match<T.Entry>({
 // function-or-undefined; hook signatures can't be validated at runtime.
 const hook: Valid<any, unknown> = v.or(v.function, v.undefined)
 const adapter = v.struct.match<Router.Adapter>({
-  exposure: hook,
   alias: hook,
   slug: hook,
   declare: hook,

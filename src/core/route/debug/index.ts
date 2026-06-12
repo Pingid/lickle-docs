@@ -69,7 +69,7 @@ const printSidebar = (s: Styler, router: ClientRouter) => {
 
   const printSidebar = (s: Styler, route: SidebarRoute) => {
     if (route.kind === 'page') return
-    s.page(route.decl, route.title, route.slug)
+    s.page(route.decl, route.alias ?? route.title, route.slug)
     for (const group of route.children) printSidebarGroup(s, group)
   }
 
