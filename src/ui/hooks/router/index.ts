@@ -1,7 +1,7 @@
 import { createMemo, type Accessor } from 'solid-js'
 
-import { useDocActiveProject, useDocs, type Reflect } from '../../context/index.tsx'
 import { createRouter, type ClientRouter } from '../../../core/route/client/index.ts'
+import { useDocActiveProject, type Reflect } from '../../context/index.tsx'
 
 export type { ClientRouter, Route, DocRoute, DocLink } from '../../../core/route/types.ts'
 export { groupItems } from '../../../core/route/client/index.ts'
@@ -15,18 +15,13 @@ const INSTANCE = new WeakMap<Reflect.DocsVersion, ClientRouter>()
  * @group hooks
  */
 export const use = (): Accessor<ClientRouter | undefined> => {
-  const docs = useDocs()
   const doc = useDocActiveProject()
   const routes = createMemo(() => {
     const prj = doc.json()
     const active = doc.version()
     if (!prj || !active) return undefined
     if (INSTANCE.has(active)) return INSTANCE.get(active)!
-    const r = createRouter({
-      routes: prj.routes,
-      prefix: { doc: docs.name().replace(/^@/, ''), page: '' },
-      base: doc.version()?.slug,
-    })
+    const r = createRouter({ routes: prj.routes, prefix: prj.prefix, base: doc.version()?.slug })
     INSTANCE.set(active, r)
     return r
   })

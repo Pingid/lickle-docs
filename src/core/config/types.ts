@@ -16,6 +16,8 @@ export interface ProjectVersion {
   repository?: Repo
   /** The route tree: one entry per page (declarations and markdown pages). */
   routes: Router.Route[]
+  /** URL prefixes applied per route kind: `doc` for declaration pages, `page` for markdown pages. */
+  prefix: Router.RoutePrefix
   /** Flat list of every declaration in the project, source order. */
   declarations: Reflect.Declaration[]
 }

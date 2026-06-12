@@ -42,5 +42,3 @@ const readJson = async (file: string): Promise<{ config: Partial<T.UserConfig>; 
   const j = JSON.parse(content) as unknown
   return { config: validate(j), file }
 }
-
-// export const

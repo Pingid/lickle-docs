@@ -132,7 +132,7 @@ export const section = (title: string, names: string[], opts?: { order?: number 
  * ```
  */
 export const filter = (cb: (d: DeclarationFacade) => boolean): Adapter => ({
-  declare: (v, d) => (cb(d) ? v : undefined),
+  route: (v, d) => (cb(d) ? v : undefined),
 })
 
 /**
@@ -145,7 +145,7 @@ export const filter = (cb: (d: DeclarationFacade) => boolean): Adapter => ({
  * ```
  */
 export const mapComment = (cb: (d: Reflect.Comment) => Reflect.Comment): Adapter => ({
-  declare: (v, d) => {
+  declaration: (v, d) => {
     if (d.raw.comment) d.raw.comment = cb(d.raw.comment)
     return v
   },

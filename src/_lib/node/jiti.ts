@@ -3,6 +3,7 @@ import { createJiti } from 'jiti'
 
 const jiti = createJiti(pathToFileURL(import.meta.url).href, {
   moduleCache: false,
+  fsCache: false,
   virtualModules: {},
   jsx: true,
 })

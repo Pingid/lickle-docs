@@ -1,7 +1,6 @@
 import * as vite from 'vite'
 import path from 'node:path'
 import pc from 'picocolors'
-// import pMap from 'p-map'
 
 import * as Core from '../../core/index.ts'
 import { Node } from '../../_lib/index.ts'
@@ -39,7 +38,7 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const serverManifest = await readManifest(opts.serverOutDir, opts.baseUrl)
   const serverModule = await Node.Jiti.importModule<{ default: ServerEntry }>(serverManifest.entry()!.filePath)
 
-  const router = createRouter({ routes: opts.json.routes, prefix: { doc: opts.json.name.replace(/^@/, ''), page: '' } })
+  const router = createRouter({ routes: opts.json.routes, prefix: opts.json.prefix })
   const shellStreamer = await createShellStreamer(opts.baseUrl)
 
   const gen = async (route: Core.Router.Route) => {

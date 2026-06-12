@@ -8,10 +8,11 @@ export const provide = (c: RouteContext, adapter: Adapter): Provider => provideA
 const provider = (cx: RouteContext): Provider => ({
   alias: getAlias(cx),
   slug: getSlug(cx),
-  declare: getRoute(cx),
+  route: getRoute(cx),
   sidebar: getSidebar(),
   links: getLinks(),
   referenced: getReferenced(),
+  declaration: (d) => d,
 })
 
 const getRoute =

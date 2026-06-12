@@ -1,5 +1,4 @@
 import { v, type Valid } from '@lickle/is'
-import {} from 'shiki/langs'
 
 import type { Router } from '../index.ts'
 import * as T from './types.ts'
@@ -35,10 +34,11 @@ const hook: Valid<any, unknown> = v.or(v.function, v.undefined)
 const adapter = v.struct.match<Router.Adapter>({
   alias: hook,
   slug: hook,
-  declare: hook,
+  route: hook,
   sidebar: hook,
   referenced: hook,
   links: hook,
+  declaration: hook,
 })
 
 const any: Valid<any, unknown> = (v) => ({ ok: true, value: v })

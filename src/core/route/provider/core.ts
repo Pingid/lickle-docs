@@ -29,11 +29,13 @@ export interface Adapter {
    */
   sidebar?: Hook<Sidebar | undefined>
   /** The page emitted for a declaration. Return `undefined` to skip the page. */
-  declare?: Hook<DocRoute | undefined>
+  route?: Hook<DocRoute | undefined>
   /** Member links listed on the declaration's page. */
   links?: Hook<DocLink[]>
   /** "Referenced in" backlinks shown on the declaration's page. */
   referenced?: Hook<DocLink[]>
+  /** Update the declaration after the routes are generated. */
+  declaration?: Hook<undefined>
 }
 
 /**
@@ -54,13 +56,15 @@ export type Provider = {
   /** URL path for the declaration's page. */
   slug(id: DeclarationFacade): string
   /** The page route for the declaration, or `undefined` when it has none. */
-  declare(id: DeclarationFacade): DocRoute | undefined
+  route(id: DeclarationFacade): DocRoute | undefined
   /** Sidebar placement, or `undefined` when hidden. */
   sidebar(id: DeclarationFacade): Sidebar | undefined
   /** Member links listed on the declaration's page. */
   links(id: DeclarationFacade): DocLink[]
   /** Backlinks from declarations that reference this one. */
   referenced(id: DeclarationFacade): DocLink[]
+  /** Update the declaration after the routes are generated. */
+  declaration(id: DeclarationFacade): void
 }
 
 /**
@@ -70,7 +74,7 @@ export type Provider = {
  */
 export const compose = (...adapters: (Adapter | undefined)[]): Adapter => adapters.reduce<Adapter>(merge, {})
 
-const hooks = ['alias', 'slug', 'declare', 'sidebar', 'referenced', 'links'] as const
+const hooks: (keyof Adapter)[] = ['alias', 'slug', 'route', 'sidebar', 'links', 'referenced', 'declaration']
 const merge = (a: Adapter | undefined, b: Adapter | undefined): Adapter => {
   if (!a) return b ?? {}
   if (!b) return a ?? {}

@@ -49,6 +49,7 @@ export const fromConfig = (
     name: config.name,
     version: config.version!,
     repository: config.repository,
+    prefix: { doc: config.name.replace(/^@/, ''), page: '' },
     ...routes,
   }
 

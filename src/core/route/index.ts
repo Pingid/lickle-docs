@@ -2,7 +2,15 @@ import type * as Reflect from '../reflect/index.ts'
 
 import { Slug } from '../../_lib/index.ts'
 
-import { compose, withMemo, provide, lexicalSlug, type RouteContext, type Adapter } from './provider/index.ts'
+import {
+  compose,
+  withMemo,
+  provide,
+  lexicalSlug,
+  type RouteContext,
+  type Adapter,
+  type Provider,
+} from './provider/index.ts'
 import { createFacade } from './provider/facade.ts'
 import { groupByKind } from './adapter/index.ts'
 import type { DocRoute, Route } from './types.ts'
@@ -24,7 +32,7 @@ export type ContextOptions = {
 }
 
 export const builder = (opts: ContextOptions) => {
-  const cx = { ...opts, provider: {} as any }
+  const cx = { ...opts, provider: {} as Provider }
   const provider = (c: RouteContext) => withMemo(provide(c, compose(groupByKind, opts.adapter)))
   cx.provider = provider(cx)
 
@@ -37,7 +45,7 @@ export const builder = (opts: ContextOptions) => {
   return {
     declare: (decl: Reflect.Declaration) => {
       const facade = createFacade(cx.docs, decl.id)
-      const route = facade && cx.provider.declare(facade)
+      const route = facade && cx.provider.route(facade)
       if (route) {
         routes.push(route)
 
@@ -67,10 +75,11 @@ export const builder = (opts: ContextOptions) => {
           continue
         }
         if (linked.has(route.decl)) {
-          const decl = cx.docs.get(route.decl)
+          const decl = createFacade(cx.docs, route.decl)
           if (!decl) continue
+          cx.provider.declaration(decl)
           r.push(route)
-          d.push(decl)
+          d.push(decl.raw)
           routed.add(route.decl)
         }
       }

@@ -52,13 +52,6 @@ export type Sidebar = { root?: number; group?: Group; children?: DocLink[] }
 /** A link to a declaration's page, displayed under `alias` and bucketed by `group`. */
 export type DocLink = { target: Reflect.Id; alias: string; group?: Group; order?: number }
 
-/**
- * URL prefixes applied per route kind: `doc` for declaration pages, `page`
- * for markdown pages.
- * @internal
- */
-export type RoutePrefix = { doc?: string; page?: string }
-
 /** A list of items sharing a group name, emitted in resolved group order. */
 export type GroupedItems<T> = { group: string; items: T[] }
 
@@ -84,3 +77,9 @@ export interface ClientRouter {
   /** Breadcrumb segments for a declaration's route; segments without a `slug` render as plain text. */
   parts(id: number): { value: string; slug?: SlugPath }[]
 }
+
+/**
+ * URL prefixes applied per route kind: `doc` for declaration pages, `page`
+ * for markdown pages.
+ */
+export type RoutePrefix = { doc?: string; page?: string }

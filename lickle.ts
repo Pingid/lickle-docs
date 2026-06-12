@@ -1,4 +1,4 @@
-import { defineConfig, Adapter } from '@lickle/docs/config'
+import { defineConfig, Adapter } from './src/config/index.ts'
 
 export default defineConfig({
   name: '@lickle/docs',
@@ -12,7 +12,7 @@ export default defineConfig({
   provider: Adapter.compose(
     Adapter.filter((d) => !d.tags.has('@internal')),
     Adapter.groupByTag('@group'),
-    // Adapter.section('essentials', ['defineConfig', 'defineComponents', 'LiveExample']),
     Adapter.mapComment((c) => ({ ...c, tags: c.tags?.filter((t) => t.tag !== '@group') })),
+    // Adapter.section('essentials', ['defineConfig', 'defineComponents', 'LiveExample']),
   ),
 })
