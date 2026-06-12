@@ -1,4 +1,3 @@
-import type { Exposure } from '../../reflect/indexed.ts'
 import { memo } from '../../../_lib/util/index.ts'
 import type { Reflect } from '../../index.ts'
 
@@ -66,7 +65,7 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
   const declaration = index.get(id)
   if (!declaration) return undefined
 
-  const fromExposures = (exposures: (Exposure | undefined)[]) =>
+  const fromExposures = (exposures: (Reflect.Exposure | undefined)[]) =>
     exposures
       .map((e) => (e ? createFacade<'module' | 'namespace'>(index, e.exposer, e.alias) : undefined))
       .filter(defined)

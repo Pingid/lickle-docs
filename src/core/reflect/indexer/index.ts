@@ -182,16 +182,18 @@ const exposures = (): IndexBuilder<ExposerIndex, Tree & Roots> => {
   }
 }
 
-interface IndexBuilder<I, D = void> {
+interface IndexBuilder<I, D = {}> {
   add: (d: T.Declaration) => void
   build: (deps: D) => I
 }
 
+type Infer<I extends IndexBuilder<any, any>> = I extends IndexBuilder<infer I, infer D> ? { deps: D; idx: I } : never
+
 const combine = <const B extends IndexBuilder<any, any>[]>(
   builders: B,
 ): IndexBuilder<
-  t.UnionToIntersection<ReturnType<B[number]['build']>>,
-  t.UnionToIntersection<Omit<Parameters<B[number]['build']>[0], keyof ReturnType<B[number]['build']>>>
+  t.UnionToIntersection<Infer<B[number]>['idx']>,
+  t.UnionToIntersection<Exclude<Infer<B[number]>['deps'], Infer<B[number]>['idx']>>
 > => ({
   add: (d) => builders.forEach((b) => b.add(d)),
   build: (deps) => {

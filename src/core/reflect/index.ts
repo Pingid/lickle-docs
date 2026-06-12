@@ -3,7 +3,7 @@ import * as Scan from './scanner/index.ts'
 import * as Resolve from './resolve.ts'
 import * as State from './state.ts'
 
-export { type Index } from './indexer/index.ts'
+export { type Index, type Exposure } from './indexer/index.ts'
 export type * from './types.ts'
 
 export type BuildOptions = State.ScanOptions & Indexer.Options
