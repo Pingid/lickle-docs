@@ -1,6 +1,5 @@
 import { v, type Valid } from '@lickle/is'
 
-import type { Router } from '../index.ts'
 import * as T from './types.ts'
 
 export const validate = (v: unknown): Partial<T.UserConfig> => {
@@ -20,25 +19,14 @@ const page = v.struct.match<T.Page>({
   title: v.string,
   slug: v.or(v.string, v.undefined),
   content: v.string,
+  folder: v.or(v.string, v.undefined),
+  group: v.or(v.string, v.undefined),
+  order: v.or(v.number, v.undefined),
 })
 
 const entry = v.struct.match<T.Entry>({
   as: v.string,
   path: v.string,
-})
-
-// Every adapter hook is optional — `Adapter.groupBy` and hand-rolled
-// adapters set only the hooks they refine. The runtime check is
-// function-or-undefined; hook signatures can't be validated at runtime.
-const hook: Valid<any, unknown> = v.or(v.function, v.undefined)
-const adapter = v.struct.match<Router.Adapter>({
-  alias: hook,
-  slug: hook,
-  route: hook,
-  sidebar: hook,
-  referenced: hook,
-  links: hook,
-  declaration: hook,
 })
 
 const any: Valid<any, unknown> = (v) => ({ ok: true, value: v })
@@ -58,8 +46,11 @@ export const schema = v.struct.match<Partial<T.UserConfig>>({
   exclude: field(v.array(v.string)),
   include: field(any),
   languages: field(v.array(v.string)),
-  provider: field(adapter),
+  // Layout functions can't be validated at runtime — accept them as-is.
+  layout: field(v.function as Valid<any, unknown>),
+  transform: field(v.function as Valid<any, unknown>),
   versions: any,
+  filter: field(v.function as Valid<any, unknown>),
 })
 
 const SHIKI_LANGUAGES = [

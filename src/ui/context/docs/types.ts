@@ -6,12 +6,12 @@
  *   release.
  * - **Reflection** — `Declaration`, `Type`, `Part` and `Comment` model the
  *   scanned source: what each page documents.
- * - **Routing** — `Route`, `ClientRouter` and `SidebarRoute` model the
- *   generated pages and navigation.
+ * - **Site** — `PageNode` and `SidebarNode` model the rendered pages and the
+ *   navigation tree.
  */
 import type { Link, ProjectVersion } from '../../../core/config/types.ts'
 
-export type { SidebarRoute, GroupedItems } from '../../../core/route/client/index.ts'
+export type { GroupedItems, SidebarNode, PageNode, DocPage } from '../../../core/layout/types.ts'
 
 export type * from '../../../core/reflect/types.ts'
 export type * from '../../../core/config/types.ts'

@@ -6,26 +6,38 @@ import { A, useLocation } from '../util/router.tsx'
 import { createSlot, type Reflect } from '../context/index.tsx'
 import { DocRouter, useProject } from '../hooks/index.ts'
 import * as Type from './Type.tsx'
-import type { Route } from '../../core/route/types.ts'
+
+type Node = Reflect.SidebarNode
+type Groups = Reflect.GroupedItems<Node>[]
+
+/** Stable per-node identity within the tree: the slug for pages, `f:`-prefixed ref for folders. */
+const nodeKey = (n: Node): string => (n.kind === 'folder' ? `f:${n.ref}` : n.slug)
+/** Navigable slug, or `undefined` for folders (which have no page). */
+const nodeSlug = (n: Node): string | undefined => (n.kind === 'folder' ? undefined : n.slug)
+/** Display label: doc nodes prefer the branch-contextual qualifier. */
+const nodeLabel = (n: Node): string => (n.kind === 'doc' ? (n.display ?? n.label) : n.label)
+/** Declaration id for the kind badge, or `undefined` for pages/folders. */
+const nodeId = (n: Node): number | undefined => (n.kind === 'doc' ? n.id : undefined)
 
 /**
  * The unique node occurrence the user is viewing, identified by its trail (the
- * chain of slugs from the root). The same page can appear under several parents;
+ * chain of keys from the root). The same page can appear under several parents;
  * the trail disambiguates which occurrence is active so only that branch opens.
  * Shared across sidebar instances (e.g. desktop + mobile drawer) so they agree.
  */
 const [selected, setSelected] = createSignal<{ trail: string; path: string } | null>(null)
 
 /** Trail of a child appended to its parent's trail. */
-const trailOf = (parent: string, slug: string) => `${parent}>${slug}`
+const trailOf = (parent: string, key: string) => `${parent}>${key}`
 
 /** Trail of the first node in DFS order whose slug resolves to `pathname`, if any. */
-const findTrail = (routes: Reflect.GroupedItems<Reflect.SidebarRoute>[], pathname: string, parent = ''): string | null => {
-  for (const group of routes)
-    for (const route of group.items) {
-      const trail = trailOf(parent, route.slug)
-      if (pathOf(route.slug) === pathname) return trail
-      const child = findTrail(route.children, pathname, trail)
+const findTrail = (groups: Groups, pathname: string, parent = ''): string | null => {
+  for (const group of groups)
+    for (const node of group.items) {
+      const trail = trailOf(parent, nodeKey(node))
+      const slug = nodeSlug(node)
+      if (slug !== undefined && pathOf(slug) === pathname) return trail
+      const child = findTrail(node.children, pathname, trail)
       if (child) return child
     }
   return null
@@ -55,27 +67,22 @@ export const Sidebar = createSlot('sidebar', (props) => {
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
       <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
-        <NavList routes={router()?.sidebar ?? []} depth={0} trail="" onNavigate={props.onNavigate} />
+        <NavList groups={router()?.sidebar ?? []} depth={0} trail="" onNavigate={props.onNavigate} />
       </nav>
     </aside>
   )
 })
 
-/** A flat run of sibling routes. */
-const NavList = (props: {
-  routes: Reflect.GroupedItems<Reflect.SidebarRoute>[]
-  depth: number
-  trail: string
-  onNavigate?: () => void
-}) => (
-  <For each={props.routes}>
-    {(route) => <NavChildren route={route} depth={props.depth} trail={props.trail} onNavigate={props.onNavigate} />}
+/** A flat run of sibling node groups. */
+const NavList = (props: { groups: Groups; depth: number; trail: string; onNavigate?: () => void }) => (
+  <For each={props.groups}>
+    {(group) => <NavChildren group={group} depth={props.depth} trail={props.trail} onNavigate={props.onNavigate} />}
   </For>
 )
 
-/** The grouped children of a route, each group preceded by a {@link GroupLabel}. */
+/** The grouped children of a node, each group preceded by a {@link GroupLabel}. */
 const NavChildren = (props: {
-  route: Reflect.GroupedItems<Reflect.SidebarRoute>
+  group: Reflect.GroupedItems<Node>
   depth: number
   trail: string
   onNavigate?: () => void
@@ -83,17 +90,17 @@ const NavChildren = (props: {
   if (props.depth > 10) return <div>Too deep</div>
   return (
     <div style={{ '--sidebar-depth': props.depth }}>
-      <Show when={props.route.group}>
-        <GroupLabel label={props.route.group} depth={props.depth} />
+      <Show when={props.group.group}>
+        <GroupLabel label={props.group.group} depth={props.depth} />
       </Show>
-      <For each={props.route.items}>
-        {(child) => <NavNode route={child} depth={props.depth} trail={props.trail} onNavigate={props.onNavigate} />}
+      <For each={props.group.items}>
+        {(child) => <NavNode node={child} depth={props.depth} trail={props.trail} onNavigate={props.onNavigate} />}
       </For>
     </div>
   )
 }
 
-/** A non-interactive section heading shown above a run of related routes. */
+/** A non-interactive section heading shown above a run of related nodes. */
 const GroupLabel = (props: { label: string; depth: number }) => (
   <div
     class={cn(
@@ -105,24 +112,27 @@ const GroupLabel = (props: { label: string; depth: number }) => (
   </div>
 )
 
-type NodeProps = { route: Reflect.SidebarRoute; depth: number; trail: string; onNavigate?: () => void }
+type NodeProps = { node: Node; depth: number; trail: string; onNavigate?: () => void }
 
-/** Normalised app-absolute path of a route slug, for comparison with `location.pathname`. */
+/** Normalised app-absolute path of a node slug, for comparison with `location.pathname`. */
 const pathOf = (slug: string) => `/${slug}`.replace(/\/+/g, '/')
+
+const hasChildren = (n: Node) => n.children.some((g) => g.items.length > 0)
 
 /**
  * A single navigation node.
  *
- * - A route with children is a controlled disclosure: a chevron button toggles
- *   the section while the title stays a plain link. Only the branch on the
- *   {@link selected} trail opens — the same route may appear under several
- *   parents, so opening every occurrence would expand unrelated sections; the
- *   trail pins the one the user actually navigated through. A native `<details>`
- *   can't be used because its toggle swallows the router's delegated link clicks.
- * - A leaf route is a plain link.
+ * - A node with children is a controlled disclosure: a chevron button toggles
+ *   the section while the title stays a plain link (or, for a folder, plain
+ *   text). Only the branch on the {@link selected} trail opens — the same node
+ *   may appear under several parents, so opening every occurrence would expand
+ *   unrelated sections; the trail pins the one the user navigated through. A
+ *   native `<details>` can't be used because its toggle swallows the router's
+ *   delegated link clicks.
+ * - A leaf node is a plain link (doc/page) or plain text (empty folder).
  */
 const NavNode = (props: NodeProps) => {
-  const trail = () => trailOf(props.trail, props.route.slug)
+  const trail = () => trailOf(props.trail, nodeKey(props.node))
 
   // Exactly this occurrence is highlighted; a branch is "on trail" when the
   // selection is itself or a descendant.
@@ -141,19 +151,20 @@ const NavNode = (props: NodeProps) => {
 
   // Pin this occurrence eagerly on click so it wins over the URL-derived fallback.
   const pin = () => {
-    setSelected({ trail: trail(), path: pathOf(props.route.slug) })
+    const slug = nodeSlug(props.node)
+    if (slug !== undefined) setSelected({ trail: trail(), path: pathOf(slug) })
     props.onNavigate?.()
   }
 
   return (
     <Show
-      when={props.route.children.length > 0}
+      when={hasChildren(props.node)}
       fallback={
         <div class="pl-[calc(var(--sidebar-depth)*var(--sidebar-indent))]">
           <span class="w-5 shrink-0" />
-          <NodeLink
+          <NodeRow
             class={cn('text-mute hover:bg-hover hover:text-fg transition-colors ')}
-            route={props.route}
+            node={props.node}
             active={isActive()}
             onNavigate={pin}
           />
@@ -171,36 +182,53 @@ const NavNode = (props: NodeProps) => {
           <span class="p-1 rounded-md text-mute hover:bg-hover hover:text-fg transition-colors">
             <Chevron />
           </span>
-          <NodeLink
+          <NodeRow
             class={cn('text-mute hover:bg-hover hover:text-fg transition-colors')}
-            route={props.route}
+            node={props.node}
             active={isActive()}
             onNavigate={pin}
           />
         </summary>
         <div class="pb-2">
-          <NavList routes={props.route.children} depth={props.depth + 1} trail={trail()} onNavigate={props.onNavigate} />
+          <NavList groups={props.node.children} depth={props.depth + 1} trail={trail()} onNavigate={props.onNavigate} />
         </div>
       </details>
     </Show>
   )
 }
 
-const NodeLink = (props: { route: Reflect.SidebarRoute; active: boolean; onNavigate?: () => void; class?: string }) => (
-  <A
-    href={props.route.slug}
-    class={cn('flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 min-w-0', props.class)}
-    classList={{ '!text-fg font-medium': props.active }}
-    onClick={() => props.onNavigate?.()}
-  >
-    <KindCue route={props.route} />
-    <span class="font-mono truncate">{props.route.alias ?? props.route.title}</span>
-  </A>
-)
+/** A node's row: a link for doc/page nodes, plain text for a folder. */
+const NodeRow = (props: { node: Node; active: boolean; onNavigate?: () => void; class?: string }) => {
+  const slug = nodeSlug(props.node)
+  return (
+    <Show
+      when={slug !== undefined}
+      fallback={
+        <span class={cn('flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 min-w-0 font-mono', props.class)}>
+          <span class="w-3.5 shrink-0" />
+          <span class="truncate">{nodeLabel(props.node)}</span>
+        </span>
+      }
+    >
+      <A
+        href={slug!}
+        class={cn('flex-1 flex items-center gap-2 rounded-md px-1.5 py-1 min-w-0', props.class)}
+        classList={{ '!text-fg font-medium': props.active }}
+        onClick={() => props.onNavigate?.()}
+      >
+        <KindCue node={props.node} />
+        <span class="font-mono truncate">{nodeLabel(props.node)}</span>
+      </A>
+    </Show>
+  )
+}
 
-const KindCue = (props: { route: Route }) => {
+const KindCue = (props: { node: Node }) => {
   const project = useProject()
-  const kind = () => (props.route.kind === 'doc' ? project()?.byId(props.route.decl)?.kind : undefined)
+  const kind = () => {
+    const id = nodeId(props.node)
+    return id !== undefined ? project()?.byId(id)?.kind : undefined
+  }
   return <Show when={kind()}>{(k) => <Type.KindBadge kind={k()} class="text-[0.7rem]! w-3.5 shrink-0" />}</Show>
 }
 

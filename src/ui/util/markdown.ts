@@ -23,18 +23,18 @@ type Ctx = { project: Project; slugOf: SlugOf; inline: boolean; seen: Set<number
  */
 export const routeToMarkdown = (
   router: DocRouter.ClientRouter,
-  route: DocRouter.Route,
+  route: DocRouter.PageNode,
   project: Project,
   slugOf: SlugOf,
   opts: MarkdownOptions = {},
 ): string => renderRoute(route, { project, slugOf, router, inline: !!opts.inlineMembers, seen: new Set() }, 1)
 
-const renderRoute = (route: DocRouter.Route, ctx: Ctx, depth: number): string => {
+const renderRoute = (route: DocRouter.PageNode, ctx: Ctx, depth: number): string => {
   if (route.kind === 'page') return route.body.join('\n\n').trimEnd() + '\n'
   return statementMd(route, ctx, depth)
 }
 
-const statementMd = (route: DocRouter.DocRoute, ctx: Ctx, depth: number): string => {
+const statementMd = (route: DocRouter.DocPage, ctx: Ctx, depth: number): string => {
   const decl = ctx.project.byId(route.decl)
   const h = '#'.repeat(Math.min(depth, 6))
   if (!decl) return `${h} ${route.title}\n`
@@ -53,7 +53,7 @@ const statementMd = (route: DocRouter.DocRoute, ctx: Ctx, depth: number): string
  * default, or — when `ctx.inline` — expanded in place with each member's full
  * documentation.
  */
-const childrenMd = (route: DocRouter.DocRoute, ctx: Ctx, depth: number): string => {
+const childrenMd = (route: DocRouter.DocPage, ctx: Ctx, depth: number): string => {
   if (!route.links.length) return ''
   let out = ''
   for (const g of DocRouter.groupItems(route.links, (l) => l.group)) {

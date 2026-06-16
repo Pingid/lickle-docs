@@ -1,1 +1,1 @@
-export * from '../../core/route/naming.ts'
+export * from '../../core/naming.ts'

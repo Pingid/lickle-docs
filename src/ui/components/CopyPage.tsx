@@ -12,7 +12,7 @@ const CHECK = 'm5 12 5 5 9-9'
  * module/namespace pages (which have members) it opens a small menu offering
  * to inline every member's documentation; elsewhere it copies on click.
  */
-export const CopyPageButton = clientOnly(() => (props: { route: DocRouter.Route; class?: string }) => {
+export const CopyPageButton = clientOnly(() => (props: { route: DocRouter.PageNode; class?: string }) => {
   const router = DocRouter.use()
   const project = useProject()
   const slugs = useSlugFor()

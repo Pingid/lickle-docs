@@ -51,7 +51,7 @@ export const docs = (config: ViteContext): vite.Plugin => {
         const c = await config.current()
         s.watcher.add(c.file)
         if (!hasChanged(c)) return logger?.info(pc.green('No changes'), { timestamp: true })
-        logger?.info(pc.green(`Built ${c.json.routes.length} pages`), { timestamp: true })
+        logger?.info(pc.green(`Built ${c.json.pages.length} pages`), { timestamp: true })
         // s.ws.send({ type: 'custom', event: 'docs-update', data: c.json })
         docs.invalidate(s)
         s.ws.send({ type: 'full-reload', path: clientFiles.virtuals.docs })

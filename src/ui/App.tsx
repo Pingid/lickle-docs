@@ -2,7 +2,7 @@ import { Match, Show, Switch, createMemo, type Component } from 'solid-js'
 import type { RouteSectionProps } from '@solidjs/router'
 import type { JSX } from 'solid-js/jsx-runtime'
 
-import { ComponentsProvider, ThemeProvider, type Components } from './context/index.tsx'
+import { ComponentsProvider, ThemeProvider, type Components, type Reflect } from './context/index.tsx'
 import { DocsProvider, useDocActiveProject, type DocsInput } from './context/docs/index.tsx'
 import { Route, useParams, Navigate, HashRouter } from './util/router.tsx'
 import { Link, Page, Layout } from './components/index.ts'
@@ -96,17 +96,32 @@ const ProjectPage = () => {
   const params = useParams()
   const router = DocRouter.use()
   const route = createMemo(() => router()?.get({ slug: params['slug'] ?? '' }))
+  // A redirect-mode alias slug has no route of its own — send it to its canonical.
+  const redirect = createMemo(() => (route() ? undefined : router()?.redirect(params['slug'] ?? '')))
   return (
-    <Show when={route()} fallback={<Fallback slug={params['slug']} />}>
+    <Show when={route()} fallback={<Show when={redirect()} fallback={<Fallback slug={params['slug']} />}>
+      {(to) => <Navigate href={to()} />}
+    </Show>}>
       {(r) => <Page route={r()} />}
     </Show>
   )
 }
 
+/** First navigable slug in DFS order, descending through folders (which have none). */
+const firstSlug = (groups?: Reflect.GroupedItems<Reflect.SidebarNode>[]): string | undefined => {
+  for (const group of groups ?? [])
+    for (const node of group.items) {
+      if (node.kind !== 'folder') return node.slug
+      const child = firstSlug(node.children)
+      if (child) return child
+    }
+  return undefined
+}
+
 /** Empty path redirects to the first sidebar route; anything else is a miss. */
 const Fallback = (props: { slug?: string }) => {
   const router = DocRouter.use()
-  const first = createMemo(() => router()?.sidebar[0]?.items?.[0]?.slug)
+  const first = createMemo(() => firstSlug(router()?.sidebar))
   return (
     <Show when={!props.slug && first()} fallback={<NotFound />}>
       {(slug) => <Navigate href={slug()} />}

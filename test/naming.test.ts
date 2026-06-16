@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 
-import { labelOf, pluralLabel, shortOf, isRoutable, kindOrder } from '../src/core/route/naming.ts'
+import { labelOf, pluralLabel, shortOf, isRoutable, kindOrder } from '../src/core/naming.ts'
 
 test('labelOf maps kinds to display labels, unknown to "symbol"', () => {
   expect(labelOf('type-alias')).toBe('type')

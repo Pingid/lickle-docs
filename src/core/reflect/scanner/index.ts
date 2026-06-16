@@ -11,7 +11,9 @@ type Gen = Generator<T.Declaration, void, void>
 export const scan = function* (s: State): Gen {
   let i = 0
   while (i < s.files.length) {
+    s.emit({ level: 'info', code: 'scan-file-start', message: `Scanning file ${s.files[i]!.fileName}` })
     yield* SourceFile(s, s.files[i]!)
+    s.emit({ level: 'info', code: 'scan-file-end', message: `Finished scanning file ${s.files[i]!.fileName}` })
     i++
   }
 }

@@ -7,9 +7,10 @@
  * `lickle.ts` (or `.js` / `.mjs` / `.json`) to the project root and
  * default-export the result of {@link defineConfig}.
  *
- * `UserConfig` documents every field. Route generation — which declarations
- * get pages, their slugs and how the sidebar is grouped — is customised
- * separately through the {@link Adapter} namespace and the `provider` field.
+ * `UserConfig` documents every field. Page generation — which declarations get
+ * pages, their slugs and how the sidebar is grouped — is customised through the
+ * {@link Layout} namespace and the `layout` field, with content tweaks via the
+ * {@link Transform} namespace and the `transform` field.
  *
  * @example
  * ```ts
@@ -26,7 +27,8 @@
 import type { UserConfig } from './types.ts'
 export type * from './types.ts'
 
-export * as Adapter from '../route/adapter/index.ts'
+export * as Layout from '../layout/index.ts'
+export * as Transform from '../layout/transform.ts'
 
 /**
  * Declare the project configuration with type checking.
@@ -56,7 +58,8 @@ export * as Adapter from '../route/adapter/index.ts'
  * }))
  * ```
  */
-export const defineConfig = (config: UserConfig | (() => UserConfig) | (() => Promise<UserConfig>)) => {
-  const c = typeof config === 'function' ? config() : config
-  return Promise.resolve(c)
-}
+export const defineConfig = (config: UserConfig | (() => UserConfig) | (() => Promise<UserConfig>)) =>
+  Promise.resolve().then(() => {
+    const c = typeof config === 'function' ? config() : config
+    return Promise.resolve(c)
+  })

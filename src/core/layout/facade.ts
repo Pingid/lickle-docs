@@ -1,6 +1,6 @@
-import type { t } from '../../../_lib/index.ts'
-import { memo } from '../../../_lib/util/index.ts'
-import type { Reflect } from '../../index.ts'
+import type * as Reflect from '../reflect/index.ts'
+import { memo } from '../../_lib/util/index.ts'
+import type { t } from '../../_lib/index.ts'
 
 /** A facade over a declaration that can expose members: a module or namespace. */
 export type ModuleFacade = DeclarationFacade<'module' | 'namespace'>

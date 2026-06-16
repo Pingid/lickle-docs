@@ -6,7 +6,7 @@ import * as Core from '../../core/index.ts'
 import { Node } from '../../_lib/index.ts'
 
 import type { ServerEntry } from '../entrypoints/entry-server.tsx'
-import { createRouter } from '../../core/route/client/index.ts'
+import { createLayoutRouter } from '../../core/layout/client.ts'
 import { createShellStreamer } from '../context/index.ts'
 
 type GenerateStaticOptions = {
@@ -38,10 +38,16 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   const serverManifest = await readManifest(opts.serverOutDir, opts.baseUrl)
   const serverModule = await Node.Jiti.importModule<{ default: ServerEntry }>(serverManifest.entry()!.filePath)
 
-  const router = createRouter({ routes: opts.json.routes, prefix: opts.json.prefix })
+  const router = createLayoutRouter({
+    pages: opts.json.pages,
+    sidebar: opts.json.sidebar,
+    redirects: opts.json.redirects,
+    prefix: opts.json.prefix,
+  })
+  const redirects = router.redirects
   const shellStreamer = await createShellStreamer(opts.baseUrl)
 
-  const gen = async (route: Core.Router.Route) => {
+  const gen = async (route: Core.Layout.PageNode) => {
     const rel = route.slug.replace(/^\/+/, '')
     const isHome = rel === ''
     const outPath = path.join(opts.outDir, isHome ? 'index.html' : rel + '.html')
@@ -81,6 +87,20 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
 
   for (const route of router.items) {
     await gen(route)
+  }
+
+  // Redirect-mode aliases → tiny meta-refresh stubs at the alias URL.
+  for (const rd of redirects) {
+    const rel = rd.from.replace(/^\/+/, '')
+    if (!rel) continue
+    const outPath = path.join(opts.outDir, rel + '.html')
+    await Node.Fs.ensureDir(outPath)
+    const to = prefixSlash(path.join(opts.baseUrl, rd.to))
+    await Node.Fs.writeFile(
+      outPath,
+      `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=${to}"><link rel="canonical" href="${to}">`,
+    )
+    opts.logger.info(`${pc.gray(path.relative(process.cwd(), opts.outDir) + '/')}${pc.green(rel + '.html')} → ${rd.to}`)
   }
 
   // await pMap(router.items, gen, { concurrency: 10 })

@@ -1,11 +1,11 @@
 import type ts from 'typescript'
 
-import type { Router, Reflect } from '../index.ts'
+import type { Reflect, Layout } from '../index.ts'
 
 /**
- * One generated documentation dataset: everything the UI needs to render a
- * single version of a project. Produced by the CLI (`ldocs json` writes it to
- * `docs/project.json`) and consumed by `DocsProvider` on the client.
+ * One generated documentation dataset: the resolved site graph for a single
+ * project version, plus its metadata. Produced by the CLI (`ldocs json` writes
+ * it to `docs/project.json`) and consumed by `DocsProvider` on the client.
  */
 export interface ProjectVersion {
   /** Project name shown in the header. */
@@ -14,10 +14,14 @@ export interface ProjectVersion {
   version: string
   /** Repository links used for "view source" anchors. */
   repository?: Repo
-  /** The route tree: one entry per page (declarations and markdown pages). */
-  routes: Router.Route[]
-  /** URL prefixes applied per route kind: `doc` for declaration pages, `page` for markdown pages. */
-  prefix: Router.RoutePrefix
+  /** URL prefixes applied per page kind: `doc` for declaration pages, `page` for markdown pages. */
+  prefix: Layout.RoutePrefix
+  /** The rendered pages: one entry per declaration page and markdown page. */
+  pages: Layout.PageNode[]
+  /** The server-built navigation tree; the client renders it directly. */
+  sidebar: Layout.GroupedItems<Layout.SidebarNode>[]
+  /** Secondary URLs that redirect to a canonical page (`redirect`-mode aliases). */
+  redirects: Layout.Redirect[]
   /** Flat list of every declaration in the project, source order. */
   declarations: Reflect.Declaration[]
 }
@@ -28,7 +32,7 @@ export interface ProjectVersion {
  * metadata or conventional files. Resolved into a {@link Config} before
  * generation.
  */
-export interface UserConfig extends Partial<Omit<Config, 'routes' | 'versions'>> {
+export interface UserConfig extends Partial<Omit<Config, 'versions'>> {
   /** Project name shown in the header. Defaults to the `package.json` name. */
   name: string
   /**
@@ -60,12 +64,34 @@ export interface Config extends ConfigJson {
    * ```
    */
   include: (sf: ts.SourceFile, defaultValue: boolean) => boolean
+
+  /** Filter declarations to include */
+  filter?: Layout.Filter
   /**
-   * Route-generation adapter: hooks that refine slugs, sidebar placement and
-   * member grouping. Build one with the `Adapter` namespace, e.g.
-   * `Adapter.groupBy`.
+   * The whole page-generation policy, as one composed {@link Layout}. Placement,
+   * grouping (`Layout.grouping`), virtual folders (place under `{ virtual }`
+   * parents), filtering and aliases are all layers composed with
+   * `Layout.compose` — there are no separate fields. Defaults to grouping by kind.
+   *
+   * @example
+   * ```ts
+   * layout: Layout.compose(
+   *   Layout.filter((d) => !d.tags.has('@internal') && d.exposure.is()),
+   *   Layout.grouping(Layout.composeGroups(Layout.groupByKind, Layout.groupByTag('@group'))),
+   * )
+   * ```
    */
-  provider?: Router.Adapter
+  layout?: Layout.Layout
+  /**
+   * Content transforms run over each declaration after layout has read it —
+   * kept separate from `layout` so placement stays pure.
+   *
+   * @example
+   * ```ts
+   * transform: Transform.stripTags('@group')
+   * ```
+   */
+  transform?: Layout.Transform
 }
 
 /** The serializable part of the configuration. */
@@ -131,6 +157,12 @@ export interface Page {
   slug?: string
   /** Path to a markdown file, or inline markdown. */
   content: string
+  /** Virtual sidebar folder to nest this page under, e.g. `'Guides'` (a `/` nests). Home (`slug: '/'`) ignores it. */
+  folder?: string
+  /** Sidebar bucket under its parent, e.g. `'Guides'`. */
+  group?: string
+  /** Sort position among its siblings (lower first); ties fall back to title. */
+  order?: number
 }
 
 /** A source file documented as a top-level module. */

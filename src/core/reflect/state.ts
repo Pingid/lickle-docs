@@ -1,17 +1,28 @@
 import ts from 'typescript'
 import path from 'path'
 
-import type * as T from './types.ts'
+import type { Diagnostic } from '../diagnostic/types.ts'
 import { t } from '../../_lib/index.ts'
+import type * as T from './types.ts'
 
 /** How a given `exports` clause should populate its targets at resolve time. */
 export type ExportsForm = 'named-local' | 'named-from' | 'star' | 'namespace-from' | 'assignment'
+
+declare module '../diagnostic/types.ts' {
+  interface DiagnosticsMap {
+    'scan-start': {}
+    'scan-file-start': {}
+    'scan-file-end': {}
+  }
+}
 
 export interface ScanOptions {
   cmd: ts.ParsedCommandLine
   dir: string
   srcDir: string
   include: (sf: ts.SourceFile) => boolean
+  emit: (d: Diagnostic) => void
+  abortSignal?: AbortSignal
 }
 
 export interface ScanState extends ScanOptions {

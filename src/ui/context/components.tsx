@@ -81,9 +81,9 @@ export interface Components {
 
   // Page slots
   /** A whole route: declaration page or markdown page. */
-  page?: WithDefault<{ route: DocRouter.Route }>
+  page?: WithDefault<{ route: DocRouter.PageNode }>
   /** Title block of a declaration page: breadcrumb, name, kind, source link. */
-  'page.header'?: WithDefault<{ decl: Reflect.Declaration; route: DocRouter.Route }>
+  'page.header'?: WithDefault<{ decl: Reflect.Declaration; route: DocRouter.PageNode }>
 
   // Declaration page slots
   /** A declaration's body — signatures, members, doc comment. */

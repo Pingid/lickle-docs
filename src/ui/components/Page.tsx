@@ -28,6 +28,7 @@ export const Page = createSlot('page', (props) => {
           {(route) => (
             <>
               <Statement route={route()} />
+              <InlineMembers members={route().inline} />
               <Links links={route().links} />
               <References referenced={route().referenced} />
             </>
@@ -42,7 +43,7 @@ export const Page = createSlot('page', (props) => {
 })
 
 /** A declaration page: header, the declaration itself, and its members. */
-const Statement = (props: { route: DocRouter.DocRoute }) => {
+const Statement = (props: { route: DocRouter.DocPage }) => {
   const project = useProject()
   const decl = createMemo(() => project()?.byId(props.route.decl))
   return (
@@ -62,7 +63,7 @@ const Statement = (props: { route: DocRouter.DocRoute }) => {
  * deprecation marker when `@deprecated` is present, and the source link.
  * Replaceable via the `page.header` slot.
  */
-export const PageHeader = createSlot('page.header', (props: { decl: Reflect.Declaration; route: DocRouter.Route }) => (
+export const PageHeader = createSlot('page.header', (props: { decl: Reflect.Declaration; route: DocRouter.PageNode }) => (
   <header class="mb-5">
     <Breadcrumb id={props.decl.id} />
     <div class="flex items-baseline gap-3 flex-wrap">
@@ -106,6 +107,34 @@ export const Source: Component<{ decl: Reflect.Declaration }> = staticComponent(
 })
 
 /**
+ * Members rendered inline on the parent page (full docs), before the link list
+ * — the route's `render: 'inline'` children, which have no page of their own.
+ */
+const InlineMembers = (props: { members?: DocRouter.DocLink[] }) => {
+  const project = useProject()
+  return (
+    <For each={props.members ?? []}>
+      {(m) => {
+        const decl = createMemo(() => project()?.byId(m.target))
+        return (
+          <Show when={decl()}>
+            {(d) => (
+              <section class="mt-8">
+                <div class="flex items-baseline gap-3 flex-wrap mb-2">
+                  <h2 class="text-lg font-semibold font-mono">{m.alias}</h2>
+                  <Type.KindLabel kind={d().kind} />
+                </div>
+                <Declaration decl={d()} />
+              </section>
+            )}
+          </Show>
+        )
+      }}
+    </For>
+  )
+}
+
+/**
  * Member listing for a declaration page: the route's children grouped by kind,
  * exactly as the router lays them out. Each group becomes a titled section.
  */
@@ -120,7 +149,7 @@ const Links = (props: { links: DocRouter.DocLink[] }) => {
             <h2 class="text-sm font-semibold mb-3 pb-1.5 border-b border-line capitalize">{group.group}</h2>
           </Show>
           <ul class="space-y-3">
-            <For each={group.items.sort((a, b) => a.alias.localeCompare(b.alias))}>{(l) => <LinkRow link={l} />}</For>
+            <For each={group.items}>{(l) => <LinkRow link={l} />}</For>
           </ul>
         </section>
       )}

@@ -1,16 +1,16 @@
 import path from 'node:path'
 
-import type { t } from '../../../_lib/index.ts'
 import type * as T from '../types.ts'
+import * as Index from './lib.ts'
 
 export type Options = {
   srcDir: string
   entrypoints: { as: string; path: string }[]
 }
 
-export type Index = Tree & Roots & References & ExposerIndex
+export type DeclarationIndex = Tree & Roots & References & ExposerIndex
 
-export const builder = (o: Options) => combine([tree(), roots(o), references(), exposures()])
+export const builder = (o: Options) => Index.combine([tree(), roots(o), references(), exposures()])
 
 type Tree = {
   get: <K extends keyof T.DeclarationMap = keyof T.DeclarationMap>(id: number) => T.Declaration<K> | undefined
@@ -18,7 +18,7 @@ type Tree = {
   declarations: () => Iterable<T.Declaration>
 }
 
-const tree = (): IndexBuilder<Tree> => {
+const tree = (): Index.Builder<Tree> => {
   const byId = new Map<number, T.Declaration>()
   const byParent = new Map<number, Set<number>>()
   const EMPTY = new Set<number>()
@@ -49,7 +49,7 @@ type Roots = {
   languages: () => string[]
 }
 
-const roots = (o: Options): IndexBuilder<Roots, { langs: Set<string> }> => {
+const roots = (o: Options): Index.Builder<Roots, { langs: Set<string> }> => {
   const rootIds = new Set<number>()
   const rootIdx = new Map<number, number>()
   const rootsMap = new Map<string, T.Declaration<'module'>>()
@@ -83,7 +83,7 @@ const roots = (o: Options): IndexBuilder<Roots, { langs: Set<string> }> => {
 
 type References = { referencedIn: (id: T.Id) => Iterable<T.Id> }
 
-const references = (): IndexBuilder<References, { references: T.Type<'reference'>[] }> => ({
+const references = (): Index.Builder<References, { references: T.Type<'reference'>[] }> => ({
   add: () => {},
   build: (b) => {
     const referencedIn = new Map<T.Id, Set<T.Id>>()
@@ -107,7 +107,7 @@ export type ExposerIndex = {
   exposedBy: (id: T.Id) => Exposure[]
 }
 
-const exposures = (): IndexBuilder<ExposerIndex, Tree & Roots> => {
+const exposures = (): Index.Builder<ExposerIndex, Tree & Roots> => {
   const exposedByMap = new Map<T.Id, Exposure[]>()
   const exposesMap = new Map<T.Id, Exposure[]>()
 
@@ -181,27 +181,6 @@ const exposures = (): IndexBuilder<ExposerIndex, Tree & Roots> => {
     },
   }
 }
-
-interface IndexBuilder<I, D = {}> {
-  add: (d: T.Declaration) => void
-  build: (deps: D) => I
-}
-
-type Infer<I extends IndexBuilder<any, any>> = I extends IndexBuilder<infer I, infer D> ? { deps: D; idx: I } : never
-
-const combine = <const B extends IndexBuilder<any, any>[]>(
-  builders: B,
-): IndexBuilder<
-  t.UnionToIntersection<Infer<B[number]>['idx']>,
-  t.UnionToIntersection<Exclude<Infer<B[number]>['deps'], Infer<B[number]>['idx']>>
-> => ({
-  add: (d) => builders.forEach((b) => b.add(d)),
-  build: (deps) => {
-    const idx = deps as any
-    for (const b of builders) Object.assign(idx, b.build(idx))
-    return idx
-  },
-})
 
 const common = (pths: string[]): string => {
   if (!pths.length) return ''
