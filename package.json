@@ -1,7 +1,7 @@
 {
   "name": "@lickle/docs",
   "description": "Documentation generation for lickle",
-  "version": "0.0.0-dev.21",
+  "version": "0.0.1",
   "author": "Dan Beaven <dm.beaven@gmail.com>",
   "repository": {
     "type": "git",
@@ -40,7 +40,8 @@
   "scripts": {
     "build": "pnpm tsc -b -f",
     "test": "vitest run --exclude '**/dist/**'",
-    "test:watch": "vitest --exclude '**/dist/**'"
+    "test:watch": "vitest --exclude '**/dist/**'",
+    "docs:build": "tsx ./src/cli.ts build"
   },
   "files": [
     "src",
@@ -80,6 +81,7 @@
     "@types/micromatch": "^4.0.10",
     "@types/node": "^25.9.1",
     "prettier": "^3.8.3",
+    "tsx": "^4.22.4",
     "vitest": "^4.1.8"
   },
   "prettier": {
