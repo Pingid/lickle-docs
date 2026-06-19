@@ -1,0 +1,91 @@
+{
+  "name": "@lickle/docs",
+  "description": "Documentation generation for lickle",
+  "version": "0.0.0-dev.21",
+  "author": "Dan Beaven <dm.beaven@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pingid/lickle-docs.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/ui/index.js",
+  "types": "dist/ui/index.d.ts",
+  "module": "dist/ui/index.js",
+  "sideEffects": false,
+  "bin": {
+    "ldocs": "./dist/cli.js"
+  },
+  "exports": {
+    "./config": {
+      "types": "./dist/core/config/lib.d.ts",
+      "import": "./dist/core/config/lib.js",
+      "require": "./dist/core/config/lib.js"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.js",
+      "require": "./dist/ui/index.js"
+    },
+    "./solidjs": {
+      "types": "./dist/solidjs/index.d.ts",
+      "import": "./dist/solidjs/index.js",
+      "require": "./dist/solidjs/index.js"
+    },
+    "./client": "./client.d.ts",
+    "./theme.css": "./theme.css",
+    "./tsconfig.client.json": "./tsconfig.client.json",
+    "./solidjs/jsx-runtime": "./dist/solidjs/jsx-runtime.d.ts"
+  },
+  "scripts": {
+    "build": "pnpm tsc -b -f",
+    "test": "vitest run --exclude '**/dist/**'",
+    "test:watch": "vitest --exclude '**/dist/**'"
+  },
+  "files": [
+    "src",
+    "dist",
+    "client",
+    "theme.css",
+    "tsconfig.client.json"
+  ],
+  "dependencies": {
+    "@lickle/cn": "^0.0.1",
+    "@lickle/is": "0.1.0-dev.14",
+    "@orama/orama": "^3.1.18",
+    "@solidjs/router": "^0.16.1",
+    "@tailwindcss/vite": "^4.3.0",
+    "cmd-ts": "^0.15.0",
+    "codejar": "^4.3.0",
+    "execa": "^9.6.1",
+    "fast-glob": "^3.3.3",
+    "get-tsconfig": "^4.14.0",
+    "hosted-git-info": "^10.1.1",
+    "jiti": "^2.7.0",
+    "marked": "^18.0.4",
+    "micromatch": "^4.0.8",
+    "picocolors": "1.1.1",
+    "pkg-exports": "^0.2.0",
+    "resolve.exports": "^2.0.3",
+    "shiki": "^4.2.0",
+    "solid-js": "^1.9.13",
+    "sucrase": "^3.35.1",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12"
+  },
+  "devDependencies": {
+    "@types/hosted-git-info": "^3.0.5",
+    "@types/micromatch": "^4.0.10",
+    "@types/node": "^25.9.1",
+    "prettier": "^3.8.3",
+    "vitest": "^4.1.8"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 120,
+    "trailingComma": "all"
+  }
+}

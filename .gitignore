@@ -1,0 +1,15 @@
+node_modules
+.vscode
+lib
+reflect.json
+dist
+lib-ui
+lib-core
+lib-cli
+tsconfig.base.json
+/docs
+temp
+demo
+client/custom.tsx
+TODO.md
+ldocs.json
