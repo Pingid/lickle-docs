@@ -35,7 +35,13 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
   const router = DocRouter.use()
   const search = useSearch()
 
-  const [engine] = createResource(props.open, async (isOpen) => (isOpen ? await search() : undefined))
+  // Track `search()` reactively (not a one-shot capture): if the palette opens
+  // before the index has finished building, the engine swaps from the empty
+  // fallback to the real one as soon as it's ready.
+  const [engine] = createResource(
+    () => (props.open() ? search() : undefined),
+    async (e) => e,
+  )
 
   const [term, setTerm] = createSignal('')
   const [debounced, setDebounced] = createSignal('')
@@ -167,6 +173,11 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
                       <Type.KindBadge kind={hit.kind} class="w-3.5" />
                     </span>
                     <span class="font-mono font-semibold text-sm shrink-0">{hit.name}</span>
+                    <Show when={hit.group}>
+                      <span class="text-[0.7rem] text-mute px-1.5 py-0.5 rounded border border-line bg-hover/50 shrink-0">
+                        {hit.group}
+                      </span>
+                    </Show>
                     <Show when={hit.file}>
                       <span class="font-mono text-[0.7rem] text-mute truncate ml-auto pl-3 opacity-70">{hit.file}</span>
                     </Show>

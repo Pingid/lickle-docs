@@ -5,7 +5,7 @@ import type * as Reflect from '../reflect/index.ts'
  * separate from {@link Layout}, which decides placement only. Transforms shape
  * what renders (e.g. strip mechanical tags the grouping already consumed). They
  * may mutate the declaration; running them after layout avoids ordering bugs
- * like stripping `@group` before `groupByTag('@group')` reads it.
+ * like stripping `@group` before `Select.tag('@group')` reads it.
  */
 export type Transform = (d: Reflect.Declaration) => void
 

@@ -1,6 +1,6 @@
 import type * as Reflect from '../reflect/index.ts'
-import type { PageNode, DocLink, Group } from './types.ts'
-import type { Resolved } from './tree.ts'
+import type { PageNode, DocLink, Group, Place } from './types.ts'
+import { effectiveNav, type Resolved } from './tree.ts'
 
 /**
  * Serialize resolved placements into the flat {@link PageNode} list — the
@@ -10,8 +10,9 @@ import type { Resolved } from './tree.ts'
  * Only `render: 'page'` declarations get a page. A parent's exposed children
  * split by their own render mode: `page` → `links` (a link row), `inline` →
  * `inline` (full docs on the parent, before links), `hidden` → omitted. Member
- * links carry the **same group the child carries in the nav**, so the listing
- * groups exactly like the sidebar. Backlinks (`referenced`) stay ungrouped.
+ * links carry the child's **bucket** (its `Place.group`, or a per-branch `Nav`
+ * override), so the listing groups exactly like the sidebar — and still groups
+ * when the child is absent from the sidebar (`nav: []`). Backlinks stay ungrouped.
  */
 export const toPages = (resolved: Resolved[]): PageNode[] => {
   const byId = new Map<Reflect.Id, Resolved>()
@@ -22,15 +23,22 @@ export const toPages = (resolved: Resolved[]): PageNode[] => {
   type Child = { id: Reflect.Id; name: string; alias(): string | undefined }
   const aliasOf = (c: Child) => c.alias() ?? c.name
 
-  // The bucket/order a child carries under `parentId` (its nav edge there), so
-  // member listings mirror the sidebar. Falls back to the child's first nav edge.
+  const placeOf = (childId: Reflect.Id): Place | null | undefined => byId.get(childId)?.placement.page
+
+  // The bucket/order a child carries under `parentId`: its effective nav edge
+  // there (a per-branch override) if it has one, else the child's canonical
+  // `Place.group`/`order`. The fallback matters when a child is dropped from the
+  // sidebar (`nav: []`) but still listed/inlined on its parent — it keeps its bucket.
   const navUnder = (childId: Reflect.Id, parentId: Reflect.Id) => {
-    const nav = byId.get(childId)?.placement.nav
+    const r = byId.get(childId)
+    const nav = r ? effectiveNav(r.placement) : undefined
     if (!nav?.length) return undefined
     return nav.find((n) => 'decl' in n.parent && n.parent.decl === parentId) ?? nav[0]!
   }
-  const groupUnder = (childId: Reflect.Id, parentId: Reflect.Id): Group | undefined => navUnder(childId, parentId)?.group
-  const orderUnder = (childId: Reflect.Id, parentId: Reflect.Id): number => navUnder(childId, parentId)?.order ?? 0
+  const groupUnder = (childId: Reflect.Id, parentId: Reflect.Id): Group | undefined =>
+    navUnder(childId, parentId)?.group ?? placeOf(childId)?.group
+  const orderUnder = (childId: Reflect.Id, parentId: Reflect.Id): number =>
+    navUnder(childId, parentId)?.order ?? placeOf(childId)?.order ?? 0
   const toLink = (c: Child, parentId: Reflect.Id): DocLink => ({
     target: c.id,
     alias: aliasOf(c),

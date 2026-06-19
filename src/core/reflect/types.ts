@@ -285,14 +285,71 @@ export type IntrinsicName =
   | 'object'
   | 'this'
 
-// export type Reference = TypeMap['reference']
-
 /** A named piece inside a declaration or type — signature, parameter, property, method, …. Narrow with the type argument: `Part<'property'>`. */
 export type Part<K extends keyof PartMap = keyof PartMap> = PartMap[K]
 /** A member of a class, interface or inline object type. */
 export type Member = Part<'property' | 'method' | 'signature' | 'index-signature'>
 /** Any scanned node: {@link Declaration}, {@link Type} or {@link Part}. */
 export type Any<K extends keyof KindsMap = keyof KindsMap> = KindsMap[K]
+
+// ---------------- Remapped with kind and base ----------------
+/**
+ * {@link TypeComponentDefinitions} with `kind` discriminants and {@link NodeBase} merged in — the concrete part shapes.
+ * @internal
+ */
+export type PartMap = t.MapKind<TypeComponentDefinitions, 'kind', NodeBase>
+/**
+ * Every scanned node shape, keyed by `kind`.
+ * @internal
+ */
+export type KindsMap = DeclarationMap & TypeMap & PartMap
+
+// ---------------- COMMENTS ----------------
+
+/**
+ * Payloads of the block tags the scanner parses structurally. Tags outside
+ * this set are preserved as the catch-all `'*'` entry of
+ * {@link CommentTagMap}: name, optional caption and raw markdown body.
+ * @internal
+ */
+export interface CommentTagDefinitions {
+  '@param': { name: string; type?: Type; optional?: boolean; default?: string; text: string }
+  '@property': { name: string; type?: NoInfer<Type>; optional?: boolean; default?: string; text: string }
+  '@returns': { type?: Type; text: string }
+  '@throws': { type?: Type; text: string }
+  '@type': { type: Type; text: string }
+  '@satisfies': { type: Type; text: string }
+  '@template': { generics: Part<'generic'>[]; text: string }
+  '@see': { target?: string; text: string }
+  '@example': { caption?: string; lang?: string; code: string; text?: string }
+  '@augments': { class: Type; text: string }
+  '@implements': { class: Type; text: string }
+}
+
+/** Concrete tag shapes keyed by tag name: {@link CommentTagDefinitions} plus the `'*'` catch-all for custom tags. */
+export type CommentTagMap = t.Compute<
+  { [K in keyof CommentTagDefinitions]: t.Compute<CommentTagDefinitions[K] & { tag: K; kind: K }> } & {
+    '*': { tag: string; kind: '*'; name?: string; caption?: string; text: string }
+  }
+>
+/** A block tag of a comment. Discriminated on `tag`; narrow with the type argument: `CommentTag<'@example'>`. */
+export type CommentTag<K extends keyof CommentTagMap = keyof CommentTagMap> = CommentTagMap[K]
+
+/** A piece of a comment's summary: markdown `text`, or an inline `{@link target}` reference. */
+export type CommentPart = t.MapKindUnion<
+  {
+    text: { text: string }
+    link: { target: string; text?: string; style?: 'code' | 'plain' }
+  },
+  'kind'
+>
+
+/** A parsed JSDoc block: the summary as {@link CommentPart}s, plus its block tags. */
+export interface Comment {
+  parts: CommentPart[]
+  /** Block tags. Omitted when empty so the common case stays small. */
+  tags?: CommentTag[]
+}
 
 // ---------------- Guards ----------------
 // prettier-ignore
@@ -328,63 +385,3 @@ const ISK = is.or(ISD, IST, ISP)
 export const isKind = (x: any): x is Any => ISK(x)
 
 export const match = <K extends keyof KindsMap>(kind: K, x: unknown): x is KindsMap[K] => isKind(x) && x.kind === kind
-
-// ---------------- Remapped with kind and base ----------------
-/**
- * {@link TypeComponentDefinitions} with `kind` discriminants and {@link NodeBase} merged in — the concrete part shapes.
- * @internal
- */
-export type PartMap = t.MapKind<TypeComponentDefinitions, 'kind', NodeBase>
-/**
- * Every scanned node shape, keyed by `kind`.
- * @internal
- */
-export type KindsMap = DeclarationMap & TypeMap & PartMap
-
-// ---------------- COMMENTS ----------------
-/** A piece of a comment's summary: markdown `text`, or an inline `{@link target}` reference. */
-export type CommentPart = t.MapKindUnion<
-  {
-    text: { text: string }
-    link: { target: string; text?: string; style?: 'code' | 'plain' }
-  },
-  'kind'
->
-
-/**
- * Payloads of the block tags the scanner parses structurally. Tags outside
- * this set are preserved as the catch-all `'*'` entry of
- * {@link CommentTagMap}: name, optional caption and raw markdown body.
- * @internal
- */
-export interface CommentTagDefinitions {
-  '@param': { name: string; type?: Type; optional?: boolean; default?: string; text: string }
-  '@property': { name: string; type?: NoInfer<Type>; optional?: boolean; default?: string; text: string }
-  '@returns': { type?: Type; text: string }
-  '@throws': { type?: Type; text: string }
-  '@type': { type: Type; text: string }
-  '@satisfies': { type: Type; text: string }
-  '@template': { generics: Part<'generic'>[]; text: string }
-  '@see': { target?: string; text: string }
-  '@example': { caption?: string; lang?: string; code: string; text?: string }
-  '@augments': { class: Type; text: string }
-  '@implements': { class: Type; text: string }
-}
-
-/** A parsed JSDoc block: the summary as {@link CommentPart}s, plus its block tags. */
-export interface Comment {
-  parts: CommentPart[]
-  /** Block tags. Omitted when empty so the common case stays small. */
-  tags?: CommentTag[]
-}
-
-/** Concrete tag shapes keyed by tag name: {@link CommentTagDefinitions} plus the `'*'` catch-all for custom tags. */
-export type CommentTagMap = t.Compute<
-  { [K in keyof CommentTagDefinitions]: t.Compute<CommentTagDefinitions[K] & { tag: K; kind: K }> } & {
-    '*': { tag: string; kind: '*'; name?: string; caption?: string; text: string }
-  }
->
-/** A block tag of a comment. Discriminated on `tag`; narrow with the type argument: `CommentTag<'@example'>`. */
-export type CommentTag<K extends keyof CommentTagMap = keyof CommentTagMap> = CommentTagMap[K]
-
-// ---------------- Utilities ----------------

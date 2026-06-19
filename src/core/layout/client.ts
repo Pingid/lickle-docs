@@ -1,6 +1,6 @@
 import * as Slug from '../../_lib/slug/index.ts'
 
-import type { PageNode, RoutePrefix, SlugPath, SidebarNode, GroupedItems, Redirect } from './types.ts'
+import type { PageNode, RoutePrefix, SlugPath, SidebarNode, GroupedItems, Redirect, Group } from './types.ts'
 
 /**
  * The client-facing router: prefix every page slug, index by slug and id, and
@@ -121,4 +121,25 @@ export const createLayoutRouter = (p: {
       })
     },
   }
+}
+
+/**
+ * Bucket `items` by group name, then order buckets by {@link Group} (ascending;
+ * ties keep first-seen). Items without a group fall into the `''` bucket.
+ */
+export const groupItems = <T extends Record<string, any>>(
+  items: T[],
+  groupOf: (item: T) => Group | undefined,
+): GroupedItems<T>[] => {
+  const groups = new Map<string, { order: number; items: T[] }>()
+  for (const item of items) {
+    const group = groupOf(item)
+    const name = group?.name ?? ''
+    let bucket = groups.get(name)
+    if (!bucket) groups.set(name, (bucket = { order: group?.order ?? Infinity, items: [] }))
+    bucket.items.push(item)
+  }
+  return [...groups.entries()]
+    .sort(([, a], [, b]) => a.order - b.order)
+    .map(([group, bucket]) => ({ group, items: bucket.items }))
 }

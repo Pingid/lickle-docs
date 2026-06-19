@@ -7,7 +7,7 @@ export type { LayoutRouter } from '../../../core/layout/client.ts'
 /** The router surface the UI consumes. */
 export type ClientRouter = LayoutRouter
 export type { PageNode, DocPage, DocLink } from '../../../core/layout/types.ts'
-export { groupItems } from '../../../core/layout/group.ts'
+export { groupItems } from '../../../core/layout/client.ts'
 
 const INSTANCE = new WeakMap<Reflect.DocsVersion, LayoutRouter>()
 
