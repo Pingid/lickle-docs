@@ -1,7 +1,7 @@
 {
   "name": "@lickle/docs",
   "description": "Documentation generation for lickle",
-  "version": "0.0.0-dev.21",
+  "version": "0.0.1",
   "author": "Dan Beaven <dm.beaven@gmail.com>",
   "repository": {
     "type": "git",
