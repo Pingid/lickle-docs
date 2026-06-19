@@ -1,10 +1,9 @@
 import type { Layout, PageSource, Redirect, PageNode, DocPage, SiteGraph, Filter } from './types.ts'
 import type * as Reflect from '../reflect/index.ts'
-import { createFacade } from './facade.ts'
+import { createDeclarationFacade } from './facade.ts'
 import { buildTree } from './tree.ts'
 import { toPages, pageSlug } from './pages.ts'
-import { grouping } from './presets.ts'
-import { groupByKind } from './group.ts'
+import { Place, Match, Select } from './layout/index.ts'
 import type { Transform } from './transform.ts'
 import type { Diagnostic } from '../diagnostic/types.ts'
 
@@ -13,11 +12,6 @@ export type { DeclarationFacade, ModuleFacade } from './facade.ts'
 export type { Transform } from './transform.ts'
 export type { LayoutRouter } from './client.ts'
 export { createLayoutRouter } from './client.ts'
-export { compose } from './layout.ts'
-export * from './presets.ts'
-export { effectiveNav } from './tree.ts'
-export { groupBy, groupByKind, groupByTag, composeGroups, groupItems, is, type GroupBy } from './group.ts'
-export { defaultLayout } from './default.ts'
 
 export type ContextOptions = {
   docs: Reflect.Index
@@ -35,14 +29,14 @@ export type ContextOptions = {
 export const builder = (opts: ContextOptions) => {
   const sources: PageSource[] = []
   const baseCx = { docs: opts.docs, name: opts.name }
-  // The layout IS the policy. Zero-config still groups by kind for a sensible
+  // The layout IS the policy. Zero-config still buckets by kind for a sensible
   // default; provide a layout and you compose whatever grouping you want.
-  const layout: Layout = opts.layout ?? grouping(groupByKind)
-  const filter: Filter = opts.filter ?? ((d) => d.exposure.is() && !d.tags.has('@internal'))
+  const layout: Layout = opts.layout ?? Place.bucket(Select.kind)
+  const filter: Filter = opts.filter ?? Match.all(Match.exposed(), Match.not(Match.tag('@internal')))
 
   return {
     declare: (decl: Reflect.Declaration) => {
-      const facade = createFacade(opts.docs, decl.id)
+      const facade = createDeclarationFacade(opts.docs, decl.id)
       if (facade && filter(facade)) sources.push({ kind: 'doc', decl: facade })
     },
     markdown: (p: {

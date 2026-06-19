@@ -1,5 +1,5 @@
 import { create, insert, search } from '@orama/orama'
-import { createMemo, createResource } from 'solid-js'
+import { createMemo, createResource, createSignal, onMount } from 'solid-js'
 
 import { commentToMarkdown } from '../../util/markdown.ts'
 import type { Reflect } from '../../context/docs/index.tsx'
@@ -16,8 +16,14 @@ import { useProject } from '../project/index.ts'
 export const useSearch = (): (() => SearchEngine) => {
   const project = useProject()
   const routes = DocRouter.use()
+  // The index is client-only. Gating the resource source on `onMount` (which
+  // never fires during SSR) keeps it out of the hydration payload *and* ensures
+  // it actually runs in the browser — an `ssrLoadFrom: 'initial'` resource would
+  // hydrate to its initial value and never re-fetch, leaving search empty.
+  const [mounted, setMounted] = createSignal(false)
+  onMount(() => setMounted(true))
   const [engine] = createResource(
-    () => [routes(), project()] as const,
+    () => (mounted() ? ([routes(), project()] as const) : undefined),
     ([routes, project]) => {
       const router = routes
       const byId = project?.byId
@@ -28,17 +34,21 @@ export const useSearch = (): (() => SearchEngine) => {
       INSTANCE.set(router, engine)
       return engine
     },
-    // Search is client-only; skip building on the server so the engine's
-    // `query` function is never serialized into the hydration payload.
-    { ssrLoadFrom: 'initial' },
   )
   return createMemo(() => engine() ?? { query: async () => [] })
 }
 
 const INSTANCE = new WeakMap<DocRouter.ClientRouter, Promise<SearchEngine>>()
 
-/** One search result: the declaration's name, kind, page slug, source file and owning module. */
-export type SearchHit = { name: string; kind: Reflect.Any['kind']; slug: string; file: string; module: string }
+/** One search result: the declaration's name, kind, page slug, source file, owning module and listing group. */
+export type SearchHit = {
+  name: string
+  kind: Reflect.Any['kind']
+  slug: string
+  file: string
+  module: string
+  group: string
+}
 
 /** A queryable search index. `limit` defaults to 20 hits. */
 export type SearchEngine = { query: (term: string, limit?: number) => Promise<SearchHit[]> }
@@ -48,7 +58,15 @@ const createSearchEngine = async (
   byId: (id: number) => Reflect.Declaration | undefined,
 ): Promise<SearchEngine> => {
   const db = await create({
-    schema: { name: 'string', kind: 'string', slug: 'string', file: 'string', module: 'string', comment: 'string' },
+    schema: {
+      name: 'string',
+      kind: 'string',
+      slug: 'string',
+      file: 'string',
+      module: 'string',
+      group: 'string',
+      comment: 'string',
+    },
     components: { tokenizer: { stemming: false } },
   })
 
@@ -65,6 +83,13 @@ const createSearchEngine = async (
       const module = parent?.title
       const source = decl?.sources.map((s) => (decl.kind === 'module' ? `${s.file}` : `${s.file}:${s.line}`))?.[0]
 
+      // The bucket the parent lists this declaration under (e.g. "Functions",
+      // "hooks"). Found on the parent page's member links, by declaration id.
+      const group =
+        parent?.kind === 'doc'
+          ? [...parent.links, ...(parent.inline ?? [])].find((l) => l.target === route.decl)?.group?.name
+          : undefined
+
       const cmt = decl?.comment ? commentToMarkdown(decl.comment, (name) => router.get({ slug: name })?.slug) : ''
 
       await insert(db, {
@@ -74,6 +99,7 @@ const createSearchEngine = async (
         slug: route.slug,
         file: source,
         module,
+        group: group ?? '',
         comment: cmt,
       })
     }
@@ -85,8 +111,8 @@ const createSearchEngine = async (
       if (!t) return []
       const res = await search(db, {
         term: t,
-        properties: ['name', 'module', 'comment'],
-        boost: { name: 1, module: 1 },
+        properties: ['name', 'module', 'group', 'comment'],
+        boost: { name: 1, module: 1, group: 1 },
         tolerance: 1,
         limit,
       })

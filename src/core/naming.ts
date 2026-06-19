@@ -104,11 +104,11 @@ export const pluralLabel = (kind: Kind | string): string => PLURAL[kind as Kind]
 const GROUP_KIND_ORDER: Kind[] = [
   'module',
   'namespace',
+  'class',
   'function',
   'variable',
   'interface',
   'type-alias',
-  'class',
   'enum',
   'property',
   'method',

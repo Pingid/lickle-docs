@@ -15,7 +15,7 @@ import { defaultLayout, lexicalSegments, type BaseContext } from './default.ts'
 import type { Diagnostic } from '../diagnostic/types.ts'
 import type * as Reflect from '../reflect/index.ts'
 import * as Slug from '../../_lib/slug/index.ts'
-import { groupItems } from './group.ts'
+import { groupItems } from './client.ts'
 
 export type Resolved = { source: PageSource; placement: Placement; id: Reflect.Id | null; slug: string }
 
@@ -303,14 +303,17 @@ const buildSidebar = (
 const nonNull = <T>(x: T | null): x is T => x !== null
 
 /**
- * A placement's effective sidebar entries: explicit `nav`, or a single entry
- * derived from its page. The one canonical helper — `LayoutContext` no longer
- * carries a `navOf`; presets import this directly.
+ * A placement's effective sidebar entries: a single entry derived from its page,
+ * or its explicit `nav`. Either way each entry inherits the page's canonical
+ * `group`/`order` unless it sets its own (explicit nav wins per-branch). The one
+ * canonical helper — `LayoutContext` no longer carries a `navOf`; presets and
+ * the page serializer import this directly.
  */
 export const effectiveNav = (p: Placement): Nav[] => {
-  if (p.nav !== undefined) return p.nav
-  if (p.page === null) return []
-  return [{ parent: p.page.parent, name: p.page.name }]
+  if (p.page === null) return p.nav ?? []
+  const { parent, name, group, order } = p.page
+  if (p.nav !== undefined) return p.nav.map((n) => ({ ...n, group: n.group ?? group, order: n.order ?? order }))
+  return [{ parent, name, group, order }]
 }
 
 /** Human label for a source, used in diagnostics. */

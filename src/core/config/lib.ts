@@ -27,8 +27,8 @@
 import type { UserConfig } from './types.ts'
 export type * from './types.ts'
 
-export * as Layout from '../layout/index.ts'
 export * as Transform from '../layout/transform.ts'
+export * from '../layout/layout/index.ts'
 
 /**
  * Declare the project configuration with type checking.

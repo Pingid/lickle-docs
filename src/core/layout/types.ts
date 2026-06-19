@@ -48,13 +48,17 @@ export type Parent = { decl: Reflect.Id } | { virtual: string } | { root: true }
 export type Group = { name: string; order?: number }
 
 // ─────────────────────────────────────────────────────────────────────────
-// The two trees — content (Place, singular) vs navigation (Nav, plural)
+// The two trees — per-node placement (Place, singular) vs per-appearance
+// navigation edge (Nav, plural)
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * A node's home in the **content tree**: the single location that defines its
- * slug, breadcrumb and page title. Singular by construction — a declaration
- * has exactly one canonical URL.
+ * A node's placement in the **content tree**: the single location that defines
+ * its slug, breadcrumb and page title, plus its canonical bucket and order.
+ * Singular by construction — a declaration has exactly one canonical URL and one
+ * bucket. Where the same node appears under several sidebar parents, each
+ * appearance is a {@link Nav} that defaults to this `group`/`order` but may
+ * override it.
  *
  * The three name levels:
  * - intrinsic name is `decl.name` (read-only data, not here);
@@ -83,12 +87,26 @@ export type Place = {
    *   `{@link}` and breadcrumbs.
    */
   render?: 'page' | 'inline' | 'hidden'
+  /**
+   * Canonical bucket (the sidebar section) this node lists under. A
+   * per-appearance `Nav.group` overrides it for that one branch; otherwise every
+   * appearance inherits this. Assigned by `Place.bucket` / ordered by
+   * `Place.bucketOrder`.
+   */
+  group?: Group
+  /**
+   * Order within the bucket (lower sorts first); ties fall back to alphabetical.
+   * A per-appearance `Nav.order` overrides it.
+   */
+  order?: number
 }
 
 /**
  * One appearance in the **navigation tree** (sidebar). Plural: the same node
- * may appear under several parents, each a distinct `Nav`. An edge from
- * `parent` to this node, bucketed by `group`, ordered by `order`.
+ * may appear under several parents, each a distinct `Nav` — an edge from
+ * `parent` to this node. Carries the per-branch facts (where it attaches, how
+ * it's labelled); bucket and order default to the node's {@link Place} but can
+ * be overridden here for a single branch.
  */
 export type Nav = {
   /** Attachment point in the sidebar. */
@@ -99,9 +117,9 @@ export type Nav = {
    * vs `UserConfig`) is derived by accumulating ancestors' labels, not set here.
    */
   name: string
-  /** Bucket under the parent. */
+  /** Bucket override for this appearance; defaults to the node's `Place.group`. */
   group?: Group
-  /** Order within the bucket. */
+  /** Order override for this appearance; defaults to the node's `Place.order`. */
   order?: number
 }
 

@@ -69,15 +69,17 @@ export interface Config extends ConfigJson {
   filter?: Layout.Filter
   /**
    * The whole page-generation policy, as one composed {@link Layout}. Placement,
-   * grouping (`Layout.grouping`), virtual folders (place under `{ virtual }`
-   * parents), filtering and aliases are all layers composed with
-   * `Layout.compose` — there are no separate fields. Defaults to grouping by kind.
+   * bucketing (`Place.bucket`), bucket order (`Place.order`), virtual folders
+   * (`Place.folder`), filtering and aliases are all layers composed with
+   * `Place.compose` — there are no separate fields. Predicates come from `Match`,
+   * per-declaration values from `Select`. Defaults to bucketing by kind.
    *
    * @example
    * ```ts
-   * layout: Layout.compose(
-   *   Layout.filter((d) => !d.tags.has('@internal') && d.exposure.is()),
-   *   Layout.grouping(Layout.composeGroups(Layout.groupByKind, Layout.groupByTag('@group'))),
+   * layout: Place.compose(
+   *   Place.filter(Match.all(Match.exposed(), Match.not(Match.tag('@internal')))),
+   *   Place.bucket(Select.kind),
+   *   Place.bucket(Select.tag('@group')),
    * )
    * ```
    */

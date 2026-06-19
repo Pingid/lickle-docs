@@ -63,19 +63,22 @@ const Statement = (props: { route: DocRouter.DocPage }) => {
  * deprecation marker when `@deprecated` is present, and the source link.
  * Replaceable via the `page.header` slot.
  */
-export const PageHeader = createSlot('page.header', (props: { decl: Reflect.Declaration; route: DocRouter.PageNode }) => (
-  <header class="mb-5">
-    <Breadcrumb id={props.decl.id} />
-    <div class="flex items-baseline gap-3 flex-wrap">
-      <h1 class="text-2xl font-semibold tracking-tight font-mono">{props.route.title}</h1>
-      <Type.KindLabel kind={props.decl.kind} />
-      <Show when={props.decl.comment?.tags?.some((t: { tag: string }) => t.tag === '@deprecated')}>
-        <span class="text-xs uppercase tracking-wider text-mute">· deprecated</span>
-      </Show>
-    </div>
-    <Source decl={props.decl} />
-  </header>
-))
+export const PageHeader = createSlot(
+  'page.header',
+  (props: { decl: Reflect.Declaration; route: DocRouter.PageNode }) => (
+    <header class="mb-5">
+      <Breadcrumb id={props.decl.id} />
+      <div class="flex items-baseline gap-3 flex-wrap">
+        <h1 class="text-2xl font-semibold tracking-tight font-mono">{props.route.title}</h1>
+        <Type.KindLabel kind={props.decl.kind} />
+        <Show when={props.decl.comment?.tags?.some((t: { tag: string }) => t.tag === '@deprecated')}>
+          <span class="text-xs uppercase tracking-wider text-mute">· deprecated</span>
+        </Show>
+      </div>
+      <Source decl={props.decl} />
+    </header>
+  ),
+)
 
 /** Stock source-location renderer. Replaceable via `slots.source`. */
 export const Source: Component<{ decl: Reflect.Declaration }> = staticComponent((props) => {
@@ -112,24 +115,34 @@ export const Source: Component<{ decl: Reflect.Declaration }> = staticComponent(
  */
 const InlineMembers = (props: { members?: DocRouter.DocLink[] }) => {
   const project = useProject()
+  const groups = createMemo(() => DocRouter.groupItems(props.members ?? [], (m) => m.group))
   return (
-    <For each={props.members ?? []}>
-      {(m) => {
-        const decl = createMemo(() => project()?.byId(m.target))
-        return (
-          <Show when={decl()}>
-            {(d) => (
-              <section class="mt-8">
-                <div class="flex items-baseline gap-3 flex-wrap mb-2">
-                  <h2 class="text-lg font-semibold font-mono">{m.alias}</h2>
-                  <Type.KindLabel kind={d().kind} />
-                </div>
-                <Declaration decl={d()} />
-              </section>
-            )}
+    <For each={groups()}>
+      {(group) => (
+        <>
+          <Show when={group.group}>
+            <h2 class="text-sm font-semibold mt-8 mb-3 pb-1.5 border-b border-line capitalize">{group.group}</h2>
           </Show>
-        )
-      }}
+          <For each={group.items}>
+            {(m) => {
+              const decl = createMemo(() => project()?.byId(m.target))
+              return (
+                <Show when={decl()}>
+                  {(d) => (
+                    <section class="mt-8">
+                      <div class="flex items-baseline gap-3 flex-wrap mb-2">
+                        <h2 class="text-lg font-semibold font-mono">{m.alias}</h2>
+                        <Type.KindLabel kind={d().kind} />
+                      </div>
+                      <Declaration decl={d()} />
+                    </section>
+                  )}
+                </Show>
+              )
+            }}
+          </For>
+        </>
+      )}
     </For>
   )
 }
@@ -140,7 +153,6 @@ const InlineMembers = (props: { members?: DocRouter.DocLink[] }) => {
  */
 const Links = (props: { links: DocRouter.DocLink[] }) => {
   const groups = createMemo(() => DocRouter.groupItems(props.links, (l) => l.group))
-
   return (
     <For each={groups()}>
       {(group) => (

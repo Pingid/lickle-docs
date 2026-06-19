@@ -54,7 +54,7 @@ export interface DeclarationFacadeApi {
   tags: Map<string, Reflect.CommentTag>
 }
 
-export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap>(
+export const createDeclarationFacade = <K extends keyof Reflect.DeclarationMap = keyof Reflect.DeclarationMap>(
   index: Reflect.Index,
   id: Reflect.Id,
   alias?: string,
@@ -64,7 +64,7 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
 
   const fromExposures = (exposures: (Reflect.Exposure | undefined)[]) =>
     exposures
-      .map((e) => (e ? createFacade<'module' | 'namespace'>(index, e.exposer, e.alias) : undefined))
+      .map((e) => (e ? createDeclarationFacade<'module' | 'namespace'>(index, e.exposer, e.alias) : undefined))
       .filter(defined)
 
   const exposed: DeclarationFacade<any>['exposure'] = {
@@ -79,7 +79,7 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
 
   const referenced = memo(() =>
     Array.from(index.referencedIn(id))
-      .map((id) => createFacade(index, id))
+      .map((id) => createDeclarationFacade(index, id))
       .filter((e) => e !== undefined),
   )
 
@@ -88,11 +88,11 @@ export const createFacade = <K extends keyof Reflect.DeclarationMap = keyof Refl
     kind: declaration.kind as K,
     id: declaration.id,
     name: declaration.name,
-    get: (id: Reflect.Id) => createFacade(index, id),
-    parent: () => createFacade<'module'>(index, declaration.parent),
+    get: (id: Reflect.Id) => createDeclarationFacade(index, id),
+    parent: () => createDeclarationFacade<'module'>(index, declaration.parent),
     members: () =>
       Array.from(index.children(id))
-        .map((d) => createFacade(index, d.id))
+        .map((d) => createDeclarationFacade(index, d.id))
         .filter(defined),
     alias: () => alias ?? index.rootAlias(id)?.as,
     isEntry: (): this is DeclarationFacade<'module'> => index.isRoot(id),

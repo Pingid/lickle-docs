@@ -1,6 +1,6 @@
-import { groupItems } from '../../core/layout/group.ts'
 import type { LayoutRouter } from '../../core/layout/client.ts'
 import type { PageNode, DocPage } from '../../core/layout/types.ts'
+import { groupItems } from '../../core/layout/client.ts'
 import type { Project } from '../hooks/project/index.ts'
 import type { Reflect } from '../context/index.tsx'
 import { withBaseUrl } from './base.ts'
