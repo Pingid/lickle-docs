@@ -1,7 +1,7 @@
 {
   "name": "@lickle/docs",
   "description": "Documentation generation for lickle",
-  "version": "0.0.2-dev.1",
+  "version": "0.0.2-dev.3",
   "author": "Dan Beaven <dm.beaven@gmail.com>",
   "repository": {
     "type": "git",
@@ -34,14 +34,16 @@
     },
     "./client": "./client.d.ts",
     "./theme.css": "./theme.css",
-    "./tsconfig.client.json": "./tsconfig.client.json",
+    "./tsconfig.json": "./tsconfig.client.json",
     "./solidjs/jsx-runtime": "./dist/solidjs/jsx-runtime.d.ts"
   },
   "scripts": {
     "build": "pnpm tsc -b -f",
     "test": "vitest run --exclude '**/dist/**'",
     "test:watch": "vitest --exclude '**/dist/**'",
-    "docs:build": "tsx ./src/cli.ts build"
+    "docs:build": "tsx ./src/cli.ts build",
+    "dev": "tsx ./src/cli.ts dev",
+    "ldocs": "tsx ./src/cli.ts"
   },
   "files": [
     "src",
@@ -54,35 +56,36 @@
     "@lickle/cn": "^0.0.1",
     "@lickle/is": "0.1.0-dev.14",
     "@orama/orama": "^3.1.18",
-    "@solidjs/router": "^0.16.1",
-    "@tailwindcss/vite": "^4.3.0",
+    "@solidjs/router": "^1.0.0",
+    "@tailwindcss/vite": "^4.3.3",
     "cmd-ts": "^0.15.0",
     "codejar": "^4.3.0",
-    "execa": "^9.6.1",
+    "execa": "^10.0.1",
     "fast-glob": "^3.3.3",
-    "get-tsconfig": "^4.14.0",
+    "get-tsconfig": "^4.14.3",
     "hosted-git-info": "^10.1.1",
     "jiti": "^2.7.0",
-    "marked": "^18.0.4",
+    "marked": "^18.0.11",
     "micromatch": "^4.0.8",
     "picocolors": "1.1.1",
     "pkg-exports": "^0.2.0",
     "resolve.exports": "^2.0.3",
-    "shiki": "^4.2.0",
-    "solid-js": "^1.9.13",
+    "shiki": "^4.4.3",
+    "solid-js": "^1.9.15",
     "sucrase": "^3.35.1",
-    "tailwindcss": "^4.3.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vite-plugin-solid": "^2.11.12"
+    "tailwindcss": "^4.3.3",
+    "typescript6": "npm:typescript@^6.0.3",
+    "vite": "^8.2.2",
+    "vite-plugin-solid": "^2.11.14"
   },
   "devDependencies": {
     "@types/hosted-git-info": "^3.0.5",
     "@types/micromatch": "^4.0.10",
-    "@types/node": "^25.9.1",
-    "prettier": "^3.8.3",
-    "tsx": "^4.22.4",
-    "vitest": "^4.1.8"
+    "@types/node": "^26.2.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   },
   "prettier": {
     "semi": false,

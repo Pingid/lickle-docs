@@ -5,7 +5,10 @@ import { effectiveNav, type Resolved } from './tree.ts'
 /**
  * Serialize resolved placements into the flat {@link PageNode} list — the
  * renderable units the client and SSG consume (page lookup, search,
- * breadcrumbs). The sidebar tree is built separately by `buildTree`.
+ * breadcrumbs). Declarations become `doc` pages, markdown becomes `page`, and a
+ * `.tsx` page becomes `component` — carrying only its module path, since the
+ * component itself cannot be serialized. The sidebar tree is built separately
+ * by `buildTree`.
  *
  * Only `render: 'page'` declarations get a page. A parent's exposed children
  * split by their own render mode: `page` → `links` (a link row), `inline` →
@@ -49,6 +52,10 @@ export const toPages = (resolved: Resolved[]): PageNode[] => {
   for (const r of resolved) {
     if (r.source.kind === 'markdown') {
       pages.push({ kind: 'page', title: r.source.title, slug: pageSlug(r.slug), body: [r.source.content] })
+      continue
+    }
+    if (r.source.kind === 'component') {
+      pages.push({ kind: 'component', title: r.source.title, slug: pageSlug(r.slug), module: r.source.module })
       continue
     }
     const place = r.placement.page

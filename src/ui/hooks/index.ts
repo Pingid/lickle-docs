@@ -4,7 +4,7 @@ import { useParams } from '@solidjs/router'
 import { useHighlighter } from '../context/highlight/index.tsx'
 import { useMarkdown } from './markdown/index.ts'
 
-import { commentToMarkdown } from '../util/markdown.ts'
+import { commentToMarkdown, clientSlugOf } from '../util/markdown.ts'
 import type { Reflect } from '../context/index.tsx'
 
 import { use } from './router/index.ts'
@@ -81,7 +81,11 @@ export const useCodeHighlight = (text: string, lang: string) => {
 export const useRenderMarkdown = (text: string) => {
   const markup = useMarkdown()
   const slugs = useSlugFor()
-  return createMemo(() => markup()(text, (name) => slugs.byName(name) ?? name))
+  // No fallback to the raw text: a code span that doesn't resolve to a
+  // declaration stays plain `<code>`. Falling back to the name minted a link to
+  // a page that never existed for every identifier-shaped span — `package.json`,
+  // `version`, `include` — which reads as a link and 404s on click.
+  return createMemo(() => markup()(text, (name) => slugs.byName(name)))
 }
 
 /**
@@ -90,7 +94,7 @@ export const useRenderMarkdown = (text: string) => {
  * */
 export const useCommentMarkdown = (comment: () => Reflect.Comment | undefined) => {
   const slugs = useSlugFor()
-  const slugOf = (name: string) => slugs.byName(name)
+  const slugOf = clientSlugOf((name) => slugs.byName(name))
   return createMemo(() => {
     const c = comment()
     return c ? commentToMarkdown(c, slugOf) : ''

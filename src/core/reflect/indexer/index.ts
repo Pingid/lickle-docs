@@ -4,6 +4,8 @@ import type * as T from '../types.ts'
 import * as Index from './lib.ts'
 
 export type Options = {
+  /** Project root — the base every reflected path is relative to. */
+  dir: string
   srcDir: string
   entrypoints: { as: string; path: string }[]
 }
@@ -62,7 +64,9 @@ const roots = (o: Options): Index.Builder<Roots, { langs: Set<string> }> => {
       byPath.set(d.path, d.id)
       for (let i = 0; i < o.entrypoints.length; i++) {
         const entry = o.entrypoints[i]!
-        if (path.relative(o.srcDir, entry.path) !== d.path) continue
+        // `d.path` is project-relative POSIX (see `makeScanState.getPath`), so
+        // the entrypoint is normalised the same way before comparing.
+        if (path.relative(o.dir, entry.path).split(path.sep).join('/') !== d.path) continue
         rootsMap.set(entry.as, d)
         rootIdx.set(d.id, i)
         alias.set(d.id, { as: entry.as, index: i })

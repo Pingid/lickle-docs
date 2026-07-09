@@ -1,4 +1,4 @@
-import ts from 'typescript'
+import ts from 'typescript6'
 
 import type { ScanState } from './state.ts'
 import * as T from './types.ts'

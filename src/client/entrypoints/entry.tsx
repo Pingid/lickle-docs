@@ -6,6 +6,7 @@ import { type Reflect, App, LanguagesProvider } from '../../ui/index.ts'
 
 import components from './virtuals/components.ts'
 import languages from './virtuals/languages.ts'
+import pages from './virtuals/pages.ts'
 import docs from './virtuals/docs.ts'
 
 import '@lickle/docs/theme.css'
@@ -31,7 +32,7 @@ const HmrApp = () => {
 
   return (
     <LanguagesProvider langs={() => languages}>
-      <App components={components} docs={d} Router={AppRouter} />
+      <App components={components} pages={pages} docs={d} Router={AppRouter} />
     </LanguagesProvider>
   )
 }

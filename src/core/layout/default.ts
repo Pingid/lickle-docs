@@ -1,7 +1,7 @@
 import type * as Reflect from '../reflect/index.ts'
 import * as Slug from '../../_lib/slug/index.ts'
 
-import type { PageSource, Placement, Place, Nav, Parent } from './types.ts'
+import type { PageSource, ContentSource, Placement, Place, Nav, Parent } from './types.ts'
 import type { DeclarationFacade } from './facade.ts'
 
 /** What the base reads: the raw index plus project name. NOT LayoutContext — the base has no `default()`. */
@@ -11,7 +11,7 @@ export type BaseContext = { docs: Reflect.Index; name: string }
  * The framework default: today's export-graph placement, as a {@link Placement}.
  * Total — always decides — so it's the floor of the compose chain, never deferring.
  *
- *  - markdown        → root page (home page pinned at `/`, others by slug)
+ *  - markdown/tsx    → root page (home page pinned at `/`, others by slug)
  *  - export decls    → no page (plumbing)
  *  - entrypoints     → root, under their label
  *  - one exposer     → nested under it
@@ -20,7 +20,7 @@ export type BaseContext = { docs: Reflect.Index; name: string }
  */
 
 export const defaultLayout = (source: PageSource, cx: BaseContext): Placement => {
-  if (source.kind === 'markdown') return markdownPlacement(source)
+  if (source.kind !== 'doc') return contentPlacement(source)
 
   const d = source.decl
   if (d.kind === 'export') return { page: null }
@@ -31,27 +31,32 @@ export const defaultLayout = (source: PageSource, cx: BaseContext): Placement =>
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Markdown
+// Standalone pages — markdown and component alike
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Home is exactly `slug: '/'` — explicit, so adding markdown pages never moves
- * the home page, and it always stays at the root. Any other markdown page nests
- * under its `folder` (a virtual sidebar folder) when given, else the root; its
- * slug is its own segment (the folder supplies the prefix), defaulting to a
- * slug derived from the title. `group`/`order` bucket and sort it in the sidebar.
+ * Home is exactly `slug: '/'` — explicit, so adding pages never moves the home
+ * page, and it always stays at the root. Any other page nests under its
+ * `folder` (a virtual sidebar folder) when given, else the root; its slug is
+ * its own segment (the folder supplies the prefix), defaulting to a slug
+ * derived from the title. `group`/`order` bucket and sort it in the sidebar.
  */
-const markdownPlacement = (m: Extract<PageSource, { kind: 'markdown' }>): Placement => {
-  if (m.slug === '/')
-    return {
-      page: { parent: { root: true }, name: m.title, slug: '/' },
-      nav: [{ parent: { root: true }, name: m.title, order: m.order ?? 0 }],
-    }
+const contentPlacement = (m: ContentSource): Placement => {
+  // `group`/`order` go on the Place, not on a hand-built nav entry: the Place is
+  // the canonical bucket, so `Place.bucketOrder` and `Match.bucket` see a page's
+  // section exactly as they see a declaration's. `effectiveNav` derives the
+  // single sidebar entry from it.
+  if (m.slug === '/') return { page: { parent: { root: true }, name: m.title, slug: '/', order: m.order ?? 0 } }
 
   const parent: Parent = m.folder ? { virtual: m.folder } : { root: true }
-  const place: Place = { parent, name: m.title, slug: m.slug ?? Slug.toSlug(m.title) }
-  const group = m.group ? { name: m.group } : undefined
-  return { page: place, nav: [{ parent, name: m.title, group, order: m.order ?? 0 }] }
+  const place: Place = {
+    parent,
+    name: m.title,
+    slug: m.slug ?? Slug.toSlug(m.title),
+    order: m.order ?? 0,
+    ...(m.group ? { group: { name: m.group } } : {}),
+  }
+  return { page: place }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -78,11 +83,18 @@ const homeOf = (d: DeclarationFacade, by: Reflect.Exposure[], cx: BaseContext): 
   return lexicalPlace(d, cx)
 }
 
+/**
+ * Root pages sort before entrypoint modules by default: standalone pages take
+ * their position in `config.pages` as their order, and entrypoints start past
+ * any plausible page count. `Place.order` overrides either.
+ */
+const ENTRY_ORDER_BASE = 1_000_000
+
 /** Sidebar appearances from the exposure graph. Same `by`, so nav parents agree with home's parent by construction. */
 const exposureNav = (d: DeclarationFacade, by: Reflect.Exposure[], cx: BaseContext): Nav[] => {
   const idx = d.entryIndex()
-  // `1 + idx` so the home markdown page (order 0) always sorts first at root.
-  if (typeof idx === 'number') return [{ parent: { root: true }, name: entryLabel(d, cx), order: 1 + idx }]
+  if (typeof idx === 'number')
+    return [{ parent: { root: true }, name: entryLabel(d, cx), order: ENTRY_ORDER_BASE + idx }]
 
   if (by.length === 0) {
     const home = homeOf(d, by, cx)

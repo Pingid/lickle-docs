@@ -1,16 +1,79 @@
 import type { DeclarationFacade } from './facade.ts'
 import type * as Reflect from '../reflect/index.ts'
 
-/** The one thing a layer can reach: the placement the layers below it produced. */
-export type LayoutContext = { default(): Placement }
+/**
+ * What a layer can reach while placing one source: the placement the layers
+ * below it produced, plus enough of the project to make corpus-aware decisions
+ * (how many siblings a module has, what else an entrypoint exposes).
+ */
+export type LayoutContext = {
+  /** The placement the layers below this one produced. */
+  default(): Placement
+  /** The reflection index — every declaration, the export graph, source paths. */
+  index: Reflect.Index
+  /** Project name, as the header shows it. */
+  name: string
+  /** Set by `ldocs why`; each layer that changes the placement reports itself. */
+  trace?: (entry: TraceEntry) => void
+}
 
-export type PageSource =
-  | { kind: 'doc'; decl: DeclarationFacade }
-  | { kind: 'markdown'; content: string; title: string; slug?: string; folder?: string; group?: string; order?: number }
+/** One layer's contribution to a placement, recorded when `LayoutContext.trace` is set. */
+export type TraceEntry = { layer: string; before: Placement; after: Placement }
 
-export type Layout = (p: PageSource, cx: LayoutContext) => Placement | undefined
+/** A declaration being placed. */
+export type DocSource = { kind: 'doc'; decl: DeclarationFacade }
 
-export type Filter = (d: DeclarationFacade) => boolean
+/** Fields every standalone page shares, however its body is produced. */
+type ContentBase = {
+  /** Display title — page header, sidebar label, breadcrumb leaf. */
+  title: string
+  /** URL path. Defaults to a slug derived from the title; `/` is the home page. */
+  slug?: string
+  /** Virtual sidebar folder to nest under (`/` nests further). */
+  folder?: string
+  /** Sidebar bucket under its parent. */
+  group?: string
+  /** Sort position among siblings (lower first). */
+  order?: number
+  /** Project-relative POSIX path this page was loaded from; absent for inline content. */
+  file?: string
+}
+
+/** A markdown page: its body travels with the site data. */
+export type MarkdownSource = ContentBase & { kind: 'markdown'; content: string }
+
+/**
+ * A component page: a `.tsx`/`.jsx` module default-exporting a SolidJS
+ * component. The body cannot be serialized, so the source carries the module
+ * path and the bundler wires up the import.
+ */
+export type ComponentSource = ContentBase & { kind: 'component'; module: string }
+
+/** A standalone page — anything that is not a declaration. */
+export type ContentSource = MarkdownSource | ComponentSource
+
+export type PageSource = DocSource | ContentSource
+
+export type Layout = {
+  (p: PageSource, cx: LayoutContext): Placement | undefined
+  /** Name `ldocs why` reports this layer under; set by the `Place` presets. */
+  label?: string
+}
+
+/**
+ * A post-pass over every resolved placement, run after the layout has decided
+ * each source in isolation. This is the seam for decisions that need to see the
+ * whole set — "inline any bucket with fewer than three members", "order
+ * siblings by source position". Return the placements to use; mutating and
+ * returning the same array is fine.
+ */
+export type Refine = (nodes: RefineNode[], cx: RefineContext) => RefineNode[] | void
+
+/** One placed source handed to a {@link Refine} pass. */
+export type RefineNode = { source: PageSource; placement: Placement; id: Reflect.Id | null }
+
+/** What a {@link Refine} pass can reach beyond the nodes themselves. */
+export type RefineContext = { index: Reflect.Index; name: string }
 
 /**
  * What a {@link Layout} decides for one page source.
@@ -145,6 +208,7 @@ declare module '../diagnostic/types.ts' {
     'content-cycle': {}
     'missing-parent': {}
     'sidebar-cycle': {}
+    'page-read': {}
   }
 }
 
@@ -210,8 +274,8 @@ export type RoutePrefix = { doc?: string; page?: string }
 /** A link to a page, displayed under `alias` and bucketed by `group`. */
 export type DocLink = { target: Reflect.Id; alias: string; group?: Group }
 
-/** A rendered page of the generated site: a declaration page or a markdown page. */
-export type PageNode = DocPage | MarkdownPage
+/** A rendered page of the generated site: a declaration, markdown or component page. */
+export type PageNode = DocPage | MarkdownPage | ComponentPage
 
 type PageBase = {
   /** Display title — page header, sidebar label fallback, breadcrumb leaf. */
@@ -238,6 +302,18 @@ export type MarkdownPage = PageBase & {
   kind: 'page'
   /** Markdown sections rendered in order. */
   body: string[]
+}
+
+/**
+ * A page whose body is a SolidJS component. The component itself cannot travel
+ * in JSON, so the page carries the module's project-relative path and the
+ * client resolves it through the module registry the bundler generates (see
+ * `DocsJson.modules`).
+ */
+export type ComponentPage = PageBase & {
+  kind: 'component'
+  /** Project-relative POSIX path of the module default-exporting the component. */
+  module: string
 }
 
 /**

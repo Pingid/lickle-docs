@@ -1,8 +1,8 @@
 import pc from 'picocolors'
 
-import { shortOf } from '../naming.ts'
+import type { PageNode, SidebarNode, GroupedItems, PageSource, Placement, TraceEntry, Parent } from './types.ts'
 import type * as Reflect from '../reflect/index.ts'
-import type { PageNode, SidebarNode, GroupedItems } from './types.ts'
+import { shortOf } from '../naming.ts'
 
 /**
  * Print the resolved site to the console: the flat page list, then the nav tree
@@ -44,3 +44,71 @@ export const printSite = (
   }
   walk(site.sidebar, 0)
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// `ldocs why` — which layer decided this, and what it decided
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Explain one source's placement: the framework default, then every layer that
+ * changed it, then the result. A composed layout is a fold of anonymous
+ * functions, so without this the only way to understand an unexpected slug is
+ * to bisect the config by hand.
+ */
+export const printWhy = (
+  entry: {
+    source: PageSource
+    placement: Placement
+    trace: TraceEntry[]
+    slug?: string
+    /** Resolve a parent declaration id to a readable name. */
+    nameOf?: (id: Reflect.Id) => string | undefined
+  },
+  write: (s: string) => void = (s) => process.stdout.write(s),
+): void => {
+  const line = (s = '') => write(s + '\n')
+  const summarize = (p: Placement) => summarizePlacement(p, entry.nameOf)
+
+  line(pc.bold(describe(entry.source)))
+  const file = entry.source.kind === 'doc' ? entry.source.decl.raw.sources?.[0]?.file : entry.source.file
+  if (file) line(pc.gray(`  ${file}`))
+  line()
+
+  const base = entry.trace[0]?.before ?? entry.placement
+  line(`  ${pc.gray('default')}  ${summarize(base)}`)
+  for (const step of entry.trace) line(`  ${pc.cyan(step.layer.padEnd(20))} ${summarize(step.after)}`)
+
+  line()
+  if (entry.placement.page === null) {
+    line(`  ${pc.bold('result')}   ${pc.red('excluded')} — no page, no sidebar entry`)
+  } else {
+    line(`  ${pc.bold('result')}   ${summarize(entry.placement)}`)
+    if (entry.slug) line(`  ${pc.bold('slug')}     ${pc.green(entry.slug)}`)
+  }
+  line()
+}
+
+/** A placement on one line: where it attaches, what it's called, how it renders. */
+const summarizePlacement = (p: Placement, nameOf?: (id: Reflect.Id) => string | undefined): string => {
+  if (p.page === null) return pc.red('excluded')
+  const bits = [`${parentOf(p.page.parent, nameOf)} → ${pc.bold(p.page.name)}`]
+  if (p.page.slug) bits.push(pc.gray(`slug=${p.page.slug}`))
+  if (p.page.group) bits.push(pc.yellow(`bucket=${p.page.group.name}${orderSuffix(p.page.group.order)}`))
+  if (p.page.order !== undefined) bits.push(pc.gray(`order=${p.page.order}`))
+  if (p.page.render && p.page.render !== 'page') bits.push(pc.magenta(p.page.render))
+  if (p.nav?.length === 0) bits.push(pc.gray('nav=none'))
+  else if (p.nav && p.nav.length > 1) bits.push(pc.gray(`nav×${p.nav.length}`))
+  if (p.aliases?.length) bits.push(pc.gray(`aliases×${p.aliases.length}`))
+  return bits.join('  ')
+}
+
+const orderSuffix = (order?: number): string => (order === undefined ? '' : `#${order}`)
+
+const parentOf = (parent: Parent, nameOf?: (id: Reflect.Id) => string | undefined): string => {
+  if ('root' in parent) return pc.gray('/')
+  if ('virtual' in parent) return pc.gray(`[${parent.virtual}]`)
+  return pc.gray(nameOf?.(parent.decl) ?? `#${parent.decl}`)
+}
+
+const describe = (s: PageSource): string =>
+  s.kind === 'doc' ? `${s.decl.kind} ${s.decl.name}` : `${s.kind} page "${s.title}"`

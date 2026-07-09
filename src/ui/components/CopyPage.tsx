@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
 
 import { DocRouter, useProject, useSlugFor } from '../hooks/index.ts'
-import { routeToMarkdown } from '../util/markdown.ts'
+import { routeToMarkdown, clientSlugOf } from '../util/markdown.ts'
 import { clientOnly } from '../util/solid.tsx'
 
 const COPY = 'M9 9h10v10H9zM5 15H4V5h10v1'
@@ -26,7 +26,7 @@ export const CopyPageButton = clientOnly(() => (props: { route: DocRouter.PageNo
     const r = router()
     const p = project()
     if (!r || !p) return
-    const md = routeToMarkdown(r, props.route, p, (name) => slugs.byName(name), { inlineMembers })
+    const md = routeToMarkdown(r, props.route, p, clientSlugOf((name) => slugs.byName(name)), { inlineMembers })
     void navigator.clipboard?.writeText(md).catch(() => {})
     setOpen(false)
     setCopied(true)

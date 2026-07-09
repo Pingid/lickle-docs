@@ -1,4 +1,4 @@
-import ts from 'typescript'
+import ts from 'typescript6'
 
 /** Signature declarations of a function-type or a pure call-signature object type. */
 export const callSignaturesOf = (node: ts.TypeNode): ts.SignatureDeclarationBase[] | undefined => {

@@ -40,6 +40,9 @@ export {
   useComponents,
   ThemeProvider,
   ComponentsProvider,
+  PagesProvider,
+  usePageModules,
+  usePageComponent,
   DocsProvider,
   useDocs,
   useDocVersions,
@@ -48,6 +51,9 @@ export {
   LanguagesProvider,
   loadHighlighter,
   type Reflect,
+  type PageProps,
+  type PageModule,
+  type PageModules,
 } from './context/index.tsx'
 export { useCodeHighlight, useSearch, useCommentMarkdown, useRoute, useProject, useDeclaration } from './hooks/index.ts'
 export { withBaseUrl } from './util/base.ts'

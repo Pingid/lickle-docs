@@ -2,7 +2,14 @@ import { Match, Show, Switch, createMemo, type Component } from 'solid-js'
 import type { RouteSectionProps } from '@solidjs/router'
 import type { JSX } from 'solid-js/jsx-runtime'
 
-import { ComponentsProvider, ThemeProvider, type Components, type Reflect } from './context/index.tsx'
+import {
+  ComponentsProvider,
+  PagesProvider,
+  ThemeProvider,
+  type Components,
+  type PageModules,
+  type Reflect,
+} from './context/index.tsx'
 import { DocsProvider, useDocActiveProject, type DocsInput } from './context/docs/index.tsx'
 import { Route, useParams, Navigate, HashRouter } from './util/router.tsx'
 import { Link, Page, Layout } from './components/index.ts'
@@ -18,6 +25,12 @@ export interface AppProps {
   docs?: DocsInput
   /** Slot overrides built with `defineComponents`. */
   components?: Components
+  /**
+   * Modules backing `.tsx` pages, keyed by their project-relative path. The
+   * generated client supplies the map the bundler produced; supply your own to
+   * render component pages when mounting `App` by hand.
+   */
+  pages?: PageModules
   /** Router implementation. Defaults to a hash router; pass `Router` from `@solidjs/router` for clean URLs. */
   Router?: Component<{
     children: JSX.Element
@@ -61,9 +74,11 @@ export const App = (p: AppProps) => {
     <ThemeProvider>
       <DocsProvider value={p.docs ?? null}>
         <ComponentsProvider value={p.components}>
-          <Router base={BASE_URL} url={p.url}>
-            <Route path="/*slug" component={AppRoutes} />
-          </Router>
+          <PagesProvider value={p.pages}>
+            <Router base={BASE_URL} url={p.url}>
+              <Route path="/*slug" component={AppRoutes} />
+            </Router>
+          </PagesProvider>
         </ComponentsProvider>
       </DocsProvider>
     </ThemeProvider>

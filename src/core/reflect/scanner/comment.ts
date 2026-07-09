@@ -1,5 +1,5 @@
 import type { ScanState as State } from '../state.ts'
-import ts from 'typescript'
+import ts from 'typescript6'
 
 import type * as T from '../types.ts'
 import * as Type from './type.ts'
