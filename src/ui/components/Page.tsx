@@ -1,6 +1,7 @@
-import { For, Match, Show, Switch, createMemo, type Component } from 'solid-js'
+import { For, Match, Show, Suspense, Switch, createMemo, type Component } from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 
-import { createSlot, type Reflect } from '../context/index.tsx'
+import { createSlot, usePageComponent, type Reflect } from '../context/index.tsx'
 import { DocRouter, useProject } from '../hooks/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
 import { staticComponent } from '../util/solid.tsx'
@@ -8,6 +9,7 @@ import { labelOf } from '../util/kind.ts'
 import { A } from '../util/router.tsx'
 
 import { CopyPageButton } from './CopyPage.tsx'
+import { Loading } from './Loading.tsx'
 import { Declaration } from './Declaration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
@@ -15,7 +17,8 @@ import * as Type from './Type.tsx'
 
 /**
  * A doc route renders its declaration (header + body), its member links and its
- * "referenced in" backlinks; a markdown page renders each `body` string as prose.
+ * "referenced in" backlinks; a markdown page renders each `body` string as
+ * prose; a component page renders its own module.
  */
 export const Page = createSlot('page', (props) => {
   return (
@@ -37,10 +40,41 @@ export const Page = createSlot('page', (props) => {
         <Match when={props.route.kind === 'page' && props.route}>
           {(route) => <For each={route().body}>{(md) => <Markdown source={md} />}</For>}
         </Match>
+        <Match when={props.route.kind === 'component' && props.route}>
+          {(route) => <ComponentBody route={route()} />}
+        </Match>
       </Switch>
     </article>
   )
 })
+
+/**
+ * A `.tsx` page: its module is loaded on demand and rendered inside every
+ * provider the stock pages use, so the page can call `useProject`, render
+ * `<Markdown>` or `<Declaration>`, and read the theme like any other component.
+ *
+ * Falls back to the page title alone when no module is registered — the case
+ * for an archived version, whose data records the page but not its code.
+ */
+const ComponentBody = (props: { route: DocRouter.ComponentPage }) => {
+  const Body = createMemo(() => usePageComponent(props.route.module))
+  return (
+    <Suspense fallback={<Loading />}>
+      <Show when={Body()} fallback={<MissingModule route={props.route} />}>
+        {(Body) => <Dynamic component={Body()} route={props.route} />}
+      </Show>
+    </Suspense>
+  )
+}
+
+const MissingModule = (props: { route: DocRouter.ComponentPage }) => (
+  <>
+    <h1 class="text-2xl font-semibold tracking-tight">{props.route.title}</h1>
+    <p class="text-mute mt-2 text-sm">
+      This page is rendered from <code class="font-mono">{props.route.module}</code>, which isn't part of this build.
+    </p>
+  </>
+)
 
 /** A declaration page: header, the declaration itself, and its members. */
 const Statement = (props: { route: DocRouter.DocPage }) => {

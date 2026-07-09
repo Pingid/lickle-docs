@@ -4,10 +4,14 @@ export default defineConfig(() => ({
   name: '@lickle/docs',
   tsconfig: './tsconfig.esm.json',
   languages: ['ts', 'tsx', 'bash'],
-  include: (sf, d) => (sf.fileName.includes('solidjs/') ? false : d),
+  include: (file, keep) => (file.relative.startsWith('src/solidjs/') ? false : keep),
   versions: './docs/version/*.json',
+  pages: [
+    { title: 'Overview', content: './README.md', slug: '/' },
+    { glob: './docs/guides/*.md', group: 'Guides', folder: false },
+  ],
   layout: Place.compose(
-    Place.filter(Match.all(Match.exposed(), Match.not(Match.tag('@internal')))),
+    Place.defaultFilter,
     Place.bucket(Select.kind),
     Place.bucket(Match.kinds('interface', 'type-alias'), 'types'),
     Place.bucket(Select.tag('@group')),
@@ -20,10 +24,14 @@ export default defineConfig(() => ({
       ),
       'components',
     ),
-    Place.bucketOrder('modules', 'components', 'hooks', 'modules', 'types', /.*/),
+    // After `Select.kind`, which buckets entrypoints as '' — later layers win.
+    Place.bucket(Match.isEntry(), 'API'),
+    // Root sections in reading order; the unnamed bucket (Overview) always
+    // leads, since it has no heading to sit under.
+    Place.bucketOrder('Guides', 'API', 'modules', 'components', 'hooks', 'types', /.*/),
     Place.visibility(
       Match.all(
-        Match.not(Match.bucket('components', 'hooks', 'modules'), Match.file('*/layout/**/*.ts')),
+        Match.not(Match.bucket('components', 'hooks', 'modules'), Match.file('src/core/layout/**/*.ts')),
         Match.kinds('function', 'variable'),
       ),
       { inline: true },

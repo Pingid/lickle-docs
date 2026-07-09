@@ -1,0 +1,4 @@
+{
+  "extends": "@lickle/docs/tsconfig.json",
+  "include": ["**/*.ts", "**/*.tsx"]
+}

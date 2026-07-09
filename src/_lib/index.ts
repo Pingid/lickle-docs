@@ -1,3 +1,4 @@
+export * as Frontmatter from './frontmatter/index.ts'
 export * as Workspace from './workspace/index.ts'
 export * as TsConfig from './tsconfig/index.ts'
 export * as Cache from './cache/index.ts'

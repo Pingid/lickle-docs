@@ -3,19 +3,26 @@ import fg from 'fast-glob'
 
 import { Node, TsConfig } from '../../_lib/index.ts'
 
+import type { Diagnostic } from '../diagnostic/types.ts'
+
 import { populate } from './populate.ts'
 import { validate } from './check.ts'
 import * as T from './types.ts'
 
 export type * from './types.ts'
+export { resolvePages } from './pages.ts'
 
 const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 
 export type ResolvedConfig = { config: T.Config; ts: TsConfig.ResolvedTsconfig; file?: string }
 
-export const load = async (dir: string, opts?: Partial<T.UserConfig>): Promise<ResolvedConfig> => {
+export const load = async (
+  dir: string,
+  opts?: Partial<T.UserConfig>,
+  emit?: (d: Diagnostic) => void,
+): Promise<ResolvedConfig> => {
   const config = await loadFile(dir)
-  return populate(dir, { ...config?.config, ...opts })
+  return populate(dir, { ...config?.config, ...opts }, emit)
 }
 
 const loadFile = async (dir: string): Promise<{ config: Partial<T.UserConfig>; file: string } | undefined> => {

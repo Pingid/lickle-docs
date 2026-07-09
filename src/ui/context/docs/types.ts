@@ -11,7 +11,7 @@
  */
 import type { Link, ProjectVersion } from '../../../core/config/types.ts'
 
-export type { GroupedItems, SidebarNode, PageNode, DocPage } from '../../../core/layout/types.ts'
+export type { GroupedItems, SidebarNode, PageNode, DocPage, ComponentPage, MarkdownPage } from '../../../core/layout/types.ts'
 
 export type * from '../../../core/reflect/types.ts'
 export type * from '../../../core/config/types.ts'

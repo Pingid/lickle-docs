@@ -1,33 +1,71 @@
-import * as micromatch from 'micromatch'
+import mm from 'micromatch'
 
 import type { DeclarationFacade, DeclarationFacadeMap } from '../facade.ts'
 import type * as Reflect from '../../reflect/types.ts'
 import { isType } from '../../reflect/types.ts'
-import type { Placement } from '../types.ts'
+import type { Placement, ContentSource } from '../types.ts'
 
-/** Predicate over a declaration, used by the matching presets. */
+/**
+ * Predicate over a declaration, used by the matching presets.
+ *
+ * A Match may additionally carry a {@link MatchPage} aspect describing how it
+ * answers for a **standalone page** (markdown or component). The rule the
+ * presets follow is: *a preset touches standalone pages only when its match
+ * mentions them.* A declaration-only matcher such as `Match.kinds('function')`
+ * has no page aspect, so `Place.folder(Match.kinds('function'), 'fns')` leaves
+ * every markdown page exactly where it was. Reach pages deliberately with
+ * {@link page}, {@link title} or {@link file}.
+ */
 export type Match = {
   (d: DeclarationFacade, place?: Placement): boolean
   [matchSymbol]?: true
+  /** How this predicate answers for a standalone page. Absent ⇒ pages are never touched. */
+  page?: MatchPage
 }
+
+/** The page half of a {@link Match}: a predicate over a markdown or component source. */
+export type MatchPage = (p: ContentSource, place?: Placement) => boolean
+
 const matchSymbol = Symbol('Match')
 
 export const is = <T>(x: T): x is T & Match => typeof x === 'function' && (x as any)[matchSymbol] === true
 
-export const match = (m: Match): Match => {
+export const match = (m: Match, page?: MatchPage): Match => {
   const fn: Match = (d, place) => m(d, place)
   fn[matchSymbol] = true
+  if (page) fn.page = page
   return fn as Match
 }
 
-/** Match declarations all of `ms` accept. `all()` matches everything. */
-export const all = (...ms: Match[]): Match => match((d, place) => ms.every((m) => m(d, place)))
+/**
+ * Combine the page aspects of `ms`. The composite has an aspect only when at
+ * least one child does; children without one count as `false`, so
+ * `all(kinds('function'), page())` never matches a page (a page is not a
+ * function) while `any(kinds('function'), page())` does.
+ */
+const combinePages = (ms: Match[], combine: (answers: boolean[]) => boolean): MatchPage | undefined =>
+  ms.some((m) => m.page) ? (p, place) => combine(ms.map((m) => (m.page ? m.page(p, place) : false))) : undefined
+
+/** Match declarations all of `ms` accept. `all()` matches every declaration. */
+export const all = (...ms: Match[]): Match =>
+  match(
+    (d, place) => ms.every((m) => m(d, place)),
+    combinePages(ms, (a) => a.every(Boolean)),
+  )
 
 /** Match declarations any of `ms` accept. `any()` matches nothing. */
-export const any = (...ms: Match[]): Match => match((d, place) => ms.some((m) => m(d, place)))
+export const any = (...ms: Match[]): Match =>
+  match(
+    (d, place) => ms.some((m) => m(d, place)),
+    combinePages(ms, (a) => a.some(Boolean)),
+  )
 
 /** Match declarations none of `ms` accept. */
-export const not = (...ms: Match[]): Match => match((d, place) => ms.every((m) => !m(d, place)))
+export const not = (...ms: Match[]): Match =>
+  match(
+    (d, place) => ms.every((m) => !m(d, place)),
+    combinePages(ms, (a) => a.every((x) => !x)),
+  )
 
 /**
  * Match declarations by intrinsic name. Variadic, so it also expresses a set;
@@ -62,15 +100,68 @@ export const exposed = (): Match => match((d) => d.exposure.is())
 /** Match entrypoint modules. */
 export const isEntry = (): Match => match((d) => d.isEntry())
 
-/** Match declarations by file path patterns. */
+/**
+ * Match **standalone pages** — markdown and component pages, never
+ * declarations. With no argument it matches every page; the optional spec
+ * narrows by kind, by the page's declared `folder`/`group`, or by an arbitrary
+ * predicate over the source.
+ *
+ * @example Put every markdown page under a "Guides" folder
+ * ```ts
+ * Place.folder(Match.page({ kind: 'markdown' }), 'Guides')
+ * ```
+ */
+export const page = (spec?: {
+  kind?: ContentSource['kind']
+  folder?: string
+  group?: string
+  where?: (p: ContentSource) => boolean
+}): Match =>
+  match(
+    () => false,
+    (p) => {
+      if (spec?.kind !== undefined && p.kind !== spec.kind) return false
+      if (spec?.folder !== undefined && p.folder !== spec.folder) return false
+      if (spec?.group !== undefined && p.group !== spec.group) return false
+      return spec?.where ? spec.where(p) : true
+    },
+  )
+
+/**
+ * Match a standalone page by title; each argument is a substring/regex match.
+ * Declarations never match — use {@link name} for those.
+ */
+export const title = (...titles: (string | RegExp)[]): Match =>
+  match(
+    () => false,
+    (p) => titles.some((t) => p.title.match(t)),
+  )
+
+/**
+ * Match by source file. Patterns are micromatch globs over the
+ * **project-relative, POSIX-separated** path — the same path shown on a
+ * declaration's source line and the same one `config.include` receives as
+ * `file.relative`, so a pattern written for one works in the other.
+ *
+ * Page-aware: a markdown or component page loaded from disk matches on its own
+ * file, so `Match.file('docs/guides/**')` reaches both API pages defined there
+ * and the guides themselves.
+ *
+ * @example
+ * ```ts
+ * Match.file('src/core/**', '!src/core/internal/**')
+ * ```
+ */
 export const file = (...patterns: string[]): Match =>
-  match((d) =>
-    patterns.some((pattern) =>
-      micromatch.some(
-        d.raw.sources.map((x) => x.file),
-        pattern,
+  match(
+    (d) =>
+      patterns.some((pattern) =>
+        mm.some(
+          d.raw.sources.map((x) => x.file),
+          pattern,
+        ),
       ),
-    ),
+    (p) => (p.file === undefined ? false : patterns.some((pattern) => mm.isMatch(p.file!, pattern))),
   )
 
 /**
@@ -83,12 +174,17 @@ export const file = (...patterns: string[]): Match =>
  * Place.visibility(Match.not(Match.bucket('components', 'hooks')), { inline: true })
  * ```
  */
-export const bucket = (...buckets: (string | null)[]): Match =>
-  match((_, place) => {
+export const bucket = (...buckets: (string | null)[]): Match => {
+  const test = (place?: Placement) => {
     if (!place?.page) return false
     const name = place.page.group?.name
     return buckets.some((b) => (b === null ? !name : b === name))
-  })
+  }
+  return match(
+    (_, place) => test(place),
+    (_, place) => test(place),
+  )
+}
 
 /**
  * Match declarations by kind and a structural pattern over their raw shape.

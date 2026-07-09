@@ -23,6 +23,7 @@ export const clientFiles = {
   virtuals: {
     docs: resolveFile('client/entrypoints/virtuals/docs.ts'),
     components: resolveFile('client/entrypoints/virtuals/components.ts'),
+    pages: resolveFile('client/entrypoints/virtuals/pages.ts'),
     languages: resolveFile('client/entrypoints/virtuals/languages.ts'),
   },
 }

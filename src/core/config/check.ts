@@ -24,6 +24,16 @@ const page = v.struct.match<T.Page>({
   order: v.or(v.number, v.undefined),
 })
 
+const globEntry = v.struct.match<T.GlobEntry>({
+  glob: v.or(v.string, v.array(v.string)),
+  folder: v.or(v.string, v.or(v.literal(false), v.undefined)) as Valid<string | false | undefined, unknown>,
+  group: v.or(v.string, v.undefined),
+  order: v.or(v.number, v.undefined),
+})
+
+/** A `pages` entry is a glob string, a glob object, or an explicit page. */
+const pageEntry = v.or(v.string, v.or(globEntry, page)) as Valid<T.PageEntry, unknown>
+
 const entry = v.struct.match<T.Entry>({
   as: v.string,
   path: v.string,
@@ -41,16 +51,29 @@ export const schema = v.struct.match<Partial<T.UserConfig>>({
   repository: field(repo),
   srcDir: field(v.string),
   entrypoints: field(v.array(entry)),
-  pages: field(v.array(page)),
+  pages: field(v.array(pageEntry)),
   components: field(v.string),
   exclude: field(v.array(v.string)),
+  scan: field(v.or(v.literal('all'), v.literal('reachable')) as Valid<'all' | 'reachable', unknown>),
+  site: field(v.string),
+  llms: field(
+    v.or(
+      v.boolean,
+      v.struct.match<T.LlmsSettings>({
+        index: v.or(v.boolean, v.undefined),
+        full: v.or(v.boolean, v.undefined),
+        pages: v.or(v.boolean, v.undefined),
+        description: v.or(v.string, v.undefined),
+      }),
+    ) as Valid<boolean | T.LlmsSettings, unknown>,
+  ),
   include: field(any),
   languages: field(v.array(v.string)),
   // Layout functions can't be validated at runtime — accept them as-is.
   layout: field(v.function as Valid<any, unknown>),
+  refine: field(v.function as Valid<any, unknown>),
   transform: field(v.function as Valid<any, unknown>),
   versions: any,
-  filter: field(v.function as Valid<any, unknown>),
 })
 
 const SHIKI_LANGUAGES = [

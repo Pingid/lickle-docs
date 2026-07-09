@@ -5,6 +5,8 @@ export * from './resolve.ts'
 export * from './shiki.ts'
 export * from './html.ts'
 export * from './docs.ts'
+export * from './pages.ts'
+export * from './llms.ts'
 
 /** SSR-only: turn stylesheet imports into empty modules (HTML render needs no CSS). */
 export const ignoreCss = (): vite.Plugin => ({

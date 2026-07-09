@@ -1,11 +1,13 @@
-import type ts from 'typescript'
+import type ts from 'typescript6'
 import path from 'node:path'
 import mm from 'micromatch'
 import fg from 'fast-glob'
 
-import type { Config, UserConfig, ProjectVersion } from './types.ts'
+import type { Config, UserConfig, ProjectVersion, SourceRef } from './types.ts'
+import type { Diagnostic } from '../diagnostic/types.ts'
 
 import { Node, Pkg, Workspace, TsConfig, Slug } from '../../_lib/index.ts'
+import { resolvePages, defaultPages } from './pages.ts'
 
 /**
  * Resolve a partial `UserConfig` into a fully-defaulted `UserConfig`.
@@ -16,6 +18,7 @@ import { Node, Pkg, Workspace, TsConfig, Slug } from '../../_lib/index.ts'
 export const populate = async (
   dir: string,
   c?: Partial<UserConfig>,
+  emit: (d: Diagnostic) => void = () => {},
 ): Promise<{ config: Config; ts: TsConfig.ResolvedTsconfig }> => {
   const pkg = await Pkg.read(process.cwd())
   const name = c?.name ?? pkg?.name
@@ -27,29 +30,13 @@ export const populate = async (
   const absoluteEntrypoints = entrypoints.map((e) => ({ as: e.as, path: path.resolve(dir, e.path) }))
   const tsconfig = TsConfig.resolve(dir, c?.tsconfig)
 
-  const include = wrapIncludeCheck(
+  const includeFile = wrapIncludeCheck(
+    dir,
     composeIncludeChecks(useConfigExcludeCheck(c), tsconfigIncludeCheck(tsconfig, dir), nodeModulesCheck),
     c?.include,
   )
 
-  const pages = []
-
-  if (c?.pages?.length) {
-    for (const p of c?.pages) {
-      if (p.content.endsWith('.md')) {
-        const content = await Node.Fs.readFile(path.resolve(dir, p.content), 'utf-8')
-        pages.push({ ...p, content })
-      } else {
-        pages.push({ ...p })
-      }
-    }
-  } else {
-    const readmePath = await Node.Fs.existingPath(path.resolve(dir, 'README.md'))
-    if (readmePath) {
-      const readme = await Node.Fs.readFile(readmePath, 'utf-8')
-      if (readme) pages.push({ title: 'README', slug: '/', content: readme })
-    }
-  }
+  const pageSources = c?.pages?.length ? await resolvePages(dir, c.pages, emit) : await defaultPages(dir)
 
   const versions = c?.versions ? await fg.glob(path.resolve(dir, c.versions)) : []
   const resolvedVersions = await Promise.all(
@@ -72,19 +59,34 @@ export const populate = async (
       repository: info && info.rev && info.url ? { url: info.url, rev: info.rev, fileUrl: info.fileUrl } : undefined,
       srcDir: c?.srcDir ?? tsconfig.rootDir,
       exclude: c?.exclude ?? [],
-      pages,
+      pages: c?.pages ?? [],
+      pageSources,
       versions: resolvedVersions,
-      include,
+      include: c?.include,
+      includeFile,
     } satisfies Config,
   }
 }
 
 type IncludeCheck = (sf: ts.SourceFile) => boolean
 
+/**
+ * Adapt the user's `include` hook to the internal `ts.SourceFile` predicate,
+ * handing it a project-relative POSIX path alongside the raw source file so a
+ * config never has to reach into the TypeScript API for the common case — and
+ * so the path it matches on is the same one `Match.file` globs.
+ */
 const wrapIncludeCheck =
-  (base: IncludeCheck, check?: (sf: ts.SourceFile, defaultValue: boolean) => boolean): IncludeCheck =>
-  (sf: ts.SourceFile) =>
-    check ? check(sf, base(sf)) : base(sf)
+  (dir: string, base: IncludeCheck, check?: (file: SourceRef, defaultValue: boolean) => boolean): IncludeCheck =>
+  (sf: ts.SourceFile) => {
+    if (!check) return base(sf)
+    const file: SourceRef = {
+      path: sf.fileName,
+      relative: path.relative(dir, sf.fileName).split(path.sep).join('/'),
+      source: sf,
+    }
+    return check(file, base(sf))
+  }
 
 const tsconfigIncludeCheck = (tsconfig: TsConfig.ResolvedTsconfig, dir: string): IncludeCheck => {
   const tsconfigDir = tsconfig.path ? path.dirname(tsconfig.path) : dir

@@ -126,6 +126,11 @@ export const createLayoutRouter = (p: {
 /**
  * Bucket `items` by group name, then order buckets by {@link Group} (ascending;
  * ties keep first-seen). Items without a group fall into the `''` bucket.
+ *
+ * The unnamed bucket sorts **first** unless something gives it an explicit
+ * order: it renders with no heading, so anything below a heading belongs to
+ * that heading — an unlabelled run appearing after "Guides" would read as part
+ * of it. `Place.bucketOrder` can still place a named bucket above it.
  */
 export const groupItems = <T extends Record<string, any>>(
   items: T[],
@@ -136,7 +141,7 @@ export const groupItems = <T extends Record<string, any>>(
     const group = groupOf(item)
     const name = group?.name ?? ''
     let bucket = groups.get(name)
-    if (!bucket) groups.set(name, (bucket = { order: group?.order ?? Infinity, items: [] }))
+    if (!bucket) groups.set(name, (bucket = { order: group?.order ?? (name === '' ? -Infinity : Infinity), items: [] }))
     bucket.items.push(item)
   }
   return [...groups.entries()]

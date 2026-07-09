@@ -10,6 +10,7 @@ import type {
   GroupedItems,
   Alias,
   ResolvedAlias,
+  Refine,
 } from './types.ts'
 import { defaultLayout, lexicalSegments, type BaseContext } from './default.ts'
 import type { Diagnostic } from '../diagnostic/types.ts'
@@ -31,15 +32,25 @@ export const buildTree = (
   layout: Layout,
   baseCx: BaseContext,
   emit: (d: Diagnostic) => void,
+  refine?: Refine,
 ): Tree => {
   // ── Phase 1: run the layout for every source ──────────────────────────
   const resolved: Resolved[] = []
-  const cx: LayoutContext = { default: () => ({ page: null }) } // default patched per-source below
   for (const source of sources) {
-    const base = () => defaultLayout(source, baseCx)
-    const placement = layout(source, { ...cx, default: base }) ?? base()
+    const placement = placeOne(source, layout, baseCx)
     const id = source.kind === 'doc' ? source.decl.id : null
     if (placement.page !== null) resolved.push({ source, placement, id, slug: '' })
+  }
+
+  // ── Phase 1b: the whole-set pass ───────────────────────────────────────
+  // Layers see one source at a time by design; `refine` is the one place a
+  // decision may depend on what everything else resolved to. It runs before any
+  // slug is computed, so relocating a node here still produces a correct URL.
+  if (refine) {
+    const nodes = resolved.map((r) => ({ source: r.source, placement: r.placement, id: r.id }))
+    const next = refine(nodes, { index: baseCx.docs, name: baseCx.name }) ?? nodes
+    resolved.length = 0
+    for (const n of next) if (n.placement.page !== null) resolved.push({ ...n, slug: '' })
   }
 
   // ── Phase 2: index placed nodes by declaration id ─────────────────────
@@ -115,6 +126,7 @@ export const buildTree = (
 
   const slugOf = new Map<Reflect.Id, string>()
   const reported = new Set<string>()
+  const settled = new Map<Resolved, string>()
   for (const r of resolved) {
     let slug = candidate.get(r)!
     const group = r.id !== null ? claimants.get(slug) : undefined
@@ -131,6 +143,45 @@ export const buildTree = (
       }
       slug = Slug.normalize(lexicalFallback(r, baseCx).join('/'))
     }
+    settled.set(r, slug)
+  }
+
+  // The source-path fallback can itself collide — `export const select` and
+  // `export type Select` in one file both slugify to `…/select`. Case used to
+  // separate them by accident, which is no separation at all on a
+  // case-insensitive host (or filesystem, for the generated `.md` files). Give
+  // each a kind suffix, and the id if even that repeats.
+  const byFallback = new Map<string, Resolved[]>()
+  for (const [r, slug] of settled) {
+    const list = byFallback.get(slug)
+    if (list) list.push(r)
+    else byFallback.set(slug, [r])
+  }
+  const kindOf = (r: Resolved): string => (r.source.kind === 'doc' ? r.source.decl.kind : r.source.kind)
+  const taken = new Set(settled.values())
+  for (const [slug, group] of byFallback) {
+    if (group.length < 2) continue
+    // Two of the same kind can't be told apart by kind, so those take the id.
+    const perKind = new Map<string, number>()
+    for (const r of group) perKind.set(kindOf(r), (perKind.get(kindOf(r)) ?? 0) + 1)
+    for (const r of group) {
+      const kind = kindOf(r)
+      let next = `${slug}-${Slug.toSlug(kind)}`
+      if ((perKind.get(kind) ?? 0) > 1 || taken.has(next)) next = `${next}-${r.id ?? 0}`
+      taken.add(next)
+      settled.set(r, next)
+    }
+    emit({
+      level: 'warn',
+      code: 'slug-collision',
+      message: `Source-path fallback '${slug}' still collides among ${group
+        .map((g) => g.id ?? g.placement.page?.name)
+        .join(', ')}; disambiguating by kind. Set Place.slug to choose the URLs yourself.`,
+    })
+  }
+
+  for (const r of resolved) {
+    const slug = settled.get(r)!
     if (r.id !== null) slugOf.set(r.id, slug)
     r.slug = slug
   }
@@ -201,7 +252,7 @@ const buildSidebar = (
           seen.add(k)
           push(keyOf(nav.parent), { kind: 'doc', child: r.id, nav })
         }
-      } else if (r.source.kind === 'markdown') push(keyOf(nav.parent), { kind: 'page', slug: r.slug, nav })
+      } else if (r.source.kind !== 'doc') push(keyOf(nav.parent), { kind: 'page', slug: r.slug, nav })
     }
   }
 
@@ -210,7 +261,28 @@ const buildSidebar = (
   for (const folder of folders.values()) push(keyOf(folder.parent), { kind: 'folder', folder })
 
   const groupOf = (e: Edge): Group | undefined => ('nav' in e ? e.nav.group : undefined)
-  const orderOf = (e: Edge): number => ('nav' in e ? (e.nav.order ?? 0) : 0)
+
+  // A folder has no order of its own, so it takes its earliest child's — a
+  // section lands where its contents say it should, and `Place.order` on the
+  // pages inside it moves the whole section. Memoized, and cycle-guarded so a
+  // folder that (somehow) contains itself resolves rather than recursing.
+  const folderOrders = new Map<string, number>()
+  const folderOrder = (ref: string, seen: Set<string> = new Set()): number => {
+    const cached = folderOrders.get(ref)
+    if (cached !== undefined) return cached
+    if (seen.has(ref)) return Infinity
+    seen.add(ref)
+    let min = Infinity
+    for (const e of childrenOf.get(`v:${ref}`) ?? []) {
+      const o = e.kind === 'folder' ? folderOrder(e.folder.ref, seen) : (e.nav.order ?? 0)
+      if (o < min) min = o
+    }
+    const resolved = min === Infinity ? 0 : min
+    folderOrders.set(ref, resolved)
+    return resolved
+  }
+
+  const orderOf = (e: Edge): number => (e.kind === 'folder' ? folderOrder(e.folder.ref) : (e.nav.order ?? 0))
   // A node contributes its alias to the namespace qualifier when it is a
   // namespace or an `export * as X` re-export — both modelled here as a
   // non-entrypoint container. Entrypoints (top-level modules) do NOT qualify:
@@ -317,9 +389,37 @@ export const effectiveNav = (p: Placement): Nav[] => {
 }
 
 /** Human label for a source, used in diagnostics. */
-const describe = (s: PageSource): string =>
-  s.kind === 'markdown' ? `markdown "${s.title}"` : `${s.decl.kind} "${s.decl.name}"`
+const describe = (s: PageSource): string => (s.kind === 'doc' ? `${s.decl.kind} "${s.decl.name}"` : `${s.kind} "${s.title}"`)
 
-/** Source-path segments as the collision/cycle fallback (mirrors old lexicalSegments). */
+/**
+ * Run the composed layout for one source over the framework default. Shared by
+ * `buildTree` and the `why` explainer, so what the explainer reports is exactly
+ * what the build produced.
+ */
+export const placeOne = (
+  source: PageSource,
+  layout: Layout,
+  baseCx: BaseContext,
+  trace?: LayoutContext['trace'],
+): Placement => {
+  const cx: LayoutContext = {
+    default: () => defaultLayout(source, baseCx),
+    index: baseCx.docs,
+    name: baseCx.name,
+    ...(trace ? { trace } : {}),
+  }
+  return layout(source, cx) ?? cx.default()
+}
+
+/**
+ * Source-path segments as the collision/cycle fallback.
+ *
+ * Slugified per segment, like every other slug source — `lexicalSegments`
+ * returns raw declaration names, so without this a collision produced a
+ * mixed-case URL (`…/select/Select`) among otherwise lowercase ones, which
+ * breaks on case-sensitive hosting.
+ */
 const lexicalFallback = (r: Resolved, cx: BaseContext): string[] =>
-  r.id !== null ? lexicalSegments(cx, r.id) : [Slug.toSlug((r.placement.page ?? { name: 'page' }).name ?? 'page')]
+  r.id !== null
+    ? lexicalSegments(cx, r.id).map(Slug.toSlug)
+    : [Slug.toSlug((r.placement.page ?? { name: 'page' }).name ?? 'page')]

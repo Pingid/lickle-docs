@@ -5,6 +5,7 @@ import { App, type Reflect, LanguagesProvider } from '../../ui/index.ts'
 
 import components from './virtuals/components.ts'
 import languages from './virtuals/languages.ts'
+import pages from './virtuals/pages.ts'
 
 import '@lickle/docs/theme.css'
 
@@ -14,7 +15,7 @@ const json = (window as any).__LICKLE_JSON__ as Reflect.DocsJson
 hydrate(
   () => (
     <LanguagesProvider langs={() => languages}>
-      <App docs={json} Router={Router} components={components} />
+      <App docs={json} Router={Router} components={components} pages={pages} />
     </LanguagesProvider>
   ),
   document.getElementById('root')!,

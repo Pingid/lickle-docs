@@ -1,5 +1,5 @@
 import path from 'node:path'
-import ts from 'typescript'
+import ts from 'typescript6'
 import fs from 'node:fs'
 import os from 'node:os'
 
@@ -30,6 +30,7 @@ const withTemp = <T>(files: Record<string, string>, fn: (dir: string, fileNames:
 export const multiScanFixture = (
   files: Record<string, string>,
   entries: { as: string; file: string }[],
+  opts?: { scan?: 'all' | 'reachable' },
 ): reflect.Index =>
   withTemp(files, (dir, fileNames) => {
     const cmd: ts.ParsedCommandLine = {
@@ -41,12 +42,15 @@ export const multiScanFixture = (
       },
       errors: [],
     }
+    const entrypoints = entries.map((e) => ({ as: e.as, path: path.join(dir, e.file) }))
     return reflect.build({
       cmd,
       dir,
       srcDir: dir,
       include: (sf) => fileNames.includes(sf.fileName),
-      entrypoints: entries.map((e) => ({ as: e.as, path: path.join(dir, e.file) })),
+      entrypoints,
+      entryFiles: entrypoints.map((e) => e.path),
+      ...(opts?.scan ? { scan: opts.scan } : {}),
       emit: () => {},
     })
   })

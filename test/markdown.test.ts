@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 
-import { declarationToMarkdown } from '../src/ui/util/markdown.ts'
+import { declarationToMarkdown } from '../src/core/markdown/index.ts'
 import type { Types } from '../src/ui/context/index.tsx'
 import { scanFixture, byName } from './fixture.ts'
 

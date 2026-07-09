@@ -6,6 +6,7 @@ import type { DocsInput } from '../../ui/context/index.tsx'
 
 import components from './virtuals/components.ts'
 import languages from './virtuals/languages.ts'
+import pages from './virtuals/pages.ts'
 
 import '@lickle/docs/theme.css'
 
@@ -13,7 +14,7 @@ const highlighter = await loadHighlighter(languages)
 
 const root = (json: DocsInput, url: string) => (
   <LanguagesProvider langs={() => languages} highlighter={highlighter}>
-    <App docs={json} components={components} Router={StaticRouter} url={url} />
+    <App docs={json} components={components} pages={pages} Router={StaticRouter} url={url} />
   </LanguagesProvider>
 )
 

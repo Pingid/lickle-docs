@@ -1,9 +1,19 @@
-import type { Layout, PageSource, Redirect, PageNode, DocPage, SiteGraph, Filter } from './types.ts'
+import type {
+  Layout,
+  PageSource,
+  ContentSource,
+  Redirect,
+  PageNode,
+  DocPage,
+  SiteGraph,
+  Refine,
+  TraceEntry,
+} from './types.ts'
 import type * as Reflect from '../reflect/index.ts'
 import { createDeclarationFacade } from './facade.ts'
-import { buildTree } from './tree.ts'
+import { buildTree, placeOne } from './tree.ts'
 import { toPages, pageSlug } from './pages.ts'
-import { Place, Match, Select } from './layout/index.ts'
+import { Place, Select } from './layout/index.ts'
 import type { Transform } from './transform.ts'
 import type { Diagnostic } from '../diagnostic/types.ts'
 
@@ -13,13 +23,28 @@ export type { Transform } from './transform.ts'
 export type { LayoutRouter } from './client.ts'
 export { createLayoutRouter } from './client.ts'
 
+/**
+ * The zero-config policy: drop what the public API doesn't expose (and anything
+ * `@internal`), then bucket by kind. Exported so a config can build on it —
+ * `Place.compose(Layout.defaultLayout, …)` — instead of restating it.
+ */
+export const defaultLayout: Layout = Place.compose(Place.defaultFilter, Place.bucket(Select.kind))
+
 export type ContextOptions = {
   docs: Reflect.Index
   name: string
-  /** Filter declarations to include */
-  filter?: Filter
-  /** The whole placement policy, as one composed {@link Layout}. Defaults to grouping by kind. */
+  /**
+   * The whole placement policy, as one composed {@link Layout}. Defaults to
+   * {@link defaultLayout}.
+   *
+   * Filtering lives here too, as `Place.defaultFilter` or a `Place.filter`
+   * layer — there is no separate filter option, so what a config leaves out is
+   * genuinely left out. Supplying a layout therefore means owning the filtering
+   * as well; compose `Place.defaultFilter` in to keep the stock behaviour.
+   */
   layout?: Layout
+  /** Whole-set pass run after the layout has placed every source in isolation. */
+  refine?: Refine
   /** Content transform run over each declaration after layout (e.g. `Transform.stripTags`). */
   transform?: Transform
   /** Emit a diagnostic. */
@@ -29,36 +54,32 @@ export type ContextOptions = {
 export const builder = (opts: ContextOptions) => {
   const sources: PageSource[] = []
   const baseCx = { docs: opts.docs, name: opts.name }
-  // The layout IS the policy. Zero-config still buckets by kind for a sensible
-  // default; provide a layout and you compose whatever grouping you want.
-  const layout: Layout = opts.layout ?? Place.bucket(Select.kind)
-  const filter: Filter = opts.filter ?? Match.all(Match.exposed(), Match.not(Match.tag('@internal')))
+  // The layout IS the policy — placement, bucketing and filtering in one
+  // composed function, so every decision is visible in the config.
+  const layout: Layout = opts.layout ?? defaultLayout
 
   return {
     declare: (decl: Reflect.Declaration) => {
       const facade = createDeclarationFacade(opts.docs, decl.id)
-      if (facade && filter(facade)) sources.push({ kind: 'doc', decl: facade })
+      if (facade) sources.push({ kind: 'doc', decl: facade })
     },
-    markdown: (p: {
-      title: string
-      slug?: string
-      content: string
-      folder?: string
-      group?: string
-      order?: number
-    }) => {
-      sources.push({
-        kind: 'markdown',
-        title: p.title,
-        content: p.content,
-        slug: p.slug,
-        folder: p.folder,
-        group: p.group,
-        order: p.order,
-      })
+    page: (p: ContentSource) => {
+      sources.push(p)
+    },
+    /** Every source the builder will place — what `ldocs why` searches. */
+    sources: (): readonly PageSource[] => sources,
+    /**
+     * Re-run the layout for one source with tracing on, reporting each layer
+     * that changed the outcome. Uses the same code path as the build, so the
+     * explanation can't drift from the result.
+     */
+    explain: (source: PageSource): { trace: TraceEntry[]; placement: ReturnType<typeof placeOne> } => {
+      const trace: TraceEntry[] = []
+      const placement = placeOne(source, layout, baseCx, (e) => trace.push(e))
+      return { trace, placement }
     },
     build: (): SiteGraph => {
-      const { resolved, sidebar, aliases } = buildTree(sources, layout, baseCx, opts.emit)
+      const { resolved, sidebar, aliases } = buildTree(sources, layout, baseCx, opts.emit, opts.refine)
       const pages = toPages(resolved)
 
       // Aliases → render-mode pages (cloned from the canonical, so they share
