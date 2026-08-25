@@ -40,7 +40,7 @@ export const llms = (opts: ViteContext): vite.Plugin => {
       if (isSsr) return
       for (const file of await files()) {
         const target = path.join(outDir, file.path)
-        await Node.Fs.ensureDir(target)
+        await Node.Fs.ensureDirFor(target)
         await Node.Fs.writeFile(target, file.content)
       }
     },

@@ -42,6 +42,7 @@
     "test": "vitest run --exclude '**/dist/**'",
     "test:watch": "vitest --exclude '**/dist/**'",
     "docs:build": "tsx ./src/cli.ts build",
+    "docs:deploy": "tsx ./scripts/index.ts",
     "dev": "tsx ./src/cli.ts dev",
     "ldocs": "tsx ./src/cli.ts"
   },
@@ -83,6 +84,7 @@
     "@types/micromatch": "^4.0.10",
     "@types/node": "^26.2.0",
     "prettier": "^3.9.6",
+    "semver": "^7.8.5",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"

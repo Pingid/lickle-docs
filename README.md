@@ -1,37 +1,298 @@
 # @lickle/docs
 
-Generate a documentation site from your TypeScript source. `@lickle/docs` reflects over your code with the TypeScript compiler, reads your TSDoc/JSDoc, and renders a fast, searchable site — no hand-written API pages.
+Generate a documentation site from your TypeScript source. Reflects over your code with the TypeScript compiler, reads your TSDoc, renders a fast searchable site. No hand-written API pages.
 
 > Early development (`0.0.0-dev.x`); APIs and output may change.
 
-## Install
-
-```bash
-pnpm add -D @lickle/docs
-```
+---
 
 ## Quick start
 
 ```bash
-npx ldocs dev    # dev server with live reload
-npx ldocs build  # build for production
-npx ldocs init   # scaffold lickle.ts + docs/ with a component example
+pnpm add -D @lickle/docs
+npx ldocs dev
 ```
+
+You don't need config. Name, version and entry points come from `package.json`,
+repository links from git, the home page from `README.md`.
+
+Build it:
+
+```bash
+npx ldocs build --static
+```
+
+Output goes to `docs/dist`. `--static` pre-renders every route; without it you
+get a single-page app.
+
+**Only seeing the home page?** Entry points resolve from `exports` / `main`,
+mapped back to source through your tsconfig's `outDir` → `rootDir`. Name them
+yourself if that doesn't fit:
+
+```ts
+entrypoints: [{ as: '.', path: './src/index.ts' }]
+```
+
+## Document your code
+
+API pages come from TSDoc on your exports. Nothing else to maintain.
+
+````ts
+/**
+ * Add two numbers.
+ *
+ * @example
+ * ```ts
+ * add(1, 2) // => 3
+ * ```
+ */
+export const add = (a: number, b: number): number => a + b
+````
+
+`@param`, `@returns`, `@throws`, `@see` and `@deprecated` all render. A leading
+comment at the top of a file becomes that module's banner. Backticked names link
+themselves: `` `add` `` points at `add`'s page.
+
+`@internal` drops a declaration from the site. Every other tag means whatever
+your [layout](#shaping-the-site) says — `Place.bucket(Select.tag('@group'))`
+turns `@group Hooks` into a "Hooks" heading.
+
+## Configure
+
+Add `lickle.ts` (or `.js` / `.mjs` / `.json`) to the project root. Only `name`
+is required.
+
+```ts
+import { defineConfig } from '@lickle/docs/config'
+
+export default defineConfig({
+  name: 'My Library',
+  languages: ['ts', 'tsx', 'bash'],
+})
+```
+
+`npx ldocs init` scaffolds one, plus a `docs/` folder with a starter guide and
+a component override. It never overwrites — pass `--force` for that.
+
+## Add guides
+
+Each markdown file becomes a page. Title from the first `# heading`, order from
+a `01-` filename prefix.
+
+```ts
+pages: [
+  { title: 'Overview', content: './README.md', slug: '/' },
+  { glob: './docs/guides/*.md', group: 'Guides', folder: false },
+]
+```
+
+```
+docs/guides/01-getting-started.md
+docs/guides/02-configuration.md
+```
+
+gives you:
+
+```
+Overview               ← ungrouped pages lead
+My Library             ← your API, generated
+  functions            ← kinds become headings by default
+    add
+Guides                 ← a plain heading
+  Getting started
+  Configuration
+```
+
+Ungrouped entries come first: they have no heading to sit under. To reorder, see
+[Shaping the site](#shaping-the-site).
+
+Frontmatter overrides anything derived:
+
+```md
+---
+title: Getting started
+slug: start
+order: 1
+draft: true
+---
+```
+
+## Publish
+
+```bash
+npx ldocs build --static --base my-lib
+```
+
+`--base` is the path you serve under. Set it for GitHub Pages project sites
+(`https://you.github.io/my-lib/`), drop it at a domain root. Check the result
+with `npx ldocs preview`.
+
+---
+
+Reference below.
+
+---
 
 ## CLI
 
-- `ldocs init` — scaffold config and `docs/`. `--dir` (default `./docs`), `--config` (default `./lickle.ts`), `--force`.
-- `ldocs dev` — dev server with live reload. `--port`, `--base`, `--router hash|browser`.
-- `ldocs build` — build into the output dir. `--static` (SSG), `--no-script` (no client JS, static only), `--router`, `--base`, `--outDir` (default `docs/dist`).
-- `ldocs preview` — serve a built site. `--port`, `--base`.
-- `ldocs generate` — emit the JSON reflection data. `--print` shows the route tree, `--file` sets the output path, `--strict` fails on any warning.
-- `ldocs why <query>` — explain how a declaration or page ended up where it did.
+| Command | Flags |
+| --- | --- |
+| `ldocs dev` | Dev server with live reload. `--port`, `--base`, `--router hash\|browser`, `--dir` |
+| `ldocs build` | `--static` (SSG), `--no-script` (no client JS), `--outDir` (default `docs/dist`), `--base`, `--router`, `--dir` |
+| `ldocs preview` | Serve a built site. `--port`, `--base`, `--outDir` |
+| `ldocs init` | Scaffold `lickle.ts` + `docs/`, skipping anything that exists. `--dir` (default `./docs`), `--config`, `--force` |
+| `ldocs generate` | Emit the JSON reflection data. `--print`, `--file`, `--strict`, `--dir` |
+| `ldocs why <query>` | Explain how a declaration or page ended up where it did |
 
-### Debugging a layout
+`--dir` targets another project directory instead of the working directory.
 
-A composed layout is a stack of small functions, so an unexpected slug is hard
-to attribute by reading the config. `ldocs why` re-runs the same layout with
-tracing on and prints every layer that changed the outcome:
+## Configuration
+
+| Field | Default | Notes |
+| --- | --- | --- |
+| `name` | `package.json` name | Shown in the header |
+| `version` | `package.json` version, then the latest git tag | |
+| `entrypoints` | `exports` / `main`, mapped to source via tsconfig `outDir` → `rootDir` | Each becomes a top-level module |
+| `tsconfig` | `tsconfig.json` | Its `rootDir` becomes `srcDir` |
+| `exclude` | `[]` | Micromatch globs of source files to omit |
+| `include` | — | `(file, keep) => boolean`, the last word per file |
+| `scan` | `'all'` | `'reachable'` walks out from the entrypoints instead |
+| `pages` | `README.md` as the home page | Globs, glob options, or explicit entries |
+| `links` | the repository URL | Header navigation |
+| `repository` | git metadata | Drives the "view source" links |
+| `languages` | `['ts']` | Shiki grammars for fenced code and `@example` |
+| `components` | — | Path to a `defineComponents(...)` file |
+| `layout` | bucket by kind | The whole page-generation policy |
+| `refine` | — | A pass over every placement once they are all decided |
+| `transform` | — | Runs over each declaration after layout |
+| `versions` | — | Glob of `project.json` files from earlier releases |
+| `site` | — | Public URL; makes `llms.txt` links absolute |
+| `llms` | `true` | The plain-text view for language models |
+
+`defineConfig` also takes a function, sync or async:
+
+```ts
+export default defineConfig(async () => ({
+  name: 'My Library',
+  version: await readVersionFromChangelog(),
+}))
+```
+
+## Pages
+
+Three kinds of entry:
+
+```ts
+pages: [
+  { title: 'Overview', content: './README.md', slug: '/' },  // one page
+  './docs/guides/**/*.md',                                    // a glob
+  { glob: './docs/api/*.md', group: 'Reference' },            // a glob with options
+]
+```
+
+`content` takes a `.md` path, a `.tsx` path (see [Component pages](#component-pages)),
+or inline markdown.
+
+### Folders and groups
+
+The sidebar has two shapes:
+
+- a **folder** is a collapsible branch — for an API surface, mostly skipped;
+- a **group** is a plain heading over a flat list — for guides, all visible.
+
+A glob entry picks between them:
+
+| Setting | Result |
+| --- | --- |
+| *(bare glob)* | folder derived from the directory structure below the glob's fixed prefix |
+| `folder: false` | flat — no folder, not even a derived one |
+| `folder: 'Guides'` | rooted there, with derived subdirectories appended |
+| `group: 'Guides'` | a plain heading above the matches |
+
+`Place.folder` and `Place.bucket` do the same two jobs for API pages.
+
+### Titles and order
+
+Titles come from frontmatter, else the first `# heading`, else the filename.
+Frontmatter (`title`, `slug`, `folder`, `group`, `order`, `draft`) wins over
+anything derived. `draft: true` keeps a page out of the build.
+
+Order is two-level: an entry's position in `pages` picks its block of the
+sidebar; frontmatter `order:`, a `01-` prefix, or match position orders pages
+inside that block.
+
+## Shaping the site
+
+The layout is the whole page-generation policy in one composed function — which
+declarations get pages, what they're called, where they live, how the sidebar
+groups them. Filtering, folders and ordering are all layers, not separate fields.
+
+```ts
+import { defineConfig, Place, Match, Select } from '@lickle/docs/config'
+
+export default defineConfig({
+  name: 'My Library',
+  layout: Place.compose(
+    Place.defaultFilter,                            // exposed, minus @internal
+    Place.bucket(Select.kind),                      // bucket by kind
+    Place.bucket(Select.tag('@group')),             // …unless @group says otherwise
+    Place.bucketOrder('components', 'hooks', /.*/), // order the buckets
+    Place.order('Getting started', /^Config/),      // order within a bucket
+    Place.folder(Match.kinds('type-alias'), 'Types'),
+  ),
+})
+```
+
+| Namespace | Answers | Example |
+| --- | --- | --- |
+| `Match` | *which* — a yes/no predicate | `Match.kinds('interface')` |
+| `Select` | *what* — a value per declaration | `Select.tag('@group')` |
+| `Place` | *do* — a layer that refines placement | `Place.folder(…, 'Types')` |
+
+Two rules explain most surprises:
+
+1. **Later layers win.** `compose` applies left to right; a second `Place.bucket`
+   overrides the first.
+2. **A layout replaces the default entirely**, filtering included.
+
+Anywhere a preset takes a string it takes a `Select`:
+
+```ts
+Place.folder(Match.all(), Select.dir())        // mirror the source tree
+Place.rename(Match.all(), Select.tag('@name')) // rename from a doc tag
+Place.bucket(Select.first(Select.tag('@group'), Select.kind))
+```
+
+Layers see one source at a time. For decisions that need the whole set — "inline
+any bucket with fewer than three members" — use `refine`.
+
+### What gets documented
+
+Four fields narrow the output, at three stages. Only the last two see
+declarations:
+
+| Stage | Field | Sees | Use it for |
+| --- | --- | --- | --- |
+| Scan | `exclude` | file paths | dropping whole directories |
+| Scan | `include(file, keep)` | one file at a time | what a glob can't express |
+| Layout | `Place.filter(match)` | declarations and pages | removing a declaration entirely |
+| Layout | `Place.visibility(match, …)` | declarations and pages | hiding a page, keeping `{@link}` resolvable |
+
+Every path is project-relative and POSIX-separated — the same string
+`Match.file` globs, `include` gets as `file.relative`, and a source line shows.
+
+`Place.filter` removes a declaration outright, breaking `{@link}` references to
+it. To only drop it from the sidebar, use `Place.visibility`.
+
+The default layout is `Place.compose(Place.defaultFilter, Place.bucket(Select.kind))`.
+Compose `Place.defaultFilter` back in to keep stock filtering; leave it out to
+document unexposed declarations.
+
+### Why is this page here?
+
+A layout is a stack of small functions, so an unexpected slug is hard to
+attribute by reading the config. `ldocs why` re-runs the same layout with
+tracing on:
 
 ```bash
 npx ldocs why UserConfig
@@ -51,167 +312,16 @@ interface UserConfig
   slug     userconfig
 ```
 
-## Configuration
+Two `Place.bucket` layers competed; the later won. Rule 1.
 
-Optional — defaults come from `package.json`, git, and your `README.md`. To customize, add a `lickle.ts` (or `.js`/`.mjs`/`.json`) to the project root:
+Slug collisions are warnings, resolved deterministically. Since that rewrites
+URLs, make it fatal with `npx ldocs generate --strict`.
 
-```ts
-import { defineConfig } from '@lickle/docs/config'
+## Component pages
 
-export default defineConfig({
-  name: 'My Library',
-  pages: [{ title: 'Overview', content: './README.md' }],
-  components: './docs/index.tsx',
-})
-```
-
-Useful fields:
-
-- `name` / `version` — defaults to `package.json` (version falls back to the latest git tag).
-- `entrypoints` — files to document (defaults to those reachable from `main` / `exports`).
-- `pages` — standalone pages: globs, `{ glob, group?, folder? }` options, `{ title, content }` objects, or a mix (see below).
-- `components` — path to a custom components file (see below).
-- `languages` — Shiki languages to load (default `['ts']`).
-- `links` — navigation links (default: repository URL).
-- `exclude` — micromatch globs to omit.
-- `scan` — `'all'` (default) or `'reachable'` to walk out from the entrypoints instead of reading every file.
-- `site` — public URL the docs are published under; makes `llms.txt` links absolute.
-- `llms` — the plain-text view for language models (see below). On by default.
-- `layout` — the whole page-generation policy, including filtering (see below).
-- `refine` — a pass over every placement once they are all decided.
-
-### What gets documented
-
-Four things narrow the output, at three different stages. Only the last two see
-declarations:
-
-| Stage | Field | Sees | Use it for |
-| --- | --- | --- | --- |
-| Scan | `exclude` | file paths | dropping whole directories |
-| Scan | `include(file, keep)` | one file at a time | anything a glob can't express |
-| Layout | `Place.filter(match)` | declarations and pages | removing a declaration entirely |
-| Layout | `Place.visibility(match, …)` | declarations and pages | hiding a page but keeping `{@link}` resolvable |
-
-Every path in the table is **project-relative and POSIX-separated** — the same
-string `Match.file` globs, `include` receives as `file.relative`, and a
-declaration's source line shows. A pattern written for one works in the other.
-
-`Place.filter` removes a declaration outright, so `{@link}` references to it
-break. When you only want it out of the sidebar, reach for `Place.visibility`
-instead.
-
-Filtering is a *layer*, not a separate field. The default layout is
-`Place.compose(Place.defaultFilter, Place.bucket(Select.kind))`; supplying your
-own `layout` replaces that entirely, so compose `Place.defaultFilter` back in to
-keep the stock behaviour — or leave it out to document declarations the public
-API doesn't expose:
-
-```ts
-layout: Place.compose(
-  Place.defaultFilter,                        // exposed, minus @internal
-  Place.bucket(Select.kind),                  // bucket by kind
-  Place.bucket(Select.tag('@group')),         // …unless @group says otherwise
-  Place.bucketOrder('components', 'hooks', /.*/), // order the buckets
-  Place.order('Getting started', /^Config/),  // order siblings within a bucket
-  Place.folder(Match.kinds('type-alias'), 'Types'),
-)
-```
-
-`Match` builds the predicates, `Select` derives per-declaration values, and
-anywhere a preset takes a string it also takes a `Select`:
-
-```ts
-Place.folder(Match.all(), Select.dir())        // mirror the source tree
-Place.rename(Match.all(), Select.tag('@name')) // rename from a doc tag
-Place.bucket(Select.first(Select.tag('@group'), Select.kind))
-```
-
-Layers see one source at a time. For a decision that depends on everything else
-— "inline any bucket with fewer than three members" — use `refine`, which runs
-once with every placement in hand.
-
-## Pages
-
-`pages` accepts globs and explicit entries side by side:
-
-```ts
-pages: [
-  { title: 'Overview', content: './README.md', slug: '/' },
-  { glob: './docs/guides/*.md', group: 'Guides', folder: false },
-  { title: 'Playground', content: './docs/playground.tsx', group: 'Guides' },
-]
-```
-
-### Folders vs groups
-
-The sidebar has two shapes, and picking the right one is most of the layout:
-
-- a **folder** is a collapsible branch — good for an API surface, where the
-  contents are many and mostly skipped;
-- a **group** is a plain heading above a flat run of items — good for guides,
-  where the whole list should be visible at a glance.
-
-`Place.folder` and a page's `folder` produce the first; `Place.bucket` and a
-page's `group` produce the second. The config above yields:
-
-```
-Overview
-Guides                 ← heading, always expanded
-  Getting started
-  Configuring the site
-  Playground
-API                    ← heading
-  › config             ← collapsible
-  › ui
-```
-
-with the API section coming from the layout:
-
-```ts
-Place.bucket(Match.isEntry(), 'API'),
-Place.bucketOrder('Guides', 'API', /.*/),
-```
-
-The unnamed bucket (`Overview` here) always leads, since it has no heading to
-sit under.
-
-### Globs
-
-A bare glob string derives everything from the filesystem; the object form
-controls how the matches attach:
-
-| Field | Effect |
-| --- | --- |
-| *(bare string)* | folder derived from the directory structure below the glob's fixed prefix |
-| `folder: false` | flat — no folder, not even a derived one |
-| `folder: 'X'` | rooted at `X`, with derived subdirectories appended |
-| `group: 'X'` | a plain heading above the matches |
-
-Titles come from YAML frontmatter, else the first `# heading`, else the
-filename. Ordering is two-level: an entry's position in `pages` decides which
-block of the sidebar its pages occupy, and frontmatter `order` / a `01-`
-filename prefix / match position orders them within that block. Frontmatter
-overrides all of it:
-
-```md
----
-title: Getting started
-slug: start
-folder: Guides
-group: Basics
-order: 1
-draft: false
----
-```
-
-`draft: true` keeps a page out of the build.
-
-### Component pages
-
-Point a page at a `.tsx` file that default-exports a SolidJS component and it
-renders as a real page — routed, in the sidebar, and pre-rendered by `--static`
-like any other. It runs inside the docs providers, so the hooks and components
-from `@lickle/docs/ui` all work inside it:
+A `.tsx` file that default-exports a SolidJS component becomes a real page —
+routed, in the sidebar, pre-rendered by `--static`. It runs inside the docs
+providers, so everything from `@lickle/docs/ui` works:
 
 ```tsx
 import { createSignal } from 'solid-js'
@@ -223,48 +333,23 @@ export default function Playground(props: PageProps) {
   return (
     <article>
       <h1>{props.route.title}</h1>
+      <p>{project()?.declarations.length} declarations documented.</p>
       <button onClick={() => setN(n() + 1)}>clicked {n()} times</button>
     </article>
   )
 }
 ```
 
-Each component page is bundled as its own chunk, so interactive pages cost
-nothing on the pages that don't use them.
-
-## llms.txt
-
-The site also ships a plain-text view for language models, following the
-[llmstxt.org](https://llmstxt.org) convention:
-
-- **`/llms.txt`** — an index: the project name, a summary, then one section per
-  top-level sidebar group listing every page as a link with a one-line
-  description. Small enough to fetch as an opening move.
-- **`/llms-full.txt`** — every page's markdown in one file.
-- **`/<slug>.md`** — each page on its own, so a link found in `llms.txt` can be
-  followed to just that page.
-
-All three come from the same serializer behind the "copy as markdown" button, so
-what a model reads is what a human would copy. They are written into the output
-directory by `ldocs build` and served by `ldocs dev`, so `curl
-localhost:5173/llms.txt` works while you write.
-
-It is on by default. Set `site` so the links come out absolute — a model may
-have fetched the file with no idea where it came from:
-
 ```ts
-export default defineConfig({
-  name: 'My Library',
-  site: 'https://example.com/docs',
-  llms: { full: false }, // index and per-page markdown, no single-file dump
-})
+pages: [{ title: 'Playground', content: './docs/playground.tsx' }]
 ```
 
-Pass `llms: false` to emit none of it.
+Each one is its own chunk, so interactive pages cost nothing elsewhere.
 
-## Custom components & live examples
+## Custom components
 
-Point `components` at a file that default-exports `defineComponents(...)`. Override the `tag` slot for runnable `@example` blocks and defer the rest to the stock renderer:
+Point `components` at a file that default-exports `defineComponents(...)`.
+Override a slot, defer the rest to the stock renderer:
 
 ```tsx
 import { defineComponents, LiveExample } from '@lickle/docs/ui'
@@ -273,7 +358,7 @@ const run = (code: string, host: HTMLElement) => new Function('host', code)(host
 
 export default defineComponents({
   tag: (props) =>
-    props.tag.tag === '@example' ? (
+    props.tag.kind === '@example' ? (
       <LiveExample tag={props.tag} run={run} transform={{}} />
     ) : (
       <props.Default {...props} />
@@ -283,21 +368,32 @@ export default defineComponents({
 
 The UI is SolidJS, styled with Tailwind via `@lickle/docs/theme.css`.
 
-## Documenting your code
+## llms.txt
 
-Docs come from standard TSDoc/JSDoc on exported declarations. `@module` sets a module banner; `@example` blocks render as examples (runnable when you opt in via custom components).
+A plain-text view of the site for language models, following
+[llmstxt.org](https://llmstxt.org):
 
-````ts
-/**
- * Add two numbers.
- *
- * @example
- * ```ts
- * add(1, 2) // => 3
- * ```
- */
-export const add = (a: number, b: number): number => a + b
-````
+- **`/llms.txt`** — an index: name, summary, then one section per top-level
+  sidebar group listing every page with a one-line description.
+- **`/llms-full.txt`** — every page's markdown in one file.
+- **`/<slug>.md`** — each page on its own, which is what the index links to.
+
+All three come from the same serializer as the "copy as markdown" button. `ldocs
+build` writes them; `ldocs dev` serves them, so you can `curl` them while you
+write.
+
+On by default. Set `site` so links come out absolute — a model may have fetched
+the file with no idea where it came from:
+
+```ts
+export default defineConfig({
+  name: 'My Library',
+  site: 'https://example.com/docs',
+  llms: { full: false }, // index and per-page markdown, no single-file dump
+})
+```
+
+`llms: false` emits none of it.
 
 ## License
 

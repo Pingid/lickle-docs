@@ -66,7 +66,9 @@ export const Sidebar = createSlot('sidebar', (props) => {
 
   return (
     <aside class={`text-[0.8125rem] ${props.class ?? ''}`}>
-      <nav class="pt-5 pb-10 px-2.5 space-y-0.5">
+      {/* `px-4.5` + each row's own `px-1.5` puts label text at 24px — the same
+          inset as the header's project name, so the two columns line up. */}
+      <nav class="pt-5 pb-10 px-4.5 space-y-0.5">
         <NavList groups={router()?.sidebar ?? []} depth={0} trail="" onNavigate={props.onNavigate} />
       </nav>
     </aside>

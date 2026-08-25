@@ -81,7 +81,12 @@ const VersionSelect = () => {
   const nav = useNavigate()
 
   const aliasOf = (v?: Reflect.DocsVersion) => v?.alias ?? v?.version
-  const label = () => `v${aliasOf(active()) ?? versions()[0]?.version ?? ''}`
+  // Prefix `v` only for version-shaped labels. A version list can also carry a
+  // branch or commit build ("main", "a1b2c3"), and "vmain" reads as nonsense.
+  const label = () => {
+    const name = aliasOf(active()) ?? versions()[0]?.version ?? ''
+    return /^\d/.test(name) ? `v${name}` : name
+  }
 
   let details: HTMLDetailsElement | undefined
   const close = () => details && (details.open = false)
@@ -119,7 +124,14 @@ const VersionSelect = () => {
                     'block px-3 py-1.5 text-mute hover:text-fg hover:bg-hover aria-current:text-fg aria-current:font-semibold',
                   )}
                 >
-                  {aliasOf(v)}
+                  <span class="flex items-center gap-2">
+                    <span>{aliasOf(v)}</span>
+                    {/* Prereleases are listed, but marked — a reader landing on
+                        the dropdown should not mistake one for the release. */}
+                    <Show when={v.prerelease}>
+                      <span class="text-[0.6rem] uppercase tracking-wide text-mute/70">pre</span>
+                    </Show>
+                  </span>
                 </A>
               </li>
             )}

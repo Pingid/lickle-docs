@@ -5,7 +5,7 @@ import { Dynamic } from 'solid-js/web'
 
 import * as DocRouter from '../hooks/router/index.ts'
 import type { Reflect } from '../context/index.tsx'
-import type { t } from '../../_lib/index.ts'
+import type * as t from '../../_lib/t.ts'
 
 const ComponentsCtx = createContext<Accessor<Components>>(() => ({}))
 

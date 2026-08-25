@@ -1,4 +1,4 @@
-import type { t } from '../../../_lib/index.ts'
+import type * as t from '../../../_lib/t.ts'
 import type * as T from '../types.ts'
 
 export interface Builder<I, D = {}> {

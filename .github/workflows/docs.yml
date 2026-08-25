@@ -2,6 +2,15 @@ name: Deploy docs
 
 on:
   workflow_dispatch:
+    inputs:
+      revisions:
+        description: 'Extra revisions to publish alongside the stable releases — tags, branches or commits, space separated'
+        required: false
+        type: string
+      site:
+        description: 'Revision to build the site from; "." is this checkout (default: newest stable release)'
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -20,18 +29,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # tags, and enough history to make worktrees from them
+
       - uses: pnpm/action-setup@v6
         with:
           version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
 
-      - name: install
-        run: pnpm install
-      - name: typedoc
-        run: pnpm run docs:build --static --base "lickle-docs"
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Every stable release tag becomes a selectable version; `REVISIONS` adds
+      # any others. Passed as env rather than interpolated into the command, so
+      # a dispatch input can't inject shell.
+      - name: Build every version and the site
+        env:
+          BASE: /lickle-docs/
+          OUT_DIR: dist
+          REVISIONS: ${{ inputs.revisions }}
+          SITE: ${{ inputs.site }}
+        run: pnpm tsx ./scripts/index.ts
+
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: docs/dist
+          path: dist
 
   deploy:
     needs: build

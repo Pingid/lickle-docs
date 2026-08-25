@@ -8,9 +8,14 @@ import { Node } from '../../_lib/index.ts'
 import type { ServerEntry } from '../entrypoints/entry-server.tsx'
 import { createLayoutRouter } from '../../core/layout/client.ts'
 import { createShellStreamer } from '../context/index.ts'
+import { Coder } from '../plugins/util/index.ts'
 
 type GenerateStaticOptions = {
   json: Core.Config.ProjectVersion
+  /** Header links, carried into the serialized `DocsJson`. */
+  links?: Core.Config.Link[]
+  /** Previously published versions, offered in the switcher alongside this build. */
+  versions?: Core.Config.ConfigVersion[]
   outDir: string
   baseUrl: string
   assetsDir: string
@@ -26,13 +31,51 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
   // Client script and css
   const clientManifest = await readManifest(opts.outDir, opts.baseUrl)
 
-  // Project Json script
-  const serializedJson = serializeJson(opts.json)
+  // Project data script.
+  //
+  // A static build used to inline a bare `ProjectVersion`, which the client
+  // reads as a site with exactly one version — so `--static` silently had no
+  // version switcher, however many versions were configured. It now emits a
+  // full `DocsJson`: this build inline, and every archived version as a copied
+  // JSON asset fetched on demand.
+  const archived = await writeVersionAssets(opts)
+  const docsJson: Core.Config.DocsJsonShape = {
+    name: opts.json.name,
+    links: opts.links ?? [],
+    versions: [
+      {
+        version: opts.json.version ?? '',
+        slug: '/',
+        ...(Core.Config.isPrerelease(opts.json.version ?? '') ? { prerelease: true } : {}),
+        get: opts.json,
+      },
+      ...archived.map((v) => ({
+        version: v.version,
+        slug: v.slug,
+        ...(v.prerelease ? { prerelease: true } : {}),
+        get: Coder.inline<Core.Config.ProjectVersion>(
+          `() => fetch(${JSON.stringify(v.href)}).then((r) => r.json())`,
+        ),
+      })),
+    ],
+  }
+
+  const serializedJson = Coder.toCode(serializeJson(docsJson))
   const hash = Node.hash(serializedJson).slice(0, 8)
   const name = Node.Fs.sanitizeFilename(`project-${opts.json.version ?? ''}-${hash}.js`)
   const outPath = path.resolve(opts.assetsDir, name)
   await Node.Fs.writeFile(outPath, `window.__LICKLE_JSON__ = ${serializedJson}`)
   const jsonHref = prefixSlash(path.join(opts.baseUrl, path.relative(opts.outDir, outPath)))
+
+  // The server render only ever touches the version being pre-rendered, so the
+  // archived loaders here are never called — but the header still reads the
+  // list, so SSR and hydration agree on which versions exist.
+  const serverDocs: Core.Config.DocsJsonShape = {
+    ...docsJson,
+    versions: docsJson.versions.map((v, i) =>
+      i === 0 ? v : { ...v, get: () => fetch(archived[i - 1]!.href).then((r) => r.json()) },
+    ),
+  }
 
   // Server script
   const serverManifest = await readManifest(opts.serverOutDir, opts.baseUrl)
@@ -51,7 +94,7 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
     const rel = route.slug.replace(/^\/+/, '')
     const isHome = rel === ''
     const outPath = path.join(opts.outDir, isHome ? 'index.html' : rel + '.html')
-    await Node.Fs.ensureDir(outPath)
+    await Node.Fs.ensureDirFor(outPath)
 
     opts.logger.info(
       `${pc.gray(path.relative(process.cwd(), opts.outDir) + '/')}${pc.blue(path.relative(opts.outDir, outPath))}`,
@@ -74,7 +117,7 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
     const url = prefixSlash(path.join(opts.baseUrl, route.slug))
 
     await new Promise<void>((resolve) => {
-      const body = serverModule.default.renderToStream(opts.json, url, {
+      const body = serverModule.default.renderToStream(serverDocs, url, {
         onCompleteAll: () => resolve(),
       })
       body.pipe(fileStream)
@@ -89,12 +132,24 @@ export const generateStatic = async (opts: GenerateStaticOptions) => {
     await gen(route)
   }
 
+  // A static host has HTML only for the version being pre-rendered, so a deep
+  // link into an archived version (`/0.0.2/...`) has no file behind it. GitHub
+  // Pages and friends serve `404.html` for a miss, so making that the app shell
+  // hands the URL to the client router, which resolves the version and renders
+  // it. Without this the switcher works but its URLs are unshareable.
+  const notFound = path.join(opts.outDir, '404.html')
+  const home = path.join(opts.outDir, 'index.html')
+  if (await Node.Fs.exists(home)) {
+    await Node.Fs.writeFile(notFound, await Node.Fs.readFile(home, 'utf8'))
+    opts.logger.info(`${pc.gray(path.relative(process.cwd(), opts.outDir) + '/')}${pc.green('404.html')} (SPA fallback)`)
+  }
+
   // Redirect-mode aliases → tiny meta-refresh stubs at the alias URL.
   for (const rd of redirects) {
     const rel = rd.from.replace(/^\/+/, '')
     if (!rel) continue
     const outPath = path.join(opts.outDir, rel + '.html')
-    await Node.Fs.ensureDir(outPath)
+    await Node.Fs.ensureDirFor(outPath)
     const to = prefixSlash(path.join(opts.baseUrl, rd.to))
     await Node.Fs.writeFile(
       outPath,
@@ -141,6 +196,35 @@ const readManifest = async (dir: string, baseUrl: string) => {
 }
 
 // Guard against </script> in string content breaking the inline script, and XSS.
+/**
+ * Copy each archived version's `project.json` into the assets directory and
+ * report where it landed. They are fetched lazily, so a site with ten releases
+ * still ships one version's data on first load.
+ */
+const writeVersionAssets = async (
+  opts: GenerateStaticOptions,
+): Promise<{ version: string; slug: string; href: string; prerelease?: boolean }[]> => {
+  const out: { version: string; slug: string; href: string; prerelease?: boolean }[] = []
+  for (const v of opts.versions ?? []) {
+    const content = await Node.Fs.readFile(v.path, 'utf8').catch(() => undefined)
+    if (content === undefined) {
+      opts.logger.warn(`Skipping version ${v.version}: could not read ${v.path}`)
+      continue
+    }
+    const name = Node.Fs.sanitizeFilename(`project-${v.version}-${Node.hash(content).slice(0, 8)}.json`)
+    const target = path.resolve(opts.assetsDir, name)
+    await Node.Fs.ensureDirFor(target)
+    await Node.Fs.writeFile(target, content)
+    out.push({
+      version: v.version,
+      slug: v.slug,
+      href: prefixSlash(path.join(opts.baseUrl, path.relative(opts.outDir, target))),
+      ...(v.prerelease ? { prerelease: true } : {}),
+    })
+  }
+  return out
+}
+
 const serializeJson = (json: unknown): string =>
   JSON.stringify(json)
     .replace(/</g, '\\u003c')

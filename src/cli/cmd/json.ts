@@ -1,4 +1,5 @@
 import * as cmd from 'cmd-ts'
+import path from 'node:path'
 import pc from 'picocolors'
 
 import { Node } from '../../_lib/index.ts'
@@ -27,11 +28,17 @@ export const generate = cmd.command({
       long: 'strict',
       description: 'Fail the build if the scan or layout reported any warning',
     }),
+    dir: cmd.option({
+      long: 'dir',
+      short: 'C',
+      type: cmd.optional(cmd.string),
+      description: 'Project directory to document (default: the working directory)',
+    }),
   },
   handler: async (args) => {
-    const p = await Build.build(process.cwd())
+    const p = await Build.build(path.resolve(process.cwd(), args.dir ?? '.'))
     if (args.print) printSite(p.json)
-    await Node.Fs.ensureDir(args.file)
+    await Node.Fs.ensureDirFor(args.file)
     await Node.Fs.writeFile(args.file, JSON.stringify(p.json))
 
     // A slug collision silently rewrites URLs across the site, so a project

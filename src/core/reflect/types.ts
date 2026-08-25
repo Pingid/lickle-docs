@@ -1,6 +1,6 @@
 import { is } from '@lickle/is'
 
-import type { t } from '../../_lib/index.ts'
+import type * as t from '../../_lib/t.ts'
 
 export type Id = t.Brand<'reflect-id', number>
 
@@ -332,7 +332,7 @@ export type CommentTagMap = t.Compute<
     '*': { tag: string; kind: '*'; name?: string; caption?: string; text: string }
   }
 >
-/** A block tag of a comment. Discriminated on `tag`; narrow with the type argument: `CommentTag<'@example'>`. */
+/** A block tag of a comment. Discriminated on `kind`; narrow with the type argument: `CommentTag<'@example'>`. */
 export type CommentTag<K extends keyof CommentTagMap = keyof CommentTagMap> = CommentTagMap[K]
 
 /** A piece of a comment's summary: markdown `text`, or an inline `{@link target}` reference. */

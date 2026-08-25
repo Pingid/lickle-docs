@@ -11,6 +11,7 @@ import * as T from './types.ts'
 
 export type * from './types.ts'
 export { resolvePages } from './pages.ts'
+export { resolveVersions, latestStable, isPrerelease, compare as compareVersions } from './versions.ts'
 
 const EXT = ['ts', 'mts', 'cts', 'js', 'cjs', 'mjs', 'json']
 

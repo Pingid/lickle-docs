@@ -4,6 +4,7 @@ import pc from 'picocolors'
 import type { DocsJson, DocsVersion } from '../../ui/context/docs/types.ts'
 
 import type { Build } from '../../core/index.ts'
+import { Config } from '../../core/index.ts'
 
 import type { ViteContext } from '../context/index.ts'
 import { virtualFile, Coder } from './util/index.ts'
@@ -16,11 +17,17 @@ export const docs = (config: ViteContext): vite.Plugin => {
       name: c.config.name,
       links: Coder.json(c.config.links),
       versions: [
-        { version: c.config.version!, slug: '/', get: Coder.json(c.json) },
+        {
+          version: c.config.version!,
+          slug: '/',
+          ...(Config.isPrerelease(c.config.version ?? '') ? { prerelease: true } : {}),
+          get: Coder.json(c.json),
+        },
         ...(c.config.versions ?? []).map(
           (v): DocsVersion => ({
             version: v.version!,
             slug: v.slug!,
+            ...(v.prerelease ? { prerelease: true } : {}),
             get: Coder.inline(`() => import(${JSON.stringify(v.path)}).then((m) => m.default)`),
           }),
         ),
