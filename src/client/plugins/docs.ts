@@ -21,6 +21,7 @@ export const docs = (config: ViteContext): vite.Plugin => {
           (v): DocsVersion => ({
             version: v.version!,
             slug: v.slug!,
+            ...(v.prerelease ? { prerelease: true } : {}),
             get: Coder.inline(`() => import(${JSON.stringify(v.path)}).then((m) => m.default)`),
           }),
         ),

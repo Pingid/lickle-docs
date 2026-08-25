@@ -1,6 +1,6 @@
 import ts from 'typescript6'
 
-import { t } from '../../../_lib/index.ts'
+import * as t from '../../../_lib/t.ts'
 
 import { type ScanState as State } from '../state.ts'
 import type * as T from '../types.ts'

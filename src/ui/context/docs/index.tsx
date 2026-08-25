@@ -9,6 +9,7 @@ import {
 } from 'solid-js'
 
 import { useLocation } from '../../util/router.tsx'
+import { stripBaseUrl } from '../../util/base.ts'
 
 import type * as Reflect from './types.ts'
 
@@ -90,7 +91,7 @@ export const useDocVersions = (): Accessor<Reflect.DocsVersion[]> => useDocs().v
 export const useDocVersionsCurrent = (): Accessor<Reflect.DocsVersion | undefined> => {
   const docs = useDocs()
   const loc = useLocation()
-  return createMemo(() => docs.active(loc.pathname))
+  return createMemo(() => docs.active(stripBaseUrl(loc.pathname)))
 }
 
 /**
@@ -103,7 +104,7 @@ export const useDocVersionsCurrent = (): Accessor<Reflect.DocsVersion | undefine
 export const useDocActiveProject = () => {
   const docs = useDocs()
   const loc = useLocation()
-  return useDocsProjectJson(() => docs.active(loc.pathname))
+  return useDocsProjectJson(() => docs.active(stripBaseUrl(loc.pathname)))
 }
 
 /**

@@ -36,6 +36,8 @@ export interface DocsVersion {
   slug: string
   /** Display name in the version switcher. Defaults to the version. */
   alias?: string
+  /** Whether this is a prerelease, so the switcher can mark it as one. */
+  prerelease?: boolean
   /** The version's `ProjectVersion` data — inline, or a (possibly async) loader for lazy fetching. */
   get: MaybeGetter<ProjectVersion>
 }

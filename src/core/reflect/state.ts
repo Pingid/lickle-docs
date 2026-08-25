@@ -2,7 +2,7 @@ import ts from 'typescript6'
 import path from 'path'
 
 import type { Diagnostic } from '../diagnostic/types.ts'
-import { t } from '../../_lib/index.ts'
+import * as t from '../../_lib/t.ts'
 import type * as T from './types.ts'
 
 /** How a given `exports` clause should populate its targets at resolve time. */

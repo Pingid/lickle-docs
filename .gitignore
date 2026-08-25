@@ -12,3 +12,5 @@ demo
 client/custom.tsx
 TODO.md
 ldocs.json
+.version-data
+.worktrees

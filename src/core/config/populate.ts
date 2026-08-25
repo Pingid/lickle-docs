@@ -1,13 +1,13 @@
 import type ts from 'typescript6'
 import path from 'node:path'
 import mm from 'micromatch'
-import fg from 'fast-glob'
 
-import type { Config, UserConfig, ProjectVersion, SourceRef } from './types.ts'
+import type { Config, UserConfig, SourceRef } from './types.ts'
 import type { Diagnostic } from '../diagnostic/types.ts'
 
-import { Node, Pkg, Workspace, TsConfig, Slug } from '../../_lib/index.ts'
+import { Pkg, Workspace, TsConfig } from '../../_lib/index.ts'
 import { resolvePages, defaultPages } from './pages.ts'
+import { resolveVersions } from './versions.ts'
 
 /**
  * Resolve a partial `UserConfig` into a fully-defaulted `UserConfig`.
@@ -20,7 +20,9 @@ export const populate = async (
   c?: Partial<UserConfig>,
   emit: (d: Diagnostic) => void = () => {},
 ): Promise<{ config: Config; ts: TsConfig.ResolvedTsconfig }> => {
-  const pkg = await Pkg.read(process.cwd())
+  // `dir`, not the working directory: `--dir` points the tooling at another
+  // project, and its package.json is what names and enumerates that project.
+  const pkg = await Pkg.read(dir)
   const name = c?.name ?? pkg?.name
   if (!name) throw new Error('No project name found')
 
@@ -38,22 +40,15 @@ export const populate = async (
 
   const pageSources = c?.pages?.length ? await resolvePages(dir, c.pages, emit) : await defaultPages(dir)
 
-  const versions = c?.versions ? await fg.glob(path.resolve(dir, c.versions)) : []
-  const resolvedVersions = await Promise.all(
-    versions.map(async (v) => {
-      const content = await Node.Fs.readFile(v, 'utf-8')
-      const version = JSON.parse(content) as ProjectVersion
-      if (!version.version) return null
-      return { path: v, version: version.version, slug: Slug.normalize(Slug.toSlug(version.version)) }
-    }),
-  ).then((v) => v.filter((v) => v !== null))
+  const version = c?.version ?? pkg?.version ?? info?.tag
+  const resolvedVersions = await resolveVersions(dir, c?.versions, version)
 
   return {
     ts: tsconfig,
     config: {
       ...c,
       name,
-      version: c?.version ?? pkg?.version ?? info?.tag,
+      version,
       entrypoints: absoluteEntrypoints,
       links: c?.links ?? defualtLinks,
       repository: info && info.rev && info.url ? { url: info.url, rev: info.rev, fileUrl: info.fileUrl } : undefined,

@@ -2,9 +2,16 @@ name: Deploy docs
 
 on:
   workflow_dispatch:
+    inputs:
+      site_ref:
+        description: 'Ref to build the site from (default: the latest non-prerelease tag)'
+        required: false
+        type: string
   push:
     branches:
       - main
+    tags:
+      - '*'
 
 permissions:
   contents: read
@@ -20,18 +27,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # tags, and enough history to make worktrees from them
+
       - uses: pnpm/action-setup@v6
         with:
           version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
 
-      - name: install
-        run: pnpm install
-      - name: typedoc
-        run: pnpm run docs:build --static --base "lickle-docs"
+      # Every tag becomes a selectable version; see the script for how and why.
+      - name: Build every version and the site
+        env:
+          SITE_REF: ${{ inputs.site_ref }}
+          DOCS_BASE: lickle-docs
+        run: node --experimental-strip-types .github/scripts/deploy-docs.ts
+
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: docs/dist
+          path: dist
 
   deploy:
     needs: build

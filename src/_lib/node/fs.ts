@@ -14,12 +14,21 @@ export const exists = async (path: string): Promise<boolean> => {
   }
 }
 
-export const ensureDir = async (pth: string) => {
-  // Get the parent dir if its a file otherwise use path
-  const dir = path.extname(pth) ? path.dirname(pth) : pth
+/** Create `dir` and any missing parents. */
+export const ensureDir = async (dir: string) => {
   if (await exists(dir)) return
   await fs.mkdir(dir, { recursive: true })
 }
+
+/**
+ * Create the directory a file will be written into.
+ *
+ * Split from {@link ensureDir} rather than guessed from the path: an
+ * extensionless target (`.gitignore`, `LICENSE`, `--file data`) is
+ * indistinguishable from a directory name, and guessing wrong creates a
+ * directory exactly where the file needed to go.
+ */
+export const ensureDirFor = async (file: string) => ensureDir(path.dirname(file))
 
 export const sanitizeFilename = (str: string) => {
   return (

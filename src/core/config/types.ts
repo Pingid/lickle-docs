@@ -1,6 +1,10 @@
 import type ts from 'typescript6'
 
-import type { Reflect, Layout } from '../index.ts'
+// Direct module imports, not the `core` barrel: the barrel re-exports `Config`
+// and `Build`, which reach the Node-only `_lib` modules — and these types are
+// part of the browser bundle's public surface.
+import type * as Reflect from '../reflect/index.ts'
+import type * as Layout from '../layout/index.ts'
 
 /**
  * One generated documentation dataset: the resolved site graph for a single
@@ -250,6 +254,24 @@ export interface LlmsSettings {
   description?: string
 }
 
+/**
+ * The multi-version site descriptor the client boots from: the project's name,
+ * its header links, and every selectable version. Mirrors the UI's `DocsJson`
+ * but lives here so the build can construct one without importing the UI.
+ */
+export interface DocsJsonShape {
+  name: string
+  links: Link[]
+  versions: {
+    version: string
+    slug: string
+    alias?: string
+    prerelease?: boolean
+    /** The version's data, inline or as a loader. */
+    get: ProjectVersion | (() => ProjectVersion | Promise<ProjectVersion>)
+  }[]
+}
+
 /** A previously published version, resolved from the `versions` glob. */
 export interface ConfigVersion {
   /** Path to the version's `project.json` file. */
@@ -260,6 +282,8 @@ export interface ConfigVersion {
   alias?: string
   /** URL prefix the version is served under, e.g. `v1-0-0`. */
   slug: string
+  /** Whether this is a prerelease (a semver `-` suffix), so the switcher can mark it. */
+  prerelease?: boolean
 }
 
 /** One `pages` entry: an explicit page, a bare glob, or a glob with options. */

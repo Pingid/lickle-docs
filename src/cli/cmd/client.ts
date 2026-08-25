@@ -42,12 +42,18 @@ const Options = {
     long: 'no-script',
     description: 'Emit plain HTML with no client JavaScript (applies to --static builds only)',
   }),
+  dir: cmd.option({
+    long: 'dir',
+    short: 'C',
+    type: cmd.optional(cmd.string),
+    description: 'Project directory to document (default: the working directory)',
+  }),
 }
 
 export const dev = cmd.command({
   name: 'dev',
   description: 'Start a local dev server that rebuilds and live-reloads the docs on change',
-  args: { base: Options.base, port: Options.port, router: Options.router },
+  args: { base: Options.base, port: Options.port, router: Options.router, dir: Options.dir },
   handler: (args) => Client.dev(resolveOptions(args)),
 })
 
@@ -61,6 +67,7 @@ export const build = cmd.command({
     outDir: Options.outDir,
     router: Options.router,
     noScript: Options.noScript,
+    dir: Options.dir,
   },
   handler: async (args) => {
     if (args.static) await Client.buildStatic(resolveOptions(args))
@@ -71,7 +78,7 @@ export const build = cmd.command({
 export const preview = cmd.command({
   name: 'preview',
   description: 'Serve a previously built site locally',
-  args: { base: Options.base, port: Options.port },
+  args: { base: Options.base, port: Options.port, outDir: Options.outDir, dir: Options.dir },
   handler: (args) => Client.preview(resolveOptions(args)),
 })
 
@@ -83,8 +90,12 @@ const resolveOptions = (args: {
   outDir?: string
   router?: 'hash' | 'browser'
   noScript?: boolean
+  dir?: string
 }): Client.ClientOptions => {
-  const dir = process.cwd()
+  // `--dir` lets CI point the current tooling at another checkout — a tag's
+  // worktree, say — so every released version is built by one known-good
+  // version of the generator instead of whatever shipped alongside it.
+  const dir = path.resolve(process.cwd(), args.dir ?? '.')
 
   return {
     dir,

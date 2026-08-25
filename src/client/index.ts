@@ -56,9 +56,12 @@ export const buildStatic = async (options: ClientOptions) => {
     vite.build({ ...serverOptions, customLogger: { ...logger, info: () => {}, warn: () => {} } }),
   ])
 
+  const built = await context.current()
   await Ssg.generateStatic({
     logger,
-    json: await context.json(),
+    json: built.json,
+    links: built.config.links,
+    versions: built.config.versions,
     outDir: options.outDir,
     baseUrl: options.baseUrl,
     clientEntry: clientOptions.build.rolldownOptions.input,

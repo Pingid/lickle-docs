@@ -119,7 +119,14 @@ const VersionSelect = () => {
                     'block px-3 py-1.5 text-mute hover:text-fg hover:bg-hover aria-current:text-fg aria-current:font-semibold',
                   )}
                 >
-                  {aliasOf(v)}
+                  <span class="flex items-center gap-2">
+                    <span>{aliasOf(v)}</span>
+                    {/* Prereleases are listed, but marked — a reader landing on
+                        the dropdown should not mistake one for the release. */}
+                    <Show when={v.prerelease}>
+                      <span class="text-[0.6rem] uppercase tracking-wide text-mute/70">pre</span>
+                    </Show>
+                  </span>
                 </A>
               </li>
             )}
