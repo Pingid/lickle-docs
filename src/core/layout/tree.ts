@@ -11,12 +11,13 @@ import type {
   Alias,
   ResolvedAlias,
   Refine,
+  Rank,
 } from './types.ts'
 import { defaultLayout, lexicalSegments, type BaseContext } from './default.ts'
 import type { Diagnostic } from '../diagnostic/types.ts'
 import type * as Reflect from '../reflect/index.ts'
 import * as Slug from '../../_lib/slug/index.ts'
-import { groupItems } from './client.ts'
+import { groupItems, compareRank, minRank } from './client.ts'
 
 export type Resolved = { source: PageSource; placement: Placement; id: Reflect.Id | null; slug: string }
 
@@ -211,13 +212,25 @@ const buildSidebar = (
   //    composes — there is no folder config. A `/` nests (`guides/advanced`
   //    puts "advanced" under "guides", creating "guides" too); the label is the
   //    last path segment. ──
-  type Folder = { ref: string; label: string; parent: Parent }
+  type Folder = { ref: string; label: string; parent: Parent; order?: Rank }
   const folders = new Map<string, Folder>()
-  const ensureFolder = (ref: string): void => {
-    if (folders.has(ref)) return
+  const ensureFolder = (ref: string, spec?: { label?: string; order?: Rank }): void => {
+    const existing = folders.get(ref)
+    if (existing) {
+      // A folder is identified by its `virtual` string, so several nodes may
+      // name it. First declaration of a label/order wins; the rest just join.
+      if (existing.label === undefined && spec?.label !== undefined) existing.label = spec.label
+      if (existing.order === undefined && spec?.order !== undefined) existing.order = spec.order
+      return
+    }
     const slash = ref.lastIndexOf('/')
     const parent: Parent = slash >= 0 ? { virtual: ref.slice(0, slash) } : { root: true }
-    folders.set(ref, { ref, label: slash >= 0 ? ref.slice(slash + 1) : ref, parent })
+    folders.set(ref, {
+      ref,
+      label: spec?.label ?? (slash >= 0 ? ref.slice(slash + 1) : ref),
+      parent,
+      ...(spec?.order === undefined ? {} : { order: spec.order }),
+    })
     if (slash >= 0) ensureFolder(ref.slice(0, slash)) // materialize ancestors
   }
 
@@ -237,12 +250,19 @@ const buildSidebar = (
 
   // Doc/page edges from every placement's effective nav. Only `render: 'page'`
   // declarations get a sidebar entry — `inline`/`hidden` carry no route.
+  //
+  // An inlined member leaves no edge but is still documented, on its parent's
+  // page. `inlinedUnder` records that, so the prunes below can tell "nothing
+  // survived here" from "everything here reads one level up" — the shape
+  // `Place.depth(n, { beyond: 'inline' })` produces.
   const seen = new Set<string>()
+  const inlinedUnder = new Set<string>()
   for (const r of resolved) {
     const render = r.placement.page?.render ?? 'page'
     for (const nav of effectiveNav(r.placement)) {
       // Touching a virtual parent makes that folder (and its ancestors) exist.
-      if ('virtual' in nav.parent) ensureFolder(nav.parent.virtual)
+      if ('virtual' in nav.parent) ensureFolder(nav.parent.virtual, nav.parent)
+      if (render === 'inline') inlinedUnder.add(keyOf(nav.parent))
       if (r.id !== null) {
         // Dedupe by (parent, child): a declaration exposed twice under the SAME
         // parent (e.g. `export * from './m'` plus `export * as M from './m'` in
@@ -262,36 +282,44 @@ const buildSidebar = (
 
   const groupOf = (e: Edge): Group | undefined => ('nav' in e ? e.nav.group : undefined)
 
-  // A folder has no order of its own, so it takes its earliest child's — a
-  // section lands where its contents say it should, and `Place.order` on the
-  // pages inside it moves the whole section. Memoized, and cycle-guarded so a
-  // folder that (somehow) contains itself resolves rather than recursing.
-  const folderOrders = new Map<string, number>()
-  const folderOrder = (ref: string, seen: Set<string> = new Set()): number => {
-    const cached = folderOrders.get(ref)
-    if (cached !== undefined) return cached
-    if (seen.has(ref)) return Infinity
-    seen.add(ref)
-    let min = Infinity
-    for (const e of childrenOf.get(`v:${ref}`) ?? []) {
-      const o = e.kind === 'folder' ? folderOrder(e.folder.ref, seen) : (e.nav.order ?? 0)
-      if (o < min) min = o
-    }
-    const resolved = min === Infinity ? 0 : min
-    folderOrders.set(ref, resolved)
-    return resolved
+  // A folder that was given an order uses it; otherwise it inherits its earliest
+  // child's, so a section lands where its contents say it should. Memoized, and
+  // cycle-guarded so a folder that (somehow) contains itself resolves rather
+  // than recursing.
+  const folderOrders = new Map<string, Rank | undefined>()
+  const folderOrder = (folder: Folder, seen: Set<string> = new Set()): Rank | undefined => {
+    if (folder.order !== undefined) return folder.order
+    const cached = folderOrders.get(folder.ref)
+    if (cached !== undefined || folderOrders.has(folder.ref)) return cached
+    if (seen.has(folder.ref)) return undefined
+    seen.add(folder.ref)
+    const child = minRank(
+      (childrenOf.get(`v:${folder.ref}`) ?? []).map((e) =>
+        e.kind === 'folder' ? folderOrder(e.folder, seen) : e.nav.order,
+      ),
+    )
+    folderOrders.set(folder.ref, child)
+    return child
   }
 
-  const orderOf = (e: Edge): number => (e.kind === 'folder' ? folderOrder(e.folder.ref) : (e.nav.order ?? 0))
-  // A node contributes its alias to the namespace qualifier when it is a
-  // namespace or an `export * as X` re-export — both modelled here as a
-  // non-entrypoint container. Entrypoints (top-level modules) do NOT qualify:
-  // their members are the public surface, shown unqualified.
+  const orderOf = (e: Edge): Rank | undefined => (e.kind === 'folder' ? folderOrder(e.folder) : e.nav.order)
+  // Two questions, one loop, deliberately separate:
+  //
+  //  - `contains` — is this node a container whose only reason to exist is its
+  //    members? Drives the empty-container prune below. Structural, so the
+  //    layout does not get a vote.
+  //  - `qualifies` — does this node lend its label to its descendants' labels
+  //    (the `Reflect.` in `Reflect.Module`)? Presentation, so `Place.qualify`
+  //    overrides it; the default is "every container except an entrypoint",
+  //    whose members are the public surface and read better bare.
+  const contains = new Map<Reflect.Id, boolean>()
   const qualifies = new Map<Reflect.Id, boolean>()
   for (const r of resolved)
     if (r.id !== null && r.source.kind === 'doc') {
       const d = r.source.decl
-      qualifies.set(r.id, (d.kind === 'module' || d.kind === 'namespace') && !d.isEntry())
+      const container = (d.kind === 'module' || d.kind === 'namespace') && !d.isEntry()
+      contains.set(r.id, container)
+      qualifies.set(r.id, r.placement.page?.qualify ?? container)
     }
 
   // ── Descend. `path` guards cycles across doc, page and folder keys.
@@ -321,7 +349,8 @@ const buildSidebar = (
     if (edge.kind === 'folder') {
       const children = descend(self, next, undefined) // folders don't qualify display
       // Drop empty folders — a section header with nothing under it is noise.
-      if (children.every((g) => g.items.length === 0)) return null
+      // As with containers, inlined contents count as contents.
+      if (children.every((g) => g.items.length === 0) && !inlinedUnder.has(self)) return null
       return { edge, node: { kind: 'folder', ref: edge.folder.ref, label: edge.folder.label, children } }
     }
 
@@ -343,10 +372,13 @@ const buildSidebar = (
       : undefined
     const children = descend(self, next, childQualifier)
     // Drop empty modules/namespaces — a container with no surviving members is
-    // noise (mirrors the empty-folder prune above). `qualifies` is already
-    // exactly "(module|namespace) && !isEntry()", so leaf declarations and
-    // entrypoints are never pruned, and the cascade is bottom-up for free.
-    if (qualifies.get(edge.child) && children.every((g) => g.items.length === 0)) return null
+    // noise (mirrors the empty-folder prune above). `contains` is exactly
+    // "(module|namespace) && !isEntry()", so leaf declarations and entrypoints
+    // are never pruned, and the cascade is bottom-up for free. Read from
+    // `contains`, not `qualifies`: turning qualified labels off must not turn a
+    // namespace into an unprunable node. A container whose members render
+    // inline on its page is not empty — its row is how you reach them.
+    if (contains.get(edge.child) && children.every((g) => g.items.length === 0) && !inlinedUnder.has(self)) return null
     return {
       edge,
       node: { kind: 'doc', id: edge.child, slug: slugOf.get(edge.child) ?? '', label, display, children },
@@ -364,7 +396,7 @@ const buildSidebar = (
     return groupItems(real, (b) => groupOf(b.edge)).map((g) => ({
       group: g.group,
       items: g.items
-        .sort((a, b) => orderOf(a.edge) - orderOf(b.edge) || a.node.label.localeCompare(b.node.label))
+        .sort((a, b) => compareRank(orderOf(a.edge), orderOf(b.edge)) || a.node.label.localeCompare(b.node.label))
         .map((b) => b.node),
     }))
   }

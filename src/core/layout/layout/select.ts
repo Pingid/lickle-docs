@@ -68,6 +68,28 @@ export const tag = (tag: `@${string}`, cb?: (text: string) => string): Select<st
  */
 export const kind: Select<string> = select((d) => (d.isEntry() ? '' : pluralLabel(d.kind)))
 
+/**
+ * **Exposure depth**: re-export hops between an entrypoint and this
+ * declaration. An entrypoint is `0`, what it exports directly is `1`, a member
+ * of a namespace it exports is `2`. A declaration reachable by several chains
+ * reports the shortest; one reachable from none reports `undefined`.
+ *
+ * The number the sidebar nests by, so it is the axis {@link Place.depth} and an
+ * outline's `depth` cut against.
+ *
+ * @example Bucket by how deep a declaration sits
+ * ```ts
+ * Place.bucket(Select.map(Select.depth(), (n) => `level ${n}`))
+ * ```
+ */
+export const depth = (): Select<number | undefined> =>
+  select((d): number | undefined => {
+    if (d.isEntry()) return 0
+    const chains = d.exposure.ancestors()
+    if (chains.length === 0) return undefined
+    return Math.min(...chains.map((chain) => chain.length))
+  })
+
 /** The declaration's intrinsic name. */
 export const name: Select<string> = select((d) => d.name)
 

@@ -1,6 +1,6 @@
 import * as Slug from '../../_lib/slug/index.ts'
 
-import type { PageNode, RoutePrefix, SlugPath, SidebarNode, GroupedItems, Redirect, Group } from './types.ts'
+import type { PageNode, RoutePrefix, SlugPath, SidebarNode, GroupedItems, Redirect, Group, Rank } from './types.ts'
 
 /**
  * The client-facing router: prefix every page slug, index by slug and id, and
@@ -148,3 +148,32 @@ export const groupItems = <T extends Record<string, any>>(
     .sort(([, a], [, b]) => a.order - b.order)
     .map(([group, bucket]) => ({ group, items: bucket.items }))
 }
+
+/**
+ * Compare two {@link Rank}s element-wise, treating a missing element as `0` —
+ * so `2`, `[2]` and `[2, 0]` all rank the same, and `[0, 3]` sorts before
+ * `[1]`. Returns the usual negative / zero / positive.
+ */
+export const compareRank = (a: Rank | undefined, b: Rank | undefined): number => {
+  const len = Math.max(rankLength(a), rankLength(b))
+  for (let i = 0; i < len; i++) {
+    const d = rankAt(a, i) - rankAt(b, i)
+    if (d !== 0) return d
+  }
+  return 0
+}
+
+const rankLength = (r: Rank | undefined): number => (r === undefined ? 0 : typeof r === 'number' ? 1 : r.length)
+
+const rankAt = (r: Rank | undefined, i: number): number => {
+  if (r === undefined) return 0
+  if (typeof r === 'number') return i === 0 ? r : 0
+  return r[i] ?? 0
+}
+
+/** The lowest of `ranks`, or `undefined` when there are none. */
+export const minRank = (ranks: (Rank | undefined)[]): Rank | undefined =>
+  ranks.reduce<Rank | undefined>(
+    (best, r) => (best === undefined || compareRank(r, best) < 0 ? r : best),
+    undefined,
+  )

@@ -82,21 +82,24 @@ export const resolvePages = async (
 }
 
 /**
- * Spacing between `pages` entries in the sort order. Wide enough that a glob's
- * own ordering — frontmatter `order`, a numeric filename prefix, or match
- * position — never spills into the next entry's block.
+ * Band 0 of the sort order: content a config positioned by hand, which leads
+ * the entrypoint modules the scan discovered.
  */
-const ENTRY_STRIDE = 1000
+const CONTENT_BAND = 0
 
 /**
  * Place a page in the sort order: its entry's position in `pages` dominates,
  * and whatever the page said about itself orders it *within* that entry. So the
  * config decides which section comes first and the files decide the order
  * inside it — neither can override the other by accident.
+ *
+ * A tuple rather than arithmetic, so the two levels stay two levels: there is
+ * no stride to overflow and no way for a large frontmatter `order` to reach
+ * into the next entry's range.
  */
 const slot = <T extends ContentSource>(page: T, entryIndex: number): T => ({
   ...page,
-  order: entryIndex * ENTRY_STRIDE + (page.order ?? 0),
+  order: [CONTENT_BAND, entryIndex, typeof page.order === 'number' ? page.order : 0],
 })
 
 /** Normalize the two glob forms; `undefined` when the entry is an explicit page. */

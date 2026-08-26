@@ -22,13 +22,18 @@ export default defineConfig({
 })
 ```
 
-Three vocabularies combine:
+Four vocabularies combine:
 
 | Namespace | Answers | Example |
 | --- | --- | --- |
 | `Match` | *which* — a yes/no predicate | `Match.kinds('interface')` |
 | `Select` | *what* — a value derived per declaration | `Select.tag('@group')` |
 | `Place` | *do* — a layer that refines the placement | `Place.folder(…, 'Types')` |
+| `Outline` | *shape* — the whole sidebar as an ordered list | `Outline.of({ name: 'API', … })` |
+
+`Outline` is the declarative face of the other three: start there if you know
+what the sidebar should look like, and drop to `Place` layers for the parts an
+outline doesn't say.
 
 Two rules explain most surprises:
 
@@ -37,6 +42,77 @@ Two rules explain most surprises:
    first.
 2. **Supplying a layout replaces the default entirely** — filtering included.
    Compose `Place.defaultFilter` back in to keep the stock behaviour.
+
+## The outline: the site as a list
+
+A composed chain is a sequence of *edits*, which is the right shape when you are
+refining one thing and an indirect one when what you want to state is the shape
+of the site. `Outline.of` states the shape — an ordered list of sections, each
+saying what is in it, in what order, and how deep it goes:
+
+```ts
+import { defineConfig, Place, Match, Outline } from '@lickle/docs/config'
+
+export default defineConfig({
+  name: 'My Library',
+  layout: Place.compose(
+    Place.defaultFilter,
+    Outline.of(
+      { name: 'Guides', include: Match.file('docs/guides/**'), order: ['Getting started'] },
+      { name: 'API', include: Match.isEntry(), depth: 2, beyond: 'inline' },
+      { name: 'components', include: Match.tag('@group', 'components') },
+      { name: 'types', include: Match.kinds('interface', 'type-alias'), nav: false },
+      { name: /.+/ },
+    ),
+  ),
+})
+```
+
+The list order is the sidebar order. Within it, **the first section to match a
+source claims it** — the opposite of `Place.compose`'s "later layers win", and
+the natural reading of an ordered list — so write the specific sections first
+and the catch-alls last.
+
+| Field | Says |
+| --- | --- |
+| `name` | the heading; omit it for the unheaded lead run |
+| `include` | what belongs here (a `Match`) |
+| `order` | the running order inside the section |
+| `folder` | nest the entries in a collapsible folder rather than under a heading; the folder takes the section's position, so its contents keep their own order |
+| `depth` | how many levels of the tree stay navigable |
+| `beyond` | what happens past `depth` — `'nav'`, `'inline'` or `'hidden'` |
+| `render` | `'page'`, `'inline'` or `'hidden'` for the entries themselves |
+| `nav` | `false` keeps the pages, drops the sidebar rows |
+| `qualify` | whether nested labels read `Reflect.Module` or `Module` |
+| `layers` | any `Place` layer, scoped to this section |
+
+A section with no `include` is a **placeholder**: it claims nothing and only
+positions a bucket some other layer assigned. That is how a dynamic bucket keeps
+its place in a fixed running order:
+
+```ts
+Place.compose(
+  Place.bucket(Select.kind),          // 'functions', 'interfaces', … for everything
+  Outline.of(
+    { name: 'API', include: Match.isEntry() },
+    { name: 'functions' },            // position only — Select.kind assigned it
+    { name: /.+/ },                   // then everything else
+  ),
+)
+```
+
+Nothing is hidden behind this. Each field compiles to the presets below — the
+claim to a bucket, the list order to `Place.bucketOrder`, `depth` to
+`Place.depth`, the rest into a `Place.within` scope — and `ldocs why` names the
+claiming section rather than an anonymous layer. An outline *is* a `Layout`, so
+it composes with layers before it (a `Place.bucket` fallback) and after it (a
+one-off override).
+
+A section's `depth` and `qualify` reach its whole subtree, but only what that
+section actually **claimed** and the descendants of those. A broad `include`
+therefore doesn't reach into a later section's territory: `{ include:
+Match.isEntry(), depth: 2 }` governs the entrypoints it claimed, not every
+declaration that happens to sit under an entrypoint.
 
 ## Document more, or less
 
@@ -62,11 +138,16 @@ break. When you only want it out of the sidebar, hide it instead:
 
 ```ts
 // No route, but still resolvable for links and breadcrumbs.
-Place.visibility(Match.tag('@deprecated'), { page: false })
+Place.hide(Match.tag('@deprecated'))
 
 // Keeps its page, drops the sidebar row.
 Place.visibility(Match.kinds('type-alias'), { nav: false })
 ```
+
+`Place.visibility` is the primitive behind both. It asks two independent
+questions — `render` (`'page'`, `'inline'` or `'hidden'`) and `nav` — and an
+omitted one is left as the layers below decided it, so `{ nav: false }` drops a
+row without promoting an inlined declaration back to a page.
 
 ## Sections
 
@@ -134,6 +215,14 @@ Place.folder(Match.kinds('type-alias', 'interface'), 'Types')
 Place.folder(Match.tag('@experimental'), 'Advanced/Experimental')
 ```
 
+A folder can also be given a position of its own. Without one it has no rank and
+borrows its earliest child's — right when the contents should decide, wrong when
+the folder belongs somewhere specific:
+
+```ts
+Place.folder(Match.file('docs/**'), 'Guides', { order: [0, 0] })
+```
+
 Anywhere a preset takes a string it also takes a `Select`, so the folder can be
 derived. `Select.dir` mirrors the source tree, optionally truncated:
 
@@ -163,6 +252,26 @@ pinned above generated API entries:
 Place.order(Match.page(), /.*/)
 ```
 
+### How a position is actually stored
+
+An order is a **rank**: a number, or a tuple compared element-wise with a
+missing element reading as `0` — so `2`, `[2]` and `[2, 0]` are the same rank.
+The tuple exists so composite keys stay composite. "Third entry in `pages`,
+second file within it" is `[0, 3, 2]`: two levels, no arithmetic, and no way for
+a large frontmatter `order:` to spill into the next entry's range.
+
+The leading element is a **band**, which is how unrelated schemes stay out of
+each other's way:
+
+| Band | Holds |
+| --- | --- |
+| `0` | content positioned deliberately — pages the config listed, anything `Place.order` pins |
+| `1` | entrypoint modules the scan discovered |
+
+That is why entrypoints trail your hand-written pages by default, and why
+`Place.order` outranks them without needing a large number. Ties fall back to
+alphabetical, so siblings are stable rather than arbitrary.
+
 ## Names and URLs
 
 ```ts
@@ -174,24 +283,88 @@ Place.rename(Match.all(), Select.tag('@name'))     // derive from a doc tag
 A `Select` returning `undefined` means "no opinion", so the layer leaves that
 declaration alone.
 
-## Collapse small types onto their owner
+### Qualified labels
 
-`inline` renders a declaration in full on its parent's page, with no route of
-its own — good for an options interface nobody wants to navigate to:
-
-```ts
-Place.visibility(Match.tag('@inline'), { inline: true })
-```
-
-`Match.bucket` reads the bucket earlier layers assigned, which lets you say
-"everything *except* these sections":
+A declaration nested inside a namespace shows a qualified label in the sidebar —
+`Reflect.Module`, not `Module` — because the bare name means little away from its
+container. Which levels contribute a prefix is a placement decision, so it is a
+layer:
 
 ```ts
-Place.compose(
-  Place.bucket(Select.kind),
-  Place.visibility(Match.not(Match.bucket('components', 'hooks')), { inline: true }),
-)
+Place.qualify(Match.all(), false)                                  // flat labels everywhere
+Place.qualify(Match.all(Match.isEntry(), Match.name('client')))    // …or one more level
 ```
+
+The default is "every namespace and nested module qualifies; entrypoints don't",
+since an entrypoint's members *are* the public surface and read better bare. Note
+this targets the **container**: a node's label is qualified when an ancestor
+qualifies, so `Place.qualify` names the level that lends the prefix, not the one
+that shows it.
+
+In an outline it is one field per section:
+
+```ts
+Outline.of({ name: 'API', include: Match.isEntry(), qualify: false })
+```
+
+## Pages, or inline
+
+A declaration either earns a route of its own or reads in place on its parent's
+page. `Place.inline` moves it in place; `Place.hide` drops the page while keeping
+it resolvable for `{@link}`:
+
+```ts
+Place.inline(Match.tag('@inline'))
+Place.hide(Match.tag('@deprecated'))
+```
+
+Stating the *rule* rather than the exceptions reads better in the other
+direction — which declarations deserve a page, with everything else inline:
+
+```ts
+Place.pagesFor(Match.bucket('components', 'hooks'))
+```
+
+`Place.pagesFor` is the positive form of `Place.inline(Match.not(…))`, minus its
+two traps: standalone pages are never touched, and containers (modules and
+namespaces) keep their pages, since they are what the inlined members render
+*on*. Inline a container deliberately if that is what you mean:
+
+```ts
+Place.inline(Match.all(Match.kinds('module'), Match.members({ max: 2 })))
+```
+
+### How deep
+
+`Place.depth` cuts by **exposure depth** — re-export hops from an entrypoint, the
+same number the sidebar nests by. An entrypoint is `0`, what it exports is `1`, a
+member of a namespace it exports is `2`:
+
+```ts
+Place.depth(1)                          // entrypoints and their members, nothing deeper
+Place.depth(2, { beyond: 'inline' })    // …and level 3 reads on the page above it
+Place.depth(2, { beyond: 'hidden' })    // …or not at all
+```
+
+`beyond` says what happens past the cut:
+
+| `beyond` | Past the cut |
+| --- | --- |
+| `'nav'` *(default)* | keeps its page, loses its sidebar row — the parent page still links to it |
+| `'inline'` | leaves render on their parent's page; containers keep a page, since inlining one would strand its members |
+| `'hidden'` | no route at all, still resolvable for `{@link}` |
+
+Depth is ordinary data, not a special case, so it is available wherever a
+predicate or a value is:
+
+```ts
+Match.depth({ min: 3 })                             // as a predicate
+Select.depth()                                      // as a number
+Place.bucket(Match.depth({ min: 2 }), 'Internals')  // …and so as a bucket
+```
+
+In an outline it is `depth` and `beyond` per section, which is where it usually
+belongs: the API section expands two levels, the guides are flat anyway.
 
 ## Extra URLs
 
@@ -215,11 +388,49 @@ Place.bucket(Match.file('docs/reference/**'), 'Reference')
 Place.order(Match.title('Getting started'), /.*/)
 ```
 
+## Rules for part of the site
+
+`Place.within` scopes layers to a subset, so a predicate written once covers all
+of them. Everything outside the scope passes through untouched:
+
+```ts
+Place.within(
+  Match.any(Match.name('experimental'), Match.under(Match.name('experimental'))),
+  Place.folder(Match.all(), 'Advanced'),
+  Place.depth(1),
+)
+```
+
+`Match.under` matches everything exposed *beneath* a container, at any depth —
+the piece that turns "this entrypoint" into "this entrypoint's subtree". Inside
+a scope the set is already narrowed, so `Match.all()` — the unit of a
+conjunction, and so a match for every source including markdown pages — is the
+natural inner match.
+
+An outline's sections are exactly this, named: section rules go through a
+`Place.within` scope, and `depth` and `qualify` are scoped to the whole subtree
+rather than to the entries alone.
+
+When a decision needs arbitrary code but not a whole hand-written `Layout`,
+`Place.map` hands you the `Place` and takes one back:
+
+```ts
+Place.map(Match.file('docs/guides/**'), (place, source) => ({
+  ...place,
+  order: Number(source.kind === 'doc' ? 0 : (source.file?.match(/(\d+)-/)?.[1] ?? 0)),
+}))
+```
+
 ## Decisions that need the whole set
 
-Layers see one source at a time by design. When a decision depends on everything
-else — "inline any section with fewer than three members" — use `refine`, which
-runs once with every placement in hand, before slugs are computed:
+Layers see one source at a time by design — though "one source" includes what the
+export graph says about it, so several decisions that look global are not:
+`Match.members({ max: 2 })` finds thin containers and `Match.depth` finds the deep
+tail without a whole-set pass.
+
+When a decision really does depend on everything else — "inline any *section*
+with fewer than three members" — use `refine`, which runs once with every
+placement in hand, before slugs are computed:
 
 ```ts
 export default defineConfig({
@@ -254,15 +465,18 @@ interface UserConfig
 
   default  / → UserConfig  nav×2
   Place.bucket         / → UserConfig  bucket=interfaces  nav×2
-  Place.bucket         / → UserConfig  bucket=types  nav×2
-  Place.bucketOrder    / → UserConfig  bucket=types#3  nav×2
-  Place.visibility     / → UserConfig  bucket=types#3  nav=none
+  Outline.section(types) / → UserConfig  bucket=types  nav×2
+  Place.bucketOrder    / → UserConfig  bucket=types#5  nav×2
+  Place.visibility     / → UserConfig  bucket=types#5  nav=none
 
-  result   / → UserConfig  bucket=types#3  nav=none
+  result   / → UserConfig  bucket=types#5  nav=none
   slug     userconfig
 ```
 
-Two `Place.bucket` layers competed here and the later one won — exactly rule 1.
+Each line is the innermost layer that produced that state: a `Place.bucket`
+fallback assigned `interfaces`, the outline's `types` section took it over, and
+the section's `nav: false` dropped the row. Nested wrappers that only pass the
+same result upward are left out.
 
 Slug collisions are reported as warnings, and every colliding declaration falls
 back to its source path so the outcome doesn't depend on scan order. Because

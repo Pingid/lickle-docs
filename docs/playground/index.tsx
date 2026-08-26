@@ -42,7 +42,9 @@ export default function LayoutPlayground(props: PageProps) {
       <h1 class="text-2xl font-semibold tracking-tight">{props.route.title}</h1>
       <p class="text-mute mt-2">
         Every combinator below runs through the same <code class="font-mono">buildTree</code> the build uses, over a
-        small synthetic project. Pick a preset or edit the code — the sidebar on the right rebuilds as you type.
+        small synthetic project. Pick a preset or edit the code — the sidebar on the right rebuilds as you type.{' '}
+        <code class="font-mono">Place</code>, <code class="font-mono">Match</code>, <code class="font-mono">Select</code>{' '}
+        and <code class="font-mono">Outline</code> are all in scope.
       </p>
 
       <div class="flex flex-wrap gap-1.5 mt-6">
@@ -96,9 +98,12 @@ export default function LayoutPlayground(props: PageProps) {
 
       <h2 class="text-lg font-semibold mt-10">The corpus</h2>
       <p class="text-mute text-sm mt-1">
-        Ten declarations under one entry module, plus two markdown pages. <code class="font-mono">debugOnly</code> is
-        unexported and <code class="font-mono">legacyApi</code> is <code class="font-mono">@internal</code>, so the
-        default filter drops both.
+        Thirteen declarations under one entry module, plus two markdown pages.{' '}
+        <code class="font-mono">debugOnly</code> is unexported and <code class="font-mono">legacyApi</code> is{' '}
+        <code class="font-mono">@internal</code>, so the default filter drops both.{' '}
+        <code class="font-mono">formatDate</code> and <code class="font-mono">slugify</code> are exposed through the{' '}
+        <code class="font-mono">Utils</code> namespace rather than the entry, which puts them one level deeper — the
+        level <code class="font-mono">Place.depth</code> cuts against.
       </p>
       <ul class="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
         <For each={SPECS}>

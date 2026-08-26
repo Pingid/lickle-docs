@@ -67,10 +67,15 @@ export const createDeclarationFacade = <K extends keyof Reflect.DeclarationMap =
       .map((e) => (e ? createDeclarationFacade<'module' | 'namespace'>(index, e.exposer, e.alias) : undefined))
       .filter(defined)
 
+  // `ancestors` rebuilds a facade for every module on every chain, so the naive
+  // version allocated the whole exposure neighbourhood each time a layer asked.
+  // Memoized per facade, like `tags` and `referenced` beside it.
+  const ancestors = memo(() => index.exposures(id).map((x) => fromExposures(x)))
+
   const exposed: DeclarationFacade<any>['exposure'] = {
     is: () => index.exposures(id).length > 0 || index.isRoot(id),
     parents: () => fromExposures(index.exposedBy(id)),
-    ancestors: () => index.exposures(id).map((x) => fromExposures(x)),
+    ancestors,
     children: () => fromExposures(index.exposes(id)),
     root: () => fromExposures(index.exposures(id).map((x) => x[0])) as DeclarationFacade<'module'>[],
   }

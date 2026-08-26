@@ -1,6 +1,7 @@
 import type * as Reflect from '../reflect/index.ts'
-import type { PageNode, DocLink, Group, Place } from './types.ts'
+import type { PageNode, DocLink, Group, Place, Rank } from './types.ts'
 import { effectiveNav, type Resolved } from './tree.ts'
+import { compareRank } from './client.ts'
 
 /**
  * Serialize resolved placements into the flat {@link PageNode} list — the
@@ -40,8 +41,8 @@ export const toPages = (resolved: Resolved[]): PageNode[] => {
   }
   const groupUnder = (childId: Reflect.Id, parentId: Reflect.Id): Group | undefined =>
     navUnder(childId, parentId)?.group ?? placeOf(childId)?.group
-  const orderUnder = (childId: Reflect.Id, parentId: Reflect.Id): number =>
-    navUnder(childId, parentId)?.order ?? placeOf(childId)?.order ?? 0
+  const orderUnder = (childId: Reflect.Id, parentId: Reflect.Id): Rank | undefined =>
+    navUnder(childId, parentId)?.order ?? placeOf(childId)?.order
   const toLink = (c: Child, parentId: Reflect.Id): DocLink => ({
     target: c.id,
     alias: aliasOf(c),
@@ -66,7 +67,9 @@ export const toPages = (resolved: Resolved[]): PageNode[] => {
     // so a page's member list and the sidebar agree.
     const children = (d.kind === 'module' || d.kind === 'namespace' ? d.exposure.children() : [])
       .filter((c) => byId.has(c.id))
-      .sort((a, b) => orderUnder(a.id, pid) - orderUnder(b.id, pid) || aliasOf(a).localeCompare(aliasOf(b)))
+      .sort(
+        (a, b) => compareRank(orderUnder(a.id, pid), orderUnder(b.id, pid)) || aliasOf(a).localeCompare(aliasOf(b)),
+      )
     const links = children.filter((c) => renderOf(c.id) === 'page').map((c) => toLink(c, pid))
     const inline = children.filter((c) => renderOf(c.id) === 'inline').map((c) => toLink(c, pid))
     const referenced: DocLink[] = Array.from(d.referenced())

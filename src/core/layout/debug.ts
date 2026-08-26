@@ -96,6 +96,7 @@ const summarizePlacement = (p: Placement, nameOf?: (id: Reflect.Id) => string | 
   if (p.page.group) bits.push(pc.yellow(`bucket=${p.page.group.name}${orderSuffix(p.page.group.order)}`))
   if (p.page.order !== undefined) bits.push(pc.gray(`order=${p.page.order}`))
   if (p.page.render && p.page.render !== 'page') bits.push(pc.magenta(p.page.render))
+  if (p.page.qualify !== undefined) bits.push(pc.gray(`qualify=${p.page.qualify}`))
   if (p.nav?.length === 0) bits.push(pc.gray('nav=none'))
   else if (p.nav && p.nav.length > 1) bits.push(pc.gray(`nav×${p.nav.length}`))
   if (p.aliases?.length) bits.push(pc.gray(`aliases×${p.aliases.length}`))

@@ -84,17 +84,16 @@ const homeOf = (d: DeclarationFacade, by: Reflect.Exposure[], cx: BaseContext): 
 }
 
 /**
- * Root pages sort before entrypoint modules by default: standalone pages take
- * their position in `config.pages` as their order, and entrypoints start past
- * any plausible page count. `Place.order` overrides either.
+ * Entrypoint modules sit in rank band 1, so they trail everything a config
+ * positioned by hand (band 0) without a magic constant to outgrow. Within the
+ * band they keep the order the config's `entrypoints` list gave them.
  */
-const ENTRY_ORDER_BASE = 1_000_000
+const ENTRY_BAND = 1
 
 /** Sidebar appearances from the exposure graph. Same `by`, so nav parents agree with home's parent by construction. */
 const exposureNav = (d: DeclarationFacade, by: Reflect.Exposure[], cx: BaseContext): Nav[] => {
   const idx = d.entryIndex()
-  if (typeof idx === 'number')
-    return [{ parent: { root: true }, name: entryLabel(d, cx), order: ENTRY_ORDER_BASE + idx }]
+  if (typeof idx === 'number') return [{ parent: { root: true }, name: entryLabel(d, cx), order: [ENTRY_BAND, idx] }]
 
   if (by.length === 0) {
     const home = homeOf(d, by, cx)

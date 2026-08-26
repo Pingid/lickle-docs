@@ -33,8 +33,8 @@ type ContentBase = {
   folder?: string
   /** Sidebar bucket under its parent. */
   group?: string
-  /** Sort position among siblings (lower first). */
-  order?: number
+  /** Sort position among siblings (lower first). See {@link Rank}. */
+  order?: Rank
   /** Project-relative POSIX path this page was loaded from; absent for inline content. */
   file?: string
 }
@@ -56,8 +56,20 @@ export type PageSource = DocSource | ContentSource
 
 export type Layout = {
   (p: PageSource, cx: LayoutContext): Placement | undefined
-  /** Name `ldocs why` reports this layer under; set by the `Place` presets. */
-  label?: string
+  /**
+   * Name `ldocs why` reports this layer under; set by the `Place` presets. A
+   * function is resolved per source, so a layer whose behaviour depends on the
+   * declaration can name the branch it took.
+   */
+  label?: string | ((source: PageSource) => string)
+  /**
+   * Whether this layer's *internals* are the interesting attribution. A
+   * transparent wrapper is a scope the config wrote — `Place.within`, an
+   * outline — so the trace reports the layers inside it and not the wrapper.
+   * An opaque one is a preset that happens to compose internally, and reports
+   * itself. See `Place.label`.
+   */
+  transparent?: true
 }
 
 /**
@@ -105,10 +117,39 @@ export type Placement = {
  * `{ virtual: 'src/core' }` land under the same folder. A `/` nests folders:
  * `{ virtual: 'src/core' }` puts "core" under a "src" folder (created on demand).
  */
-export type Parent = { decl: Reflect.Id } | { virtual: string } | { root: true }
+export type Parent = { decl: Reflect.Id } | VirtualParent | { root: true }
+
+/**
+ * A synthetic folder, identified by its `virtual` string. `label` and `order`
+ * are the folder's own — without them a folder has no position of its own and
+ * has to borrow its earliest child's, which is why positioning one used to mean
+ * offsetting everything inside it. First declaration of each wins; nodes that
+ * name the same folder without a spec simply join it.
+ */
+export type VirtualParent = { virtual: string; label?: string; order?: Rank }
 
 /** A named bucket within a parent. Buckets sort ascending by `order`; ties keep first-seen order. */
 export type Group = { name: string; order?: number }
+
+/**
+ * Sort position among siblings — a single number, or a tuple compared
+ * element-wise with a missing element reading as `0` (so `2` and `[2]` and
+ * `[2, 0]` are the same rank).
+ *
+ * A tuple exists so composite keys stay composite. "Third entry in `pages`,
+ * second file within it" is `[0, 3, 2]`; there is no arithmetic to get wrong
+ * and no ceiling to overflow. The leading element is a **band**, which is how
+ * unrelated schemes stay out of each other's way:
+ *
+ * - `0` — positioned content: pages the config listed, and anything
+ *   `Place.order` pins;
+ * - `1` — entrypoint modules the scan discovered, which trail the content a
+ *   config wrote by hand unless it says otherwise.
+ *
+ * Ties fall back to alphabetical, so an unranked sibling is stable rather than
+ * arbitrary.
+ */
+export type Rank = number | number[]
 
 // ─────────────────────────────────────────────────────────────────────────
 // The two trees — per-node placement (Place, singular) vs per-appearance
@@ -158,10 +199,22 @@ export type Place = {
    */
   group?: Group
   /**
-   * Order within the bucket (lower sorts first); ties fall back to alphabetical.
-   * A per-appearance `Nav.order` overrides it.
+   * Whether this node's label prefixes its descendants' sidebar labels — the
+   * `Reflect.` in `Reflect.Module`. Defaults to "yes for a namespace or a
+   * nested module, no for an entrypoint", since an entrypoint's members *are*
+   * the public surface and read better bare. Set it explicitly with
+   * `Place.qualify` to name a level that the default would skip, or to silence
+   * one it wouldn't.
+   *
+   * A node shows a qualified label when an ancestor qualifies, so this is a
+   * property of the *container*, not of the labelled node.
    */
-  order?: number
+  qualify?: boolean
+  /**
+   * Order within the bucket (lower sorts first); ties fall back to alphabetical.
+   * A per-appearance `Nav.order` overrides it. See {@link Rank}.
+   */
+  order?: Rank
 }
 
 /**
@@ -182,8 +235,8 @@ export type Nav = {
   name: string
   /** Bucket override for this appearance; defaults to the node's `Place.group`. */
   group?: Group
-  /** Order override for this appearance; defaults to the node's `Place.order`. */
-  order?: number
+  /** Order override for this appearance; defaults to the node's `Place.order`. See {@link Rank}. */
+  order?: Rank
 }
 
 /**

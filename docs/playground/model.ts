@@ -17,6 +17,7 @@ import { transform } from 'sucrase'
 import * as Place from '../../src/core/layout/layout/place.ts'
 import * as Match from '../../src/core/layout/layout/match.ts'
 import * as Select from '../../src/core/layout/layout/select.ts'
+import * as Outline from '../../src/core/layout/layout/outline.ts'
 import { buildTree } from '../../src/core/layout/tree.ts'
 import type { DeclarationFacade } from '../../src/core/layout/facade.ts'
 import type { GroupedItems, Layout, PageSource, SidebarNode, ContentSource } from '../../src/core/layout/types.ts'
@@ -37,6 +38,12 @@ type Spec = {
   returns?: string
   /** Left out of the export graph, so `Match.exposed()` rejects it. */
   unexposed?: boolean
+  /**
+   * Exposed *through* this namespace rather than by the entry module, which puts
+   * it a level deeper — the corpus's second level, for `Place.depth` and
+   * qualified labels.
+   */
+  ns?: string
 }
 
 const MODULE_ID = 1
@@ -52,6 +59,11 @@ export const SPECS: Spec[] = [
   { name: 'Theme', kind: 'type-alias', file: 'src/theme.ts' },
   { name: 'debugOnly', kind: 'function', file: 'src/internal.ts', unexposed: true },
   { name: 'legacyApi', kind: 'function', file: 'src/legacy.ts', tags: { '@internal': '' } },
+  // A namespace and its members: the entry exposes `Utils`, `Utils` exposes
+  // these, so they sit one level deeper than everything above.
+  { name: 'Utils', kind: 'namespace', file: 'src/utils/index.ts' },
+  { name: 'formatDate', kind: 'function', file: 'src/utils/date.ts', ns: 'Utils' },
+  { name: 'slugify', kind: 'function', file: 'src/utils/slug.ts', ns: 'Utils' },
 ]
 
 /** The entry module every declaration hangs off. */
@@ -60,12 +72,26 @@ const MODULE: Spec = { name: 'my-library', kind: 'module', file: 'src/index.ts' 
 const specById = new Map<number, Spec>([[MODULE_ID, MODULE]])
 SPECS.forEach((s, i) => specById.set(MODULE_ID + 1 + i, s))
 
+/** Id of the declaration named `name`, for resolving a spec's `ns`. */
+const idOf = (name: string): number | undefined =>
+  [...specById.entries()].find(([, spec]) => spec.name === name)?.[0]
+/** The namespace that exposes `id`, if any — otherwise the entry module does. */
+const exposerOf = (id: number): number | undefined => {
+  const ns = specById.get(id)?.ns
+  return ns === undefined ? undefined : idOf(ns)
+}
+/** Declarations `id` exposes: the entry's direct members, or a namespace's own. */
+const membersOf = (id: number): DeclarationFacade[] =>
+  [...specById.keys()]
+    .filter((child) => child !== id && (exposerOf(child) ?? MODULE_ID) === id)
+    .map((child) => facades.get(child)!)
+
 /** Raw reflection data — only the fields the combinators inspect. */
 const rawOf = (id: number, spec: Spec): Record<string, unknown> => ({
   id,
   name: spec.name,
   kind: spec.kind,
-  parent: id === MODULE_ID ? 0 : MODULE_ID,
+  parent: id === MODULE_ID ? 0 : (exposerOf(id) ?? MODULE_ID),
   path: spec.kind === 'module' ? spec.file : undefined,
   sources: [{ file: spec.file, line: 1, column: 1 }],
   // `Match.kind('function', { signatures: { return: { reference: … } } })`
@@ -86,15 +112,22 @@ const facadeOf = (id: number, spec: Spec): DeclarationFacade => {
     entryIndex: () => (id === MODULE_ID ? 0 : undefined),
     entry: () => entry,
     alias: () => undefined,
-    parent: () => (id === MODULE_ID ? undefined : facades.get(MODULE_ID)),
-    members: () => (id === MODULE_ID ? [...facades.values()].filter((f) => f.id !== MODULE_ID) : []),
+    parent: () => (id === MODULE_ID ? undefined : facades.get(exposerOf(id) ?? MODULE_ID)),
+    members: () => membersOf(id),
     referenced: () => [],
     get: (other: number) => facades.get(other),
     exposure: {
       is: () => exposed,
-      parents: () => (exposed && id !== MODULE_ID ? [facades.get(MODULE_ID)] : []),
-      ancestors: () => [],
-      children: () => (id === MODULE_ID ? [...facades.values()].filter((f) => f.id !== MODULE_ID) : []),
+      parents: () => (exposed && id !== MODULE_ID ? [facades.get(exposerOf(id) ?? MODULE_ID)] : []),
+      // The chain from the entry down to this declaration's exposer — what
+      // `Select.depth` measures and `Match.under` walks.
+      ancestors: () => {
+        if (id === MODULE_ID || !exposed) return []
+        const ns = exposerOf(id)
+        const chain = ns === undefined ? [facades.get(MODULE_ID)] : [facades.get(MODULE_ID), facades.get(ns)]
+        return [chain]
+      },
+      children: () => membersOf(id),
       root: () => (id === MODULE_ID ? [] : [facades.get(MODULE_ID)]),
     },
   }
@@ -121,7 +154,9 @@ const index = {
   exposes: () => [],
   // The one the default layout actually reads: who re-exports this declaration.
   exposedBy: (id: number) =>
-    id === MODULE_ID || specById.get(id)?.unexposed ? [] : [{ exposer: MODULE_ID, alias: specById.get(id)!.name }],
+    id === MODULE_ID || specById.get(id)?.unexposed
+      ? []
+      : [{ exposer: exposerOf(id) ?? MODULE_ID, alias: specById.get(id)!.name }],
 } as unknown as Reflect.Index
 
 const PAGES: ContentSource[] = [
@@ -186,13 +221,50 @@ export const PRESETS: { name: string; blurb: string; code: string }[] = [
 )`,
   },
   {
-    name: 'Inline the small stuff',
-    blurb: 'Anything outside the hooks bucket renders on its parent instead of getting a page of its own.',
+    name: 'Pages, or inline',
+    blurb: 'State which declarations deserve a page; every other one renders on its parent instead.',
     code: `Place.compose(
   Place.defaultFilter,
   Place.bucket(Select.kind),
   Place.bucket(Select.tag('@group')),
-  Place.visibility(Match.not(Match.bucket('hooks')), { inline: true }),
+  Place.pagesFor(Match.bucket('hooks')),
+)`,
+  },
+  {
+    name: 'Depth',
+    blurb:
+      "Depth counts re-export hops from the entry. `Utils`' members sit at 2, so a cut at 1 folds them onto its page.",
+    code: `Place.compose(
+  Place.defaultFilter,
+  Place.bucket(Select.kind),
+  Place.depth(1, { beyond: 'inline' }),
+)`,
+  },
+  {
+    name: 'Flat labels',
+    blurb: 'A namespace lends its name to its members’ labels — `Utils.slugify`. Turn that off per container.',
+    code: `Place.compose(
+  Place.defaultFilter,
+  Place.bucket(Select.kind),
+  Place.qualify(Match.kinds('namespace'), false),
+)`,
+  },
+  {
+    name: 'Outline',
+    blurb: 'The declarative form: the sidebar as an ordered list, first section to match a source claiming it.',
+    code: `Place.compose(
+  Place.defaultFilter,
+  Place.bucket(Select.kind),
+  Outline.of(
+    { name: 'Guides', include: Match.page() },
+    { name: 'API', include: Match.isEntry(), depth: 1, beyond: 'inline' },
+    { name: 'components', include: Match.kind('function', {
+      signatures: { return: { reference: { name: 'Element' } } },
+    }) },
+    { name: 'hooks', include: Match.tag('@group', 'hooks') },
+    { name: 'types', include: Match.kinds('interface', 'type-alias') },
+    { name: /.+/ },
+  ),
 )`,
   },
   {
@@ -235,7 +307,13 @@ export type Result = {
  */
 export const run = (source: string): Result => {
   const js = transform(`const __layout = (\n${source}\n)`, { transforms: ['typescript'] }).code
-  const layout = new Function('Place', 'Match', 'Select', `${js}\nreturn __layout`)(Place, Match, Select) as Layout
+  const layout = new Function(
+    'Place',
+    'Match',
+    'Select',
+    'Outline',
+    `${js}\nreturn __layout`,
+  )(Place, Match, Select, Outline) as Layout
   if (typeof layout !== 'function') throw new Error('Expected a Layout — did you forget `Place.compose(...)`?')
 
   const warnings: string[] = []

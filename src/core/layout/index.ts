@@ -75,6 +75,8 @@ export const builder = (opts: ContextOptions) => {
      */
     explain: (source: PageSource): { trace: TraceEntry[]; placement: ReturnType<typeof placeOne> } => {
       const trace: TraceEntry[] = []
+      // Attribution is settled inside `Place.compose` (see `Place.label`'s
+      // `transparent`), so what arrives here is already one entry per change.
       const placement = placeOne(source, layout, baseCx, (e) => trace.push(e))
       return { trace, placement }
     },

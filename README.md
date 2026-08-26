@@ -162,7 +162,7 @@ Reference below.
 | `repository` | git metadata | Drives the "view source" links |
 | `languages` | `['ts']` | Shiki grammars for fenced code and `@example` |
 | `components` | — | Path to a `defineComponents(...)` file |
-| `layout` | bucket by kind | The whole page-generation policy |
+| `layout` | bucket by kind | The whole page-generation policy — layers, or an `Outline` |
 | `refine` | — | A pass over every placement once they are all decided |
 | `transform` | — | Runs over each declaration after layout |
 | `versions` | — | Glob of `project.json` files from earlier releases |
@@ -223,24 +223,48 @@ inside that block.
 
 ## Shaping the site
 
-The layout is the whole page-generation policy in one composed function — which
-declarations get pages, what they're called, where they live, how the sidebar
-groups them. Filtering, folders and ordering are all layers, not separate fields.
+The layout is the whole page-generation policy — which declarations get pages,
+what they're called, where they live, how the sidebar groups them. Filtering,
+folders and ordering are all part of it, not separate fields.
+
+Say it as a **list** when you know what the sidebar should look like:
 
 ```ts
-import { defineConfig, Place, Match, Select } from '@lickle/docs/config'
+import { defineConfig, Place, Match, Outline } from '@lickle/docs/config'
 
 export default defineConfig({
   name: 'My Library',
   layout: Place.compose(
-    Place.defaultFilter,                            // exposed, minus @internal
-    Place.bucket(Select.kind),                      // bucket by kind
-    Place.bucket(Select.tag('@group')),             // …unless @group says otherwise
-    Place.bucketOrder('components', 'hooks', /.*/), // order the buckets
-    Place.order('Getting started', /^Config/),      // order within a bucket
-    Place.folder(Match.kinds('type-alias'), 'Types'),
+    Place.defaultFilter, // exposed, minus @internal
+    Outline.of(
+      { name: 'Guides', include: Match.file('docs/guides/**'), order: ['Getting started'] },
+      { name: 'API', include: Match.isEntry(), depth: 2, beyond: 'inline' },
+      { name: 'components', include: Match.tag('@group', 'components') },
+      { name: 'types', include: Match.kinds('interface', 'type-alias'), nav: false },
+      { name: /.+/ }, // then everything else
+    ),
   ),
 })
+```
+
+The list order is the sidebar order, the first section to match a source claims
+it, and each section says how deep it expands (`depth`), what happens past that
+(`beyond`), and how its entries render. It compiles to the layers below, so
+`ldocs why` still attributes every decision.
+
+Or say it as **layers** when you're refining one thing:
+
+```ts
+Place.compose(
+  Place.defaultFilter,
+  Place.bucket(Select.kind),                      // bucket by kind
+  Place.bucket(Select.tag('@group')),             // …unless @group says otherwise
+  Place.bucketOrder('components', 'hooks', /.*/), // order the buckets
+  Place.order('Getting started', /^Config/),      // order within a bucket
+  Place.folder(Match.kinds('type-alias'), 'Types'),
+  Place.pagesFor(Match.bucket('components', 'hooks')), // the rest reads inline
+  Place.qualify(Match.all(), false),                   // flat sidebar labels
+)
 ```
 
 | Namespace | Answers | Example |
@@ -248,11 +272,13 @@ export default defineConfig({
 | `Match` | *which* — a yes/no predicate | `Match.kinds('interface')` |
 | `Select` | *what* — a value per declaration | `Select.tag('@group')` |
 | `Place` | *do* — a layer that refines placement | `Place.folder(…, 'Types')` |
+| `Outline` | *shape* — the sidebar as an ordered list | `Outline.of({ name: 'API', … })` |
 
 Two rules explain most surprises:
 
 1. **Later layers win.** `compose` applies left to right; a second `Place.bucket`
-   overrides the first.
+   overrides the first. (Inside an outline it's the other way round — the *first*
+   matching section claims a source, as an ordered list reads.)
 2. **A layout replaces the default entirely**, filtering included.
 
 Anywhere a preset takes a string it takes a `Select`:
@@ -263,8 +289,31 @@ Place.rename(Match.all(), Select.tag('@name')) // rename from a doc tag
 Place.bucket(Select.first(Select.tag('@group'), Select.kind))
 ```
 
-Layers see one source at a time. For decisions that need the whole set — "inline
-any bucket with fewer than three members" — use `refine`.
+`Place.within(match, …layers)` scopes rules to part of the site, and
+`Match.under` turns "this entrypoint" into "this entrypoint's subtree":
+
+```ts
+Place.within(Match.under(Match.name('experimental')), Place.depth(1))
+```
+
+Layers see one source at a time — including what the export graph says about it,
+so `Match.depth`, `Match.members` and `Match.under` all work per-source. For
+decisions that need the whole set — "inline any bucket with fewer than three
+members" — use `refine`.
+
+### Pages, inline, or neither
+
+| | |
+| --- | --- |
+| `Place.inline(match)` | full docs on the parent's page, no route |
+| `Place.hide(match)` | no route, still resolvable for `{@link}` |
+| `Place.pagesFor(match)` | these keep pages, every other declaration inlines |
+| `Place.depth(n, { beyond })` | expand `n` levels; past that, `'nav'` \| `'inline'` \| `'hidden'` |
+
+Depth counts re-export hops from an entrypoint — the same number the sidebar
+nests by, so `Place.depth(1)` is "entrypoints and their members, nothing deeper".
+`Place.pagesFor` never inlines a module or namespace, since those are what the
+inlined members render *on*.
 
 ### What gets documented
 
@@ -276,7 +325,7 @@ declarations:
 | Scan | `exclude` | file paths | dropping whole directories |
 | Scan | `include(file, keep)` | one file at a time | what a glob can't express |
 | Layout | `Place.filter(match)` | declarations and pages | removing a declaration entirely |
-| Layout | `Place.visibility(match, …)` | declarations and pages | hiding a page, keeping `{@link}` resolvable |
+| Layout | `Place.hide` / `Place.inline` | declarations and pages | hiding a page, or folding it onto its parent |
 
 Every path is project-relative and POSIX-separated — the same string
 `Match.file` globs, `include` gets as `file.relative`, and a source line shows.
@@ -304,15 +353,18 @@ interface UserConfig
 
   default  / → UserConfig  nav×2
   Place.bucket         / → UserConfig  bucket=interfaces  nav×2
-  Place.bucket         / → UserConfig  bucket=types  nav×2
-  Place.bucketOrder    / → UserConfig  bucket=types#3  nav×2
-  Place.visibility     / → UserConfig  bucket=types#3  nav=none
+  Outline.section(types) / → UserConfig  bucket=types  nav×2
+  Place.bucketOrder    / → UserConfig  bucket=types#5  nav×2
+  Place.visibility     / → UserConfig  bucket=types#5  nav=none
 
-  result   / → UserConfig  bucket=types#3  nav=none
+  result   / → UserConfig  bucket=types#5  nav=none
   slug     userconfig
 ```
 
-Two `Place.bucket` layers competed; the later won. Rule 1.
+Each line is the innermost layer that produced that state: a `Place.bucket`
+fallback assigned `interfaces`, the outline's `types` section took it over, and
+the section's `nav: false` dropped the row. Nested wrappers that only pass the
+same result upward are left out.
 
 Slug collisions are warnings, resolved deterministically. Since that rewrites
 URLs, make it fatal with `npx ldocs generate --strict`.

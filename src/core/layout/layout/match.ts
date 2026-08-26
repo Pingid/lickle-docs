@@ -4,6 +4,7 @@ import type { DeclarationFacade, DeclarationFacadeMap } from '../facade.ts'
 import type * as Reflect from '../../reflect/types.ts'
 import { isType } from '../../reflect/types.ts'
 import type { Placement, ContentSource } from '../types.ts'
+import * as Select from './select.ts'
 
 /**
  * Predicate over a declaration, used by the matching presets.
@@ -14,7 +15,8 @@ import type { Placement, ContentSource } from '../types.ts'
  * mentions them.* A declaration-only matcher such as `Match.kinds('function')`
  * has no page aspect, so `Place.folder(Match.kinds('function'), 'fns')` leaves
  * every markdown page exactly where it was. Reach pages deliberately with
- * {@link page}, {@link title} or {@link file}.
+ * {@link page}, {@link title} or {@link file} — or with the unit {@link all},
+ * which matches everything by definition.
  */
 export type Match = {
   (d: DeclarationFacade, place?: Placement): boolean
@@ -38,29 +40,41 @@ export const match = (m: Match, page?: MatchPage): Match => {
 }
 
 /**
- * Combine the page aspects of `ms`. The composite has an aspect only when at
- * least one child does; children without one count as `false`, so
+ * Combine the page aspects of `ms`. Children without one count as `false`, so
  * `all(kinds('function'), page())` never matches a page (a page is not a
  * function) while `any(kinds('function'), page())` does.
+ *
+ * With arguments, the composite has an aspect only when at least one child
+ * does — that is what keeps a declaration-only predicate from disturbing
+ * markdown. With **no** arguments there is no child to ask, so `combine([])`
+ * supplies the combinator's unit directly: `all()` and `not()` match every
+ * source including pages, `any()` matches none. A conjunction's unit ought to
+ * be everything, and now it is.
  */
 const combinePages = (ms: Match[], combine: (answers: boolean[]) => boolean): MatchPage | undefined =>
-  ms.some((m) => m.page) ? (p, place) => combine(ms.map((m) => (m.page ? m.page(p, place) : false))) : undefined
+  ms.length === 0 || ms.some((m) => m.page)
+    ? (p, place) => combine(ms.map((m) => (m.page ? m.page(p, place) : false)))
+    : undefined
 
-/** Match declarations all of `ms` accept. `all()` matches every declaration. */
+/**
+ * Match sources all of `ms` accept. `all()` — the unit — matches **everything**,
+ * declarations and standalone pages alike, so it is the right inner match for a
+ * {@link Place.within} scope that has already narrowed the set.
+ */
 export const all = (...ms: Match[]): Match =>
   match(
     (d, place) => ms.every((m) => m(d, place)),
     combinePages(ms, (a) => a.every(Boolean)),
   )
 
-/** Match declarations any of `ms` accept. `any()` matches nothing. */
+/** Match sources any of `ms` accept. `any()` — the unit — matches nothing. */
 export const any = (...ms: Match[]): Match =>
   match(
     (d, place) => ms.some((m) => m(d, place)),
     combinePages(ms, (a) => a.some(Boolean)),
   )
 
-/** Match declarations none of `ms` accept. */
+/** Match sources none of `ms` accept. `not()` matches everything. */
 export const not = (...ms: Match[]): Match =>
   match(
     (d, place) => ms.every((m) => !m(d, place)),
@@ -99,6 +113,68 @@ export const exposed = (): Match => match((d) => d.exposure.is())
 
 /** Match entrypoint modules. */
 export const isEntry = (): Match => match((d) => d.isEntry())
+
+/**
+ * Match declarations by **exposure depth** — how many re-export hops separate
+ * them from an entrypoint. An entrypoint is `0`, a declaration it exports
+ * directly is `1`, a member of a namespace it exports is `2`, and so on; a
+ * declaration reachable by several chains takes the shortest. Unexposed
+ * declarations have no depth and never match.
+ *
+ * This is the same number the sidebar nests by, which is what makes it the
+ * useful axis for "expand the tree this far, and no further" — see
+ * {@link Place.depth}.
+ *
+ * @example Everything three or more hops deep
+ * ```ts
+ * Match.depth({ min: 3 })
+ * ```
+ */
+export const depth = (spec: { min?: number; max?: number }): Match => {
+  const of = Select.depth()
+  return match((d) => {
+    const n = of(d)
+    if (n === undefined) return false
+    return (spec.min === undefined || n >= spec.min) && (spec.max === undefined || n <= spec.max)
+  })
+}
+
+/**
+ * Match containers by how many members they expose. Counts the exposed members
+ * a module or namespace contributes to the docs — the same set its page lists —
+ * so `{ max: 0 }` is "exposes nothing" and `{ max: 2 }` is "small enough to read
+ * in place". Non-containers expose nothing, so they count as `0`.
+ *
+ * @example Inline modules too small to deserve a page of their own
+ * ```ts
+ * Place.inline(Match.all(Match.kinds('module'), Match.members({ max: 2 })))
+ * ```
+ */
+export const members = (spec: { min?: number; max?: number }): Match =>
+  match((d) => {
+    const n = d.exposure.children().length
+    return (spec.min === undefined || n >= spec.min) && (spec.max === undefined || n <= spec.max)
+  })
+
+/** Match declarations that expose no members — every leaf, plus empty containers. */
+export const leaf = (): Match => members({ max: 0 })
+
+/**
+ * Match declarations exposed **beneath** a matching container, at any depth:
+ * everything inside a namespace, or everything an entrypoint reaches. Walks the
+ * exposure chains, so it sees re-exports the way the sidebar does.
+ *
+ * The inner match is asked about ancestor declarations, not about the
+ * declaration being placed — a placement-reading matcher such as
+ * {@link bucket} has nothing to read there and answers `false`.
+ *
+ * @example Everything the `./config` entrypoint exposes
+ * ```ts
+ * Match.under(Match.all(Match.isEntry(), Match.name('config')))
+ * ```
+ */
+export const under = (...ms: Match[]): Match =>
+  match((d) => d.exposure.ancestors().some((chain) => chain.some((a) => ms.some((m) => m(a)))))
 
 /**
  * Match **standalone pages** — markdown and component pages, never
@@ -171,7 +247,7 @@ export const file = (...patterns: string[]): Match =>
  *
  * @example Keep components/hooks as pages, inline the rest
  * ```ts
- * Place.visibility(Match.not(Match.bucket('components', 'hooks')), { inline: true })
+ * Place.visibility(Match.not(Match.bucket('components', 'hooks')), { render: 'inline' })
  * ```
  */
 export const bucket = (...buckets: (string | null)[]): Match => {

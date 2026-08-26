@@ -111,6 +111,8 @@ export type ExposerIndex = {
   exposedBy: (id: T.Id) => Exposure[]
 }
 
+const EMPTY_CHAINS: Exposure[][] = []
+
 const exposures = (): Index.Builder<ExposerIndex, Tree & Roots> => {
   const exposedByMap = new Map<T.Id, Exposure[]>()
   const exposesMap = new Map<T.Id, Exposure[]>()
@@ -170,11 +172,28 @@ const exposures = (): Index.Builder<ExposerIndex, Tree & Roots> => {
         for (const child of members(root.id)) expose(child.id, root.id)
       }
 
-      const exposures = (id: T.Id, pth: Exposure[] = []): Exposure[][] => {
-        const d = exposedByMap.get(id)
-        if (!d) return []
-        return d.flatMap((e) => (index.isRoot(e.exposer) ? [[e, ...pth]] : exposures(e.exposer, [e, ...pth])))
+      // Memoized on the *unprefixed* walk, which is the expensive part: the
+      // chains from every entrypoint down to `id`. `Select.depth`, `Select.entry`
+      // and `Match.under` all ask for this, once per layout layer per
+      // declaration, so recomputing it turned an O(graph) walk into O(layers ×
+      // graph). The suffix a recursive call carries is appended afterwards
+      // rather than baked into the cached value.
+      const chainCache = new Map<T.Id, Exposure[][]>()
+      const chainsTo = (id: T.Id): Exposure[][] => {
+        const hit = chainCache.get(id)
+        if (hit) return hit
+        const by = exposedByMap.get(id)
+        if (!by) return EMPTY_CHAINS
+        // Seed before recursing: an exposure cycle would otherwise not terminate.
+        chainCache.set(id, EMPTY_CHAINS)
+        const out = by.flatMap((e) =>
+          index.isRoot(e.exposer) ? [[e]] : chainsTo(e.exposer).map((chain) => [...chain, e]),
+        )
+        chainCache.set(id, out)
+        return out
       }
+
+      const exposures = (id: T.Id): Exposure[][] => chainsTo(id)
 
       return {
         isExposed: (id) => (exposedByMap.get(id)?.length ?? 0) > 0,

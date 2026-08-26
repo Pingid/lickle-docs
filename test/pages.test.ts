@@ -66,7 +66,7 @@ describe('resolvePages', () => {
         kind: 'markdown',
         title: 'Getting started',
         folder: undefined,
-        order: 1,
+        order: [0, 0, 1], // band 0, `pages` entry 0, filename prefix 1
         file: 'docs/guides/01-getting-started.md',
       }),
       expect.objectContaining({ kind: 'markdown', title: 'Deep dive', folder: 'advanced' }),
@@ -83,7 +83,7 @@ describe('resolvePages', () => {
       slug: 'custom-slug',
       folder: 'Guides',
       group: 'Basics',
-      order: 9,
+      order: [0, 0, 9],
     })
     expect((page as { content: string }).content).toBe('# Ignored\n')
   })
@@ -160,9 +160,10 @@ describe('resolvePages', () => {
         ),
     )
     // The explicit entry failed to read, so only the glob's block remains: a
-    // frontmatter `order` and numeric prefixes both outrank match position,
-    // and every one of them sits in entry 1's block (1000+).
+    // frontmatter `order` and numeric prefixes both outrank match position, and
+    // every one of them sits in entry 1's block — the middle element, with no
+    // arithmetic to overflow.
     const byTitle = Object.fromEntries(pages.map((p) => [p.title, p.order]))
-    expect(byTitle).toEqual({ Pinned: 1000, First: 1001, Second: 1002 })
+    expect(byTitle).toEqual({ Pinned: [0, 1, 0], First: [0, 1, 1], Second: [0, 1, 2] })
   })
 })

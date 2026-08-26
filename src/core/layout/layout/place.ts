@@ -1,6 +1,4 @@
-import type { Placement, Place, Parent, Alias, Layout, PageSource } from '../types.ts'
-import type { DeclarationFacade } from '../facade.ts'
-
+import type { Placement, Place, Parent, Alias, Layout, PageSource, DocSource, Rank, TraceEntry } from '../types.ts'
 import * as Select from './select.ts'
 import * as Match from './match.ts'
 
@@ -24,19 +22,105 @@ export const compose = (...layouts: Layout[]): Layout =>
     (below, layout) => (p, cx) => {
       const base = () => below(p, cx) ?? cx.default()
       if (!cx.trace) return layout(p, { ...cx, default: base })
-      // Materialise the lower result once so the trace can diff against it.
+
+      // Materialise the lower result once so the trace can diff against it, and
+      // capture anything the layer reports from inside itself. Whether those
+      // inner entries or this layer's own name is the useful attribution is a
+      // structural question — see `label`'s `transparent` — so it is answered
+      // here rather than by comparing outcomes after the fact.
       const before = base()
-      const after = layout(p, { ...cx, default: () => before })
-      if (after && !same(before, after)) cx.trace({ layer: layout.label ?? '(layer)', before, after })
+      const inner: TraceEntry[] = []
+      const after = layout(p, { ...cx, default: () => before, trace: (e) => inner.push(e) })
+
+      if (inner.length > 0 && layout.transparent) {
+        for (const entry of inner) cx.trace(entry)
+        return after
+      }
+      if (after && !same(before, after)) cx.trace({ layer: labelOf(layout, p), before, after })
       return after
     },
     (_, cx) => cx.default(),
   )
 
+const labelOf = (layout: Layout, source: PageSource): string =>
+  typeof layout.label === 'function' ? layout.label(source) : (layout.label ?? '(layer)')
+
 const same = (a: Placement, b: Placement): boolean => JSON.stringify(a) === JSON.stringify(b)
 
-/** Tag a layout with the name `ldocs why` reports it under. */
-export const label = (label: string, layout: Layout): Layout => Object.assign(layout.bind(null) as Layout, { label })
+/**
+ * Tag a layout with the name `ldocs why` reports it under.
+ *
+ * `transparent` says what happens when the layout is itself a composition: a
+ * transparent wrapper (a scope the config wrote — {@link within}, an outline)
+ * reports its inner layers and stays out of the way, while an opaque one (a
+ * preset that composes internally, like {@link depth}) reports itself and hides
+ * its own machinery. Defaults to opaque, which is right for every preset.
+ *
+ * A function label is resolved per source, so a layer that behaves differently
+ * for different declarations can say which behaviour applied.
+ */
+export const label = (
+  label: string | ((source: PageSource) => string),
+  layout: Layout,
+  opts?: { transparent?: boolean },
+): Layout =>
+  Object.assign(layout.bind(null) as Layout, {
+    label,
+    ...(opts?.transparent ? { transparent: true as const } : {}),
+  })
+
+/**
+ * Scope layers to a subset of the site: `layouts` run only for sources `match`
+ * accepts, and every other source passes through untouched. The composition
+ * primitive that makes "these rules, but only here" expressible without
+ * repeating the predicate on every layer.
+ *
+ * Inside the scope the set is already narrowed, so `Match.all()` — the unit,
+ * which matches every source including standalone pages — is the natural inner
+ * match.
+ *
+ * @example One entrypoint laid out differently from the rest
+ * ```ts
+ * Place.within(
+ *   Match.under(Match.name('experimental')),
+ *   Place.bucket(Match.all(), 'Experimental'),
+ *   Place.depth(1),
+ * )
+ * ```
+ */
+export const within = (match: Match.Match, ...layouts: Layout[]): Layout => {
+  const inner = compose(...layouts)
+  return label(
+    'Place.within',
+    (source, cx) => {
+      const base = cx.default()
+      if (base.page === null) return base
+      const hit = source.kind === 'doc' ? match(source.decl, base) : (match.page?.(source, base) ?? false)
+      return hit ? inner(source, cx) : base
+    },
+    { transparent: true },
+  )
+}
+
+/**
+ * Map matching sources' {@link Place} through a function — the escape hatch
+ * that stays inside the preset vocabulary. Reach for it when a decision needs
+ * arbitrary code but not a whole hand-written {@link Layout}: the match, the
+ * pass-through and the `page: null` guard are already handled.
+ *
+ * @example Number the sections of a guide by filename prefix
+ * ```ts
+ * Place.map(Match.file('docs/guides/**'), (place, source) => ({
+ *   ...place,
+ *   order: Number(source.kind === 'doc' ? 0 : (source.file?.match(/(\d+)-/)?.[1] ?? 0)),
+ * }))
+ * ```
+ */
+export const map = (match: Match.Match, fn: (place: Place, source: PageSource) => Place): Layout =>
+  label(
+    'Place.map',
+    onMatch(match, (base, source) => ({ ...base, page: fn(base.page, source) })),
+  )
 
 // ─────────────────────────────────────────────────────────────────────────
 // Placement presets — match-first throughout
@@ -114,8 +198,8 @@ export const bucket: {
   label(
     'Place.bucket',
     name === undefined
-      ? onDoc((base, d) => {
-          const picked = (arg as Select.Select<string | undefined>)(d)
+      ? onDoc((base, source) => {
+          const picked = (arg as Select.Select<string | undefined>)(source.decl)
           return picked === undefined ? base : withGroup(base, picked)
         })
       : onMatch(arg as Match.Match, (base, source) => {
@@ -159,6 +243,12 @@ export const bucketOrder = (...names: (string | RegExp)[]): Layout =>
  * Place.order('Getting started', 'Configuration', Match.name('defineConfig'))
  * ```
  */
+/**
+ * Band 0 of the {@link Rank} space: content positioned deliberately, which
+ * leads the entrypoint modules the scan discovered (band 1).
+ */
+const CONTENT_BAND = 0
+
 export const order = (...items: (string | RegExp | Match.Match)[]): Layout =>
   label(
     'Place.order',
@@ -173,7 +263,7 @@ export const order = (...items: (string | RegExp | Match.Match)[]): Layout =>
               ? item(source.decl, base)
               : (item.page?.(source, base) ?? false),
       )
-      return i < 0 ? base : { ...base, page: { ...base.page, order: i } }
+      return i < 0 ? base : { ...base, page: { ...base.page, order: [CONTENT_BAND, i] } }
     }),
   )
 
@@ -218,43 +308,174 @@ export const rename = (match: Match.Match, name: Select.Value<string>): Layout =
  * explicit nav lets it derive from the new parent, which also collapses a
  * declaration exposed from several modules into the one folder you named.
  *
+ * `order` gives the folder a position of its own. Without one a folder has no
+ * rank and borrows its earliest child's, which is fine when the contents should
+ * decide and wrong when the folder should sit somewhere specific.
+ *
  * @example
  * ```ts
  * Place.folder(Match.kinds('type-alias'), 'Types')
  * Place.folder(Match.all(), Select.dir())
+ * Place.folder(Match.file('docs/**'), 'Guides', { order: [0, 0] })
  * ```
  */
-export const folder = (match: Match.Match, name: Select.Value<string>): Layout =>
+export const folder = (
+  match: Match.Match,
+  name: Select.Value<string>,
+  opts?: { order?: Rank; label?: string },
+): Layout =>
   label(
     'Place.folder',
     onMatch(match, (base, source) => {
       const resolved = valueOf(name, source)
       if (resolved === undefined) return base
       const { nav: _derive, ...rest } = base
-      return { ...rest, page: { ...base.page, parent: { virtual: resolved } } }
+      return {
+        ...rest,
+        page: {
+          ...base.page,
+          parent: {
+            virtual: resolved,
+            ...(opts?.label === undefined ? {} : { label: opts.label }),
+            ...(opts?.order === undefined ? {} : { order: opts.order }),
+          },
+        },
+      }
     }),
   )
 
 /**
- * Control how matching sources appear. Defaults to a fully-visible page.
- *  - `page: false` — no route, but still resolvable for `{@link}` and breadcrumbs.
- *  - `inline: true` — rendered inline on the parent's page, with no route of its own.
- *  - `nav: false` — keep the page but drop it from the sidebar.
+ * Control how matching sources appear. Two independent questions, one each:
+ *
+ *  - `render` — `'page'` (its own route), `'inline'` (rendered on the parent's
+ *    page, no route), `'hidden'` (no route, still resolvable for `{@link}`);
+ *  - `nav` — `false` keeps the page and drops the sidebar row.
+ *
+ * An omitted field is left as the layers below decided it, so `{ nav: false }`
+ * drops a row without also promoting an inlined node back to a page.
+ *
+ * {@link inline}, {@link hide} and {@link pagesFor} are the readable spellings
+ * of the common cases; this is the primitive under them.
  *
  * @example Collapse small option types onto their owner
  * ```ts
- * Place.visibility(Match.tag('@inline'), { inline: true })
+ * Place.visibility(Match.tag('@inline'), { render: 'inline' })
  * ```
  */
-export const visibility = (match: Match.Match, opts?: { nav?: boolean; page?: boolean; inline?: boolean }): Layout =>
+export const visibility = (match: Match.Match, opts?: { render?: Place['render']; nav?: boolean }): Layout =>
   label(
     'Place.visibility',
     onMatch(match, (base) => {
-      const render: Place['render'] = opts?.inline ? 'inline' : opts?.page === false ? 'hidden' : 'page'
-      const placed: Placement = { ...base, page: { ...base.page, render } }
+      const placed: Placement = { ...base, page: { ...base.page, ...(opts?.render ? { render: opts.render } : {}) } }
       return opts?.nav === false ? { ...placed, nav: [] } : placed
     }),
   )
+
+/**
+ * Render matching declarations **inline** on their parent's page: full docs, no
+ * route, no sidebar row. The readable spelling of
+ * `Place.visibility(match, { render: 'inline' })`.
+ *
+ * Inlining a container strands its members — they are documented on a page that
+ * no longer exists — so prefer it for leaves, or let {@link depth} handle the
+ * distinction for you.
+ *
+ * @example
+ * ```ts
+ * Place.inline(Match.tag('@inline'))
+ * Place.inline(Match.all(Match.kinds('module'), Match.members({ max: 2 })))
+ * ```
+ */
+export const inline = (match: Match.Match): Layout => label('Place.inline', visibility(match, { render: 'inline' }))
+
+/**
+ * Drop matching sources' pages while keeping them resolvable for `{@link}` and
+ * breadcrumbs — `Place.visibility(match, { render: 'hidden' })`. Compare
+ * {@link filter}, which removes the declaration outright and breaks those links.
+ */
+export const hide = (match: Match.Match): Layout => label('Place.hide', visibility(match, { render: 'hidden' }))
+
+/**
+ * State positively which declarations deserve a page of their own: matching
+ * ones keep theirs, and every other **declaration** renders inline on its
+ * parent (or is hidden, with `rest: 'hidden'`).
+ *
+ * The complement of writing `Place.inline(Match.not(…))` by hand, minus its two
+ * traps: standalone pages are never touched, and containers (modules and
+ * namespaces) keep their pages, since they are what the inlined members render
+ * *on*. Inline a container deliberately with {@link inline} if that is what you
+ * mean.
+ *
+ * @example Pages for components and hooks; everything else reads in place
+ * ```ts
+ * Place.pagesFor(Match.bucket('components', 'hooks'))
+ * ```
+ */
+export const pagesFor = (match: Match.Match, opts?: { rest?: 'inline' | 'hidden' }): Layout => {
+  const rest = opts?.rest ?? 'inline'
+  return label(
+    'Place.pagesFor',
+    onDoc((base, source) => {
+      const d = source.decl
+      if (d.kind === 'module' || d.kind === 'namespace' || d.isEntry()) return base
+      if (match(d, base)) return base
+      return { ...base, page: { ...base.page, render: rest } }
+    }),
+  )
+}
+
+/**
+ * How far the tree expands: declarations more than `max` re-export hops from an
+ * entrypoint stop earning sidebar rows of their own (see {@link Select.depth}
+ * for the count). `max: 1` is "entrypoints and their members, nothing deeper".
+ *
+ * `beyond` says what happens to the ones past the cut:
+ *  - `'nav'` (default) — keep the page, drop the sidebar row. Nothing is lost:
+ *    the parent page still links to it.
+ *  - `'inline'` — leaves render inline on their parent's page. Containers keep
+ *    their page (inlining one would strand its members) and lose only the row.
+ *  - `'hidden'` — no route at all, still resolvable for `{@link}`.
+ *
+ * @example A two-level sidebar, deeper members read on the page above them
+ * ```ts
+ * Place.depth(2, { beyond: 'inline' })
+ * ```
+ */
+export const depth = (max: number, opts?: { beyond?: 'nav' | 'inline' | 'hidden' }): Layout => {
+  const deeper = Match.depth({ min: max + 1 })
+  const beyond = opts?.beyond ?? 'nav'
+  if (beyond === 'hidden') return label('Place.depth', visibility(deeper, { render: 'hidden' }))
+  if (beyond === 'nav') return label('Place.depth', visibility(deeper, { nav: false }))
+  return label(
+    'Place.depth',
+    compose(
+      visibility(Match.all(deeper, Match.leaf()), { render: 'inline' }),
+      visibility(Match.all(deeper, Match.not(Match.leaf())), { nav: false }),
+    ),
+  )
+}
+
+/**
+ * Whether matching containers lend their label to their descendants' sidebar
+ * labels — the `Reflect.` in `Reflect.Module`. Namespaces and nested modules
+ * qualify by default; entrypoints do not, since their members are the public
+ * surface and read better bare.
+ *
+ * A node's label is qualified when an *ancestor* qualifies, so this targets the
+ * container, not the labelled node.
+ *
+ * @example Flat labels everywhere
+ * ```ts
+ * Place.qualify(Match.all(), false)
+ * ```
+ *
+ * @example Qualify under one entrypoint, so `client.connect` reads in full
+ * ```ts
+ * Place.qualify(Match.all(Match.isEntry(), Match.name('client')), true)
+ * ```
+ */
+export const qualify = (match: Match.Match, on: boolean = true): Layout =>
+  label('Place.qualify', place(match, { qualify: on }))
 
 /**
  * Give matching sources a secondary, navigable URL that points at their
@@ -300,9 +521,9 @@ const onPlaced =
     return base.page === null ? base : fn(base as Placed, source)
   }
 
-/** Refine placed **declarations** only — for presets whose value comes from a {@link Select}. */
-const onDoc = (fn: (base: Placed, d: DeclarationFacade) => Placement): Layout =>
-  onPlaced((base, source) => (source.kind === 'doc' ? fn(base, source.decl) : base))
+/** Refine placed **declarations** only, passing the source; standalone pages pass through. */
+const onDoc = (fn: (base: Placed, source: DocSource) => Placement): Layout =>
+  onPlaced((base, source) => (source.kind === 'doc' ? fn(base, source) : base))
 
 /**
  * Shared shape of every matching preset: refine placed sources the match
