@@ -211,6 +211,13 @@ export const rename = (match: Match.Match, name: Select.Value<string>): Layout =
  * {@link Select}, so the folder can be derived — `Select.dir()` mirrors the
  * source tree, `Select.entry()` groups by entrypoint.
  *
+ * Moves the sidebar row as well as the URL. The framework default pins an
+ * explicit `nav` at each exposing module, so setting only the content parent
+ * (what {@link place} does) would change a page's path while its sidebar row
+ * stayed where it was — not what "put it in this folder" means. Dropping the
+ * explicit nav lets it derive from the new parent, which also collapses a
+ * declaration exposed from several modules into the one folder you named.
+ *
  * @example
  * ```ts
  * Place.folder(Match.kinds('type-alias'), 'Types')
@@ -222,7 +229,9 @@ export const folder = (match: Match.Match, name: Select.Value<string>): Layout =
     'Place.folder',
     onMatch(match, (base, source) => {
       const resolved = valueOf(name, source)
-      return resolved === undefined ? base : { ...base, page: { ...base.page, parent: { virtual: resolved } } }
+      if (resolved === undefined) return base
+      const { nav: _derive, ...rest } = base
+      return { ...rest, page: { ...base.page, parent: { virtual: resolved } } }
     }),
   )
 

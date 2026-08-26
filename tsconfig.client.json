@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "types": ["@lickle/docs/client"],
+    "types": ["@lickle/docs/client", "vite/client"],
     "jsx": "preserve",
     "jsxImportSource": "@lickle/docs/solidjs",
     "module": "ESNext",

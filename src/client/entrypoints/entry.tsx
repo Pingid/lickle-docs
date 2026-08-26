@@ -1,3 +1,6 @@
+// Must come first: see the module for why.
+import './process-shim.ts'
+
 import { createEffect, createSignal } from 'solid-js'
 import { HashRouter, Router } from '@solidjs/router'
 import { render } from 'solid-js/web'

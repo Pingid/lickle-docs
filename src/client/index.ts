@@ -111,6 +111,7 @@ const shared = (opts: ClientOptions, context: Context.ViteContext) => {
       Plugin.components(context),
       Plugin.pages(context),
       Plugin.llms(context),
+      Plugin.theme(context),
       Plugin.shiki(context),
       Plugin.resolve(context),
     ],
@@ -132,6 +133,7 @@ const shared = (opts: ClientOptions, context: Context.ViteContext) => {
 /** Runtime dependencies the docs client loads in the browser. */
 const BROWSER_DEPS = [
   '@lickle/cn',
+  'micromatch',
   'sucrase',
   '@orama/orama',
   'marked',

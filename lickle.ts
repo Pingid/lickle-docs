@@ -9,6 +9,7 @@ export default defineConfig(() => ({
   pages: [
     { title: 'Overview', content: './README.md', slug: '/' },
     { glob: './docs/guides/*.md', group: 'Guides', folder: false },
+    { title: 'Layout playground', content: './docs/playground/index.tsx', group: 'Guides', order: 99 },
   ],
   layout: Place.compose(
     Place.defaultFilter,

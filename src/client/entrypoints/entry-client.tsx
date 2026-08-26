@@ -1,3 +1,6 @@
+// Must come first: see the module for why.
+import './process-shim.ts'
+
 import { Router } from '@solidjs/router'
 import { hydrate } from 'solid-js/web'
 

@@ -1,3 +1,6 @@
+// Must come first: see the module for why.
+import './process-shim.ts'
+
 import { generateHydrationScript, renderToStream } from 'solid-js/web'
 import { StaticRouter } from '@solidjs/router'
 
