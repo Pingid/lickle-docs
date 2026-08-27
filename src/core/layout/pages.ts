@@ -1,5 +1,5 @@
 import type * as Reflect from '../reflect/index.ts'
-import type { PageNode, DocLink, Group, Place, Rank } from './types.ts'
+import type { PageNode, DocLink, Group, Place, Rank, PageSource } from './types.ts'
 import { effectiveNav, type Resolved } from './tree.ts'
 import { compareRank } from './client.ts'
 
@@ -24,10 +24,14 @@ export const toPages = (resolved: Resolved[]): PageNode[] => {
 
   const renderOf = (id: Reflect.Id): 'page' | 'inline' | 'hidden' => byId.get(id)?.placement.page?.render ?? 'page'
 
-  type Child = { id: Reflect.Id; name: string; alias(): string | undefined }
-  const aliasOf = (c: Child) => c.alias() ?? c.name
-
   const placeOf = (childId: Reflect.Id): Place | null | undefined => byId.get(childId)?.placement.page
+
+  type Child = { id: Reflect.Id; name: string; alias(): string | undefined }
+  // A re-export's own alias wins (`export { Foo as Bar }` lists as `Bar`).
+  // Otherwise the link reads as the page it points at, which is what
+  // `Place.rename` set — a module has no intrinsic name, so without this a
+  // renamed one listed as "unknown".
+  const aliasOf = (c: Child) => c.alias() ?? placeOf(c.id)?.name ?? c.name
 
   // The bucket/order a child carries under `parentId`: its effective nav edge
   // there (a per-branch override) if it has one, else the child's canonical
@@ -49,6 +53,21 @@ export const toPages = (resolved: Resolved[]): PageNode[] => {
     group: groupUnder(c.id, parentId),
   })
 
+  // Who the *placement* tree says belongs to a page, as opposed to who the
+  // export graph exposes. The two agree by default — the framework default
+  // parents a declaration at its exposer — and diverge the moment a layer says
+  // otherwise (`Place.into`). Without this, moving a node under a parent would
+  // give it the right URL and sidebar row while the parent's page went on
+  // listing nothing.
+  const adopted = new Map<Reflect.Id, Resolved[]>()
+  for (const r of resolved) {
+    const parent = r.placement.page?.parent
+    if (!parent || !('decl' in parent) || r.id === null) continue
+    const list = adopted.get(parent.decl)
+    if (list) list.push(r)
+    else adopted.set(parent.decl, [r])
+  }
+
   const pages: PageNode[] = []
   for (const r of resolved) {
     if (r.source.kind === 'markdown') {
@@ -65,13 +84,31 @@ export const toPages = (resolved: Resolved[]): PageNode[] => {
     const pid = r.id
     // Same order key as the sidebar (explicit `nav.order`, then alphabetical),
     // so a page's member list and the sidebar agree.
-    const children = (d.kind === 'module' || d.kind === 'namespace' ? d.exposure.children() : [])
+    // Union, not replacement: a declaration exposed by several modules is listed
+    // by each of them, and only one of those can be its placement parent.
+    const exposed = d.kind === 'module' || d.kind === 'namespace' ? d.exposure.children() : []
+    const seen = new Set(exposed.map((c) => c.id))
+    const claimed = (adopted.get(pid) ?? [])
+      .filter((child) => child.id !== null && child.id !== pid && !seen.has(child.id))
+      .map((child) => (child.source as Extract<PageSource, { kind: 'doc' }>).decl)
+    const children = [...exposed, ...claimed]
       .filter((c) => byId.has(c.id))
       .sort(
         (a, b) => compareRank(orderUnder(a.id, pid), orderUnder(b.id, pid)) || aliasOf(a).localeCompare(aliasOf(b)),
       )
+    // A module lists everything it *exposes*, even when a node lives elsewhere —
+    // that is what a link is for. Inlining is different: a declaration's full
+    // documentation has to render in exactly one place, and that place is the
+    // parent its placement names. Without this the primitives would read in
+    // full on their own page *and* again on the entrypoint that re-exports them.
+    const homeOf = (childId: Reflect.Id): Reflect.Id | undefined => {
+      const parent = placeOf(childId)?.parent
+      return parent && 'decl' in parent ? parent.decl : undefined
+    }
     const links = children.filter((c) => renderOf(c.id) === 'page').map((c) => toLink(c, pid))
-    const inline = children.filter((c) => renderOf(c.id) === 'inline').map((c) => toLink(c, pid))
+    const inline = children
+      .filter((c) => renderOf(c.id) === 'inline' && (homeOf(c.id) ?? pid) === pid)
+      .map((c) => toLink(c, pid))
     const referenced: DocLink[] = Array.from(d.referenced())
       .filter((c) => byId.has(c.id) && renderOf(c.id) === 'page')
       .map((c) => ({ target: c.id, alias: c.alias() ?? c.name }))

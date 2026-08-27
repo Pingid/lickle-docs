@@ -14,9 +14,13 @@ import { useCodeHighlight } from '../../hooks/index.ts'
  * ```tsx
  * <Code lang="ts" code={`export const answer = 42`} />
  * ```
+ * @group content
  */
 export const Code = (props: { code: string; lang?: string; class?: string }) => {
-  const html = useCodeHighlight(props.code, props.lang ?? 'text')
+  const html = useCodeHighlight(
+    () => props.code,
+    () => props.lang ?? 'text',
+  )
   return (
     <div
       class={props.class}
@@ -32,6 +36,7 @@ export const Code = (props: { code: string; lang?: string; class?: string }) => 
  * ```tsx
  * <CodeBlock lang="bash" code={`npx ldocs build --static`} />
  * ```
+ * @group content
  */
 export const CodeBlock = (props: { code: string; lang?: string }) => (
   <div class="bg-code-bg border border-line rounded-lg p-4">
@@ -60,6 +65,7 @@ export const CodeBlock = (props: { code: string; lang?: string }) => (
  *   </Stack>
  * )
  * ```
+ * @group content
  */
 export const CodeEditor = (props: CodeEditorProps) => {
   const editor = useCodeEditor(props)

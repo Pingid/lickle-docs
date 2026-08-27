@@ -20,6 +20,7 @@ import * as Type from './Type.tsx'
  * A doc route renders its declaration (header + body), its member links and its
  * "referenced in" backlinks; a markdown page renders each `body` string as
  * prose; a component page renders its own module.
+ * @group chrome
  */
 export const Page = createSlot('page', (props) => {
   return (
@@ -53,6 +54,7 @@ export const Page = createSlot('page', (props) => {
  * Title block of a declaration page: breadcrumb, name, kind label, a
  * deprecation marker when `@deprecated` is present, and the source link.
  * Replaceable via the `page.header` slot.
+ * @group chrome
  */
 export const PageHeader = createSlot(
   'page.header',
@@ -73,7 +75,8 @@ export const PageHeader = createSlot(
   ),
 )
 
-/** Stock source-location renderer. Replaceable via `slots.source`. */
+/** Stock source-location renderer. Replaceable via `slots.source`. * @group reflection
+ */
 export const Source: Component<{ decl: Reflect.Declaration }> = staticComponent((props) => {
   const project = useProject()
   const sources = createMemo(() => {
@@ -105,6 +108,7 @@ export const Source: Component<{ decl: Reflect.Declaration }> = staticComponent(
 /**
  * "Referenced In" backlinks from the route's `referenced` refs, grouped and
  * ordered with the same {@link groupItems} the sidebar and member lists use.
+ * @group reflection
  */
 export const References: Component<{ referenced: DocRouter.DocLink[] }> = staticComponent((props) => {
   const groups = createMemo(() => DocRouter.groupItems(props.referenced, (r) => r.group))
@@ -274,7 +278,7 @@ const Signature = (props: { decl: Reflect.Declaration }) => {
   if (d.kind === 'variable')
     return (
       <span class="font-mono text-sm text-mute">
-        : <Type.Type type={d.type} />
+        : <Type.TypeExpr type={d.type} />
       </span>
     )
   return null

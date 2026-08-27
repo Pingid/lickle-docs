@@ -103,6 +103,7 @@ const isBindable = (key: string): boolean => /^[A-Za-z_$][\w$]*$/.test(key) && !
  *     ),
  * })
  * ```
+  * @group previews
  */
 export const createSolidRun = (scope: ExampleScope = {}, options: SolidRunOptions = {}): ExampleRun => {
   // `h` and the Solid primitives are always available; anything the caller adds

@@ -3,6 +3,7 @@ import { onMount, onCleanup } from 'solid-js'
 /**
  * A contained render location. Resolves a target element via the chosen
  * isolation strategy and hands it back through `ref` once mounted.
+  * @group previews
  */
 export const Sandbox = (props: { isolate?: SandboxIsolate; class?: string; ref?: (target: HTMLElement) => void }) => {
   let root!: HTMLDivElement

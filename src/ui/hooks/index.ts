@@ -66,26 +66,39 @@ export const useSlugFor = () => {
 export const useCodeHighlighter = () => useHighlighter()
 
 /**
+ * A value a hook will re-read, or one it reads once. Pass an accessor from a
+ * component and the result follows the prop; pass a string for a fixed one.
+ */
+export type MaybeAccessor<T> = T | (() => T)
+
+const read = <T,>(value: MaybeAccessor<T>): T => (typeof value === 'function' ? (value as () => T)() : value)
+
+/**
  * Highlighted HTML for a code string — `undefined` until the highlighter is ready.
+ *
+ * Pass accessors from a component. Reading a prop eagerly here would bake the
+ * first value into the memo, and a component that Solid reuses across a
+ * navigation — every declaration page is the same component in the same
+ * position — would keep rendering the code it was first given.
  * @group hooks
  * */
-export const useCodeHighlight = (text: string, lang: string) => {
+export const useCodeHighlight = (text: MaybeAccessor<string>, lang: MaybeAccessor<string>) => {
   const highlighter = useCodeHighlighter()
-  return createMemo(() => highlighter()?.codeToHtml(text, { lang }))
+  return createMemo(() => highlighter()?.codeToHtml(read(text), { lang: read(lang) }))
 }
 
 /**
  * Markdown → HTML through the site pipeline: highlighted code fences, backtick identifiers linked to declarations.
  * @group hooks
  * */
-export const useRenderMarkdown = (text: string) => {
+export const useRenderMarkdown = (text: MaybeAccessor<string>) => {
   const markup = useMarkdown()
   const slugs = useSlugFor()
   // No fallback to the raw text: a code span that doesn't resolve to a
   // declaration stays plain `<code>`. Falling back to the name minted a link to
   // a page that never existed for every identifier-shaped span — `package.json`,
   // `version`, `include` — which reads as a link and 404s on click.
-  return createMemo(() => markup()(text, (name) => slugs.byName(name)))
+  return createMemo(() => markup()(read(text), (name) => slugs.byName(name)))
 }
 
 /**

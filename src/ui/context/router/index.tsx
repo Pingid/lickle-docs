@@ -8,6 +8,7 @@ export const A = (props: AnchorProps) => <AA {...props} {...useLinkMap().map(pro
 /**
  * Apply a link mapping to every primitive below. Nesting replaces rather than
  * composes; pass a `map` that calls the outer one if you want both.
+  * @group providers
  */
 export const LinkMapProvider = (props: { value?: LinkMap; children: JSX.Element }) => (
   <LinkMapCtx.Provider value={props.value ?? identity()}>{props.children}</LinkMapCtx.Provider>

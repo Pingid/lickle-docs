@@ -20,7 +20,7 @@ type T = Reflect.Type
  * Type signature + its doc block. Parameter descriptions come from the
  * `@param` tags inside `sig.comment` and are rendered by `<Comment>` itself,
  * so there's no separate parameter table here.
- * @group components
+ * @group reflection
  */
 export const TypeSignature = (props: {
   sig: Reflect.Part<'signature'>
@@ -45,9 +45,9 @@ export const TypeSignature = (props: {
  * so that navigating between pages with different type shapes swaps the
  * sub-renderer instead of freezing on the original branch (a classic Solid
  * pitfall where a top-level `switch` in a component runs only on mount).
- * @group components
+ * @group reflection
  */
-export const Type = (props: { type: T | undefined }) => {
+export const TypeExpr = (props: { type: T | undefined }) => {
   const renderer = createMemo(() => staticComponent(props.type ? (RENDERERS[props.type.kind] ?? Unknown) : () => null))
   return (
     <Show when={props.type && renderer()}>
@@ -114,7 +114,6 @@ const Record = (props: { type: Reflect.Type<'record'> }) => {
  * Conditional type. Right-nested chains (`A extends B ? X : C extends D ? …`)
  * are flattened and rendered as an aligned `: ` ladder, the way Prettier
  * formats long conditional-type maps, instead of one runaway inline line.
- * @group components
  */
 const Conditional = (props: { type: Reflect.Type<'conditional'> }) => {
   const chain = createMemo(() => {
@@ -132,7 +131,7 @@ const Conditional = (props: { type: Reflect.Type<'conditional'> }) => {
       <Syntax.Kw> extends </Syntax.Kw>
       <TypeP type={b.extends} in="check" />
       <Syntax.Punct> ? </Syntax.Punct>
-      <Type type={b.true} />
+      <TypeExpr type={b.true} />
     </>
   )
   return (
@@ -142,7 +141,7 @@ const Conditional = (props: { type: Reflect.Type<'conditional'> }) => {
         <>
           {head(props.type)}
           <Syntax.Punct> : </Syntax.Punct>
-          <Type type={props.type.false} />
+          <TypeExpr type={props.type.false} />
         </>
       }
     >
@@ -159,7 +158,7 @@ const Conditional = (props: { type: Reflect.Type<'conditional'> }) => {
         </For>
         <span class="pl-4">
           <Syntax.Punct>: </Syntax.Punct>
-          <Type type={chain().tail} />
+          <TypeExpr type={chain().tail} />
         </span>
       </span>
     </Show>
@@ -247,7 +246,7 @@ const Infer = (props: { type: Reflect.Type<'infer'> }) => (
     <Show when={props.type.constraint}>
       <>
         <Syntax.Kw> extends </Syntax.Kw>
-        <Type type={props.type.constraint!} />
+        <TypeExpr type={props.type.constraint!} />
       </>
     </Show>
   </>
@@ -257,7 +256,7 @@ const IndexedAccess = (props: { type: Reflect.Type<'indexed-access'> }) => (
   <>
     <TypeP type={props.type.object} in="postfix" />
     <Syntax.Punct>[</Syntax.Punct>
-    <Type type={props.type.index} />
+    <TypeExpr type={props.type.index} />
     <Syntax.Punct>]</Syntax.Punct>
   </>
 )
@@ -275,13 +274,13 @@ const Mapped = (props: { type: Reflect.Type<'mapped'> }) => {
       <Show when={t.typeParameter.constraint}>
         <>
           <Syntax.Kw> in </Syntax.Kw>
-          <Type type={t.typeParameter.constraint!} />
+          <TypeExpr type={t.typeParameter.constraint!} />
         </>
       </Show>
       <Show when={t.nameType}>
         <>
           <Syntax.Kw> as </Syntax.Kw>
-          <Type type={t.nameType!} />
+          <TypeExpr type={t.nameType!} />
         </>
       </Show>
       <Syntax.Punct>]</Syntax.Punct>
@@ -289,7 +288,7 @@ const Mapped = (props: { type: Reflect.Type<'mapped'> }) => {
         <Syntax.Punct>?</Syntax.Punct>
       </Show>
       <Syntax.Punct>: </Syntax.Punct>
-      <Type type={t.type} />
+      <TypeExpr type={t.type} />
       <Syntax.Punct>{' }'}</Syntax.Punct>
     </>
   )
@@ -313,7 +312,7 @@ const TemplateLiteral = (props: { type: Reflect.Type<'template-literal'> }) => (
       {(sp) => (
         <>
           <Syntax.Punct>{'${'}</Syntax.Punct>
-          <Type type={sp.type} />
+          <TypeExpr type={sp.type} />
           <Syntax.Punct>{'}'}</Syntax.Punct>
           <span class="text-fg">{sp.literal}</span>
         </>
@@ -332,7 +331,7 @@ const Predicate = (props: { type: Reflect.Type<'predicate'> }) => (
     <Show when={props.type.type}>
       <>
         <Syntax.Kw> is </Syntax.Kw>
-        <Type type={props.type.type!} />
+        <TypeExpr type={props.type.type!} />
       </>
     </Show>
   </>
@@ -416,7 +415,7 @@ const TypeP = (props: { type: T | undefined; in: ParenCtx }) => {
       <Show when={need()}>
         <Syntax.Punct>(</Syntax.Punct>
       </Show>
-      <Type type={props.type} />
+      <TypeExpr type={props.type} />
       <Show when={need()}>
         <Syntax.Punct>)</Syntax.Punct>
       </Show>
@@ -444,7 +443,7 @@ export const Join = (props: { sep: string; items: T[]; in?: ParenCtx }) => (
         <Show when={i() > 0}>
           <Syntax.Punct>{props.sep}</Syntax.Punct>
         </Show>
-        <Show when={props.in} fallback={<Type type={t} />}>
+        <Show when={props.in} fallback={<TypeExpr type={t} />}>
           <TypeP type={t} in={props.in!} />
         </Show>
       </>
@@ -480,7 +479,7 @@ const MemberExpr = (props: { unit: MemberUnit }) => {
           <Syntax.Punct>?</Syntax.Punct>
         </Show>
         <Syntax.Punct>: </Syntax.Punct>
-        <Type type={m.optional ? stripUndefined(m.type) : m.type} />
+        <TypeExpr type={m.optional ? stripUndefined(m.type) : m.type} />
         <Show when={m.defaultValue}>
           <Syntax.Punct>{` = ${m.defaultValue}`}</Syntax.Punct>
         </Show>
@@ -492,9 +491,9 @@ const MemberExpr = (props: { unit: MemberUnit }) => {
         <Syntax.Punct>[</Syntax.Punct>
         <Syntax.Name>{m.parameter.name}</Syntax.Name>
         <Syntax.Punct>: </Syntax.Punct>
-        <Type type={m.parameter.type} />
+        <TypeExpr type={m.parameter.type} />
         <Syntax.Punct>]: </Syntax.Punct>
-        <Type type={m.type} />
+        <TypeExpr type={m.type} />
       </>
     )
   if (m.kind === 'method')
@@ -556,7 +555,7 @@ const TupleElement = (props: { el: Reflect.Part<'tuple-element'> }) => {
           <Syntax.Punct>: </Syntax.Punct>
         </>
       </Show>
-      <Show when={!props.el.name && props.el.optional} fallback={<Type type={type()} />}>
+      <Show when={!props.el.name && props.el.optional} fallback={<TypeExpr type={type()} />}>
         <TypeP type={type()} in="postfix" />
       </Show>
       <Show when={!props.el.name && props.el.optional}>
@@ -585,13 +584,13 @@ export const SignatureExpr = (props: { sig: Reflect.Part<'signature'>; arrow?: b
             <Syntax.Punct>?</Syntax.Punct>
           </Show>
           <Syntax.Punct>: </Syntax.Punct>
-          <Type type={isOptional(p) ? stripUndefined(p.type) : p.type} />
+          <TypeExpr type={isOptional(p) ? stripUndefined(p.type) : p.type} />
         </>
       )}
     </For>
     <Syntax.Punct>)</Syntax.Punct>
     <Syntax.Punct>{props.arrow ? ' => ' : ': '}</Syntax.Punct>
-    <Type type={props.sig.return} />
+    <TypeExpr type={props.sig.return} />
   </>
 )
 
@@ -612,13 +611,13 @@ export const Generics = (props: { generics?: Reflect.Part<'generic'>[] }) => (
           <Show when={tp.constraint}>
             <>
               <Syntax.Kw> extends </Syntax.Kw>
-              <Type type={tp.constraint!} />
+              <TypeExpr type={tp.constraint!} />
             </>
           </Show>
           <Show when={tp.default}>
             <>
               <Syntax.Punct> = </Syntax.Punct>
-              <Type type={tp.default!} />
+              <TypeExpr type={tp.default!} />
             </>
           </Show>
         </>
@@ -631,14 +630,14 @@ export const Generics = (props: { generics?: Reflect.Part<'generic'>[] }) => (
 /** @internal */
 export const TypeBlock = (props: { type: T | undefined }) => (
   <code class="font-mono text-[0.85em] leading-relaxed">
-    <Type type={props.type} />
+    <TypeExpr type={props.type} />
   </code>
 )
 
 /** @internal */
 export const TypeBox = (props: { type: T | undefined; class?: string }) => (
   <div class={`codeblock ${props.class ?? ''}`}>
-    <Type type={props.type} />
+    <TypeExpr type={props.type} />
   </div>
 )
 
@@ -647,7 +646,7 @@ export const Inline = (props: { type?: Reflect.Type; text: string }) => (
   <>
     <Show when={props.type}>
       <div class="font-mono text-sm mb-1">
-        <Type type={props.type!} />
+        <TypeExpr type={props.type!} />
       </div>
     </Show>
     <Show when={props.text?.trim()}>
@@ -711,12 +710,12 @@ export const SignatureLine = (props: {
             <Syntax.Punct>?</Syntax.Punct>
           </Show>
           <Syntax.Punct>: </Syntax.Punct>
-          <Type type={isOptional(p) ? stripUndefined(p.type) : p.type} />
+          <TypeExpr type={isOptional(p) ? stripUndefined(p.type) : p.type} />
         </>
       )}
     </For>
     <Syntax.Punct>)</Syntax.Punct>
     <Syntax.Punct>: </Syntax.Punct>
-    <Type type={props.sig.return} />
+    <TypeExpr type={props.sig.return} />
   </div>
 )

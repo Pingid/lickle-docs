@@ -7,7 +7,7 @@ import { DisplayIcon, IconButton, MoonIcon, SunIcon } from '../primitives/index.
  * Cycles the site between system, light and dark. The label spells out both
  * the current mode and the one a click moves to, which a lone icon can't.
  *
- * @group components
+ * @group chrome
  */
 export const ThemeToggle = () => {
   const { mode, setMode } = useTheme()

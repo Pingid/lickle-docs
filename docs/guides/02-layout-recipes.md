@@ -28,7 +28,7 @@ Four vocabularies combine:
 | --- | --- | --- |
 | `Match` | *which* — a yes/no predicate | `Match.kinds('interface')` |
 | `Select` | *what* — a value derived per declaration | `Select.tag('@group')` |
-| `Place` | *do* — a layer that refines the placement | `Place.folder(…, 'Types')` |
+| `Place` | *do* — a layer that refines the placement | `Place.folder(…, 'Types')`, `Place.into(…, Match.entry('ui'))` |
 | `Outline` | *shape* — the whole sidebar as an ordered list | `Outline.of({ name: 'API', … })` |
 
 `Outline` is the declarative face of the other three: start there if you know
@@ -79,6 +79,7 @@ and the catch-alls last.
 | `include` | what belongs here (a `Match`) |
 | `order` | the running order inside the section |
 | `folder` | nest the entries in a collapsible folder rather than under a heading; the folder takes the section's position, so its contents keep their own order |
+| `into` | render the entries on the page of the declaration this `Match` names, instead of one page each |
 | `depth` | how many levels of the tree stay navigable |
 | `beyond` | what happens past `depth` — `'nav'`, `'inline'` or `'hidden'` |
 | `render` | `'page'`, `'inline'` or `'hidden'` for the entries themselves |
@@ -87,18 +88,44 @@ and the catch-alls last.
 | `layers` | any `Place` layer, scoped to this section |
 
 A section with no `include` is a **placeholder**: it claims nothing and only
-positions a bucket some other layer assigned. That is how a dynamic bucket keeps
-its place in a fixed running order:
+positions a bucket some other layer assigned. A bare string is the same thing,
+which is what keeps a list of them a list:
 
 ```ts
 Place.compose(
-  Place.bucket(Select.kind),          // 'functions', 'interfaces', … for everything
+  // One layer decides every bucket: an explicit `@group`, else the kind.
+  Place.bucket(Select.first(Select.tag('@group'), Select.kind)),
   Outline.of(
     { name: 'API', include: Match.isEntry() },
-    { name: 'functions' },            // position only — Select.kind assigned it
-    { name: /.+/ },                   // then everything else
+    'providers', 'hooks', 'utilities',  // position only — the layer above named them
+    { name: /.+/ },                     // then everything else
   ),
 )
+```
+
+Writing those as `{ name: 'hooks', include: Match.tag('@group', 'hooks') }` says
+the same thing twice and leaves two places to keep in step. Let one layer assign
+the buckets and let the outline order them.
+
+### A section on one page
+
+`folder` gives a section a collapsible sidebar branch; `into` gives it a **page**
+— the declaration it names hosts the entries, rendered in full rather than
+linked:
+
+```ts
+Outline.of(
+  { name: 'primitives', include: Match.tag('@group', 'primitives'), into: Match.file('src/ui/primitives/index.ts') },
+)
+```
+
+That is one sidebar row and one screen instead of fifty rows and fifty pages.
+The host is revived if the export graph flattened it away — `export * from
+'./primitives'` leaves the module itself unexposed — but *where the host sits* is
+still yours to say, with a `Place.into` after the outline:
+
+```ts
+Place.into(Match.file('src/ui/primitives/index.ts'), Match.entry('ui')),
 ```
 
 Nothing is hidden behind this. Each field compiles to the presets below — the
@@ -223,8 +250,42 @@ the folder belongs somewhere specific:
 Place.folder(Match.file('docs/**'), 'Guides', { order: [0, 0] })
 ```
 
-Anywhere a preset takes a string it also takes a `Select`, so the folder can be
-derived. `Select.dir` mirrors the source tree, optionally truncated:
+A folder is synthetic — it exists only in the sidebar. When the parent should be
+a **real** declaration with a page of its own, name it with a `Match` instead:
+
+```ts
+Place.into(Match.tag('@group', 'primitives'), Match.file('src/ui/primitives/index.ts'))
+Place.into(Match.kinds('interface'), Match.entry('config'))
+```
+
+`Place.into` resolves the target once against the reflection index and takes the
+first match, so narrow it to one declaration. Note `Match.entry` rather than
+`Match.name` for an entrypoint: a module's intrinsic name comes from its
+declaration and a file has none, so every entrypoint answers to `'unknown'` —
+the label the config gave it is the only handle that works.
+
+Two things follow from moving a node this way. Its parent's page lists it, even
+though the export graph never said so — placement decides where documentation
+*lives*, exposure decides what a module *links to*. And a node set to
+`render: 'inline'` renders on the parent its placement names, once, rather than
+on every module that happens to re-export it.
+
+The parent has to survive the filter to be a parent at all. `export * from
+'./primitives'` flattens the members into the entrypoint and leaves the module
+unexposed, so `defaultFilter` drops it — `Place.keep` brings it back:
+
+```ts
+Place.compose(
+  Place.defaultFilter,
+  Place.keep(Match.file('src/ui/primitives/index.ts')),
+  Place.into(Match.file('src/ui/primitives/index.ts'), Match.entry('ui')),
+  Place.into(Match.tag('@group', 'primitives'), Match.file('src/ui/primitives/index.ts')),
+)
+```
+
+That is the whole recipe for "give this flattened module a page and put its
+members on it". Anywhere a preset takes a string it also takes a `Select`, so
+the folder can be derived. `Select.dir` mirrors the source tree, optionally truncated:
 
 ```ts
 Place.folder(Match.all(), Select.dir({ depth: 2 })) // src/core, src/ui, …

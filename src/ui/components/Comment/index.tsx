@@ -7,7 +7,7 @@ import { staticComponent } from '../../util/solid.tsx'
 import { DescList, DescRow, Eyebrow, Section } from '../../primitives/index.ts'
 import { Markdown, MarkdownInline } from '../Markdown.tsx'
 import { Tag } from './Tag.tsx'
-import { Type } from '../Type.tsx'
+import { TypeExpr } from '../Type.tsx'
 
 export * from './Tag.tsx'
 
@@ -37,6 +37,7 @@ export * from './Tag.tsx'
  *   }}
  * />
  * ```
+ * @group reflection
  */
 export const Comment = createSlot('comment', (props) => {
   const summary = useCommentMarkdown(() => props.comment)
@@ -82,7 +83,7 @@ const NamedRow = staticComponent(
           <Show when={props.item.type}>
             <>
               <span class="text-mute">: </span>
-              <Type type={props.item.type!} />
+              <TypeExpr type={props.item.type!} />
             </>
           </Show>
           <Show when={props.item.default}>

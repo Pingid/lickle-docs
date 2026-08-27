@@ -11,6 +11,7 @@ import * as Syntax from './Syntax/index.tsx'
  * ```tsx
  * <Link href="/">Back to the overview</Link>
  * ```
+ * @group content
  */
 export const Link = (props: { href: string; children: string }) => {
   const href = () => (props.href.startsWith('//') ? props.href.slice(1) : props.href === '' ? '/' : props.href)

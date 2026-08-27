@@ -33,6 +33,8 @@ const facade = (over: Partial<DeclarationFacade> & { raw?: any } = {}): Declarat
     raw: { kind: 'function', name: 'Foo', sources: [{ file: 'src/foo.ts' }] },
     tags: new Map(),
     isEntry: () => false,
+    entry: () => undefined,
+    entryIndex: () => undefined,
     exposure: { is: () => true, ancestors: () => [], children: () => [] },
     ...over,
   }) as unknown as DeclarationFacade
@@ -696,6 +698,47 @@ describe('Outline.of', () => {
     expect(run(withKinds, facade({ kind: 'function' }), page()).page?.group).toEqual({ name: 'functions', order: 3 })
   })
 
+  it('a bare string is a placeholder section', () => {
+    // The point of the shorthand: a run of buckets another layer assigned reads
+    // as a list, not as N copies of `{ name: X, include: Match.tag(…, X) }`.
+    const sections = Place.compose(Place.bucket(Select.kind), Outline.of('interfaces', 'functions', { name: /.+/ }))
+    expect(run(sections, facade({ kind: 'interface' }), page()).page?.group).toEqual({ name: 'interfaces', order: 0 })
+    expect(run(sections, facade({ kind: 'function' }), page()).page?.group).toEqual({ name: 'functions', order: 1 })
+    expect(run(sections, facade({ kind: 'class' }), page()).page?.group).toEqual({ name: 'classes', order: 2 })
+  })
+
+  it('`into` hosts a section’s entries on a declaration’s page', () => {
+    const rows = [{ id: 9, name: 'primitives', kind: 'module', parent: 0, sources: [{ file: 'src/prims/index.ts' }] }]
+    const index = {
+      declarations: () => rows,
+      get: (id: number) => rows.find((r) => r.id === id),
+      exposedBy: () => [],
+      exposures: () => [],
+      exposes: () => [],
+      isRoot: () => false,
+      children: () => [],
+      referencedIn: () => [],
+      rootAlias: () => undefined,
+      rootIndex: () => undefined,
+      commonDir: () => 'src',
+    } as unknown as Reflect.Index
+
+    const sections = Outline.of({
+      name: 'primitives',
+      include: Match.kinds('function'),
+      into: Match.file('src/prims/index.ts'),
+    })
+    const out = sections(
+      { kind: 'doc', decl: facade({ kind: 'function' }) },
+      { index, name: 'test', default: () => page() },
+    )!
+    expect(out.page?.parent).toEqual({ decl: 9 })
+    expect(out.page?.render).toBe('inline')
+    // Not `nav: []` — that would erase the edge saying these live under the
+    // host, and the sidebar would prune the host as an empty container.
+    expect(out.nav).toBeUndefined()
+  })
+
   it('applies a section’s own rules to its entries', () => {
     const sections = Outline.of({
       name: 'Guides',
@@ -798,5 +841,106 @@ describe('Rank', () => {
     // what makes a folder holding one sort as early as that child does.
     expect(minRank([[0, 2], [0, 1], undefined])).toBeUndefined()
     expect(minRank([])).toBeUndefined()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// Parenting by match — "put these under that", where *that* is a predicate
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('Place.into and Place.keep', () => {
+  /** A stub index over `decls`, enough for the presets that scan it. */
+  const indexOf = (decls: { id: number; name: string; kind?: string; file?: string }[]) => {
+    // `declarations()` and `get()` must agree: the facade reads `raw.sources`,
+    // and handing back the un-enriched input from `get` was enough to make
+    // `Match.file` throw rather than simply not match.
+    const rows = decls.map((d) => ({
+      id: d.id,
+      name: d.name,
+      kind: d.kind ?? 'module',
+      parent: 0,
+      sources: [{ file: d.file ?? `src/${d.name}.ts` }],
+    }))
+    return {
+      declarations: () => rows,
+      get: (id: number) => rows.find((d) => d.id === id),
+      exposedBy: () => [],
+      exposures: () => [],
+      exposes: () => [],
+      isRoot: () => false,
+      children: () => [],
+      referencedIn: () => [],
+      rootAlias: () => undefined,
+      rootIndex: () => undefined,
+      commonDir: () => 'src',
+    } as unknown as Reflect.Index
+  }
+
+  const withIndex = (index: Reflect.Index) => ({ index, name: 'test' })
+
+  it('parents matching sources under the declaration the target names', () => {
+    const index = indexOf([{ id: 7, name: 'primitives', file: 'src/ui/primitives/index.ts' }])
+    const layout = Place.into(Match.kinds('function'), Match.file('src/ui/primitives/index.ts'))
+    const out = layout(
+      { kind: 'doc', decl: facade({ kind: 'function' }) },
+      { ...withIndex(index), default: () => page() },
+    )!
+    expect(out.page?.parent).toEqual({ decl: 7 })
+  })
+
+  it('drops the derived nav so the sidebar row moves with the URL', () => {
+    const index = indexOf([{ id: 7, name: 'primitives', file: 'src/ui/primitives/index.ts' }])
+    const layout = Place.into(Match.all(), Match.file('src/ui/primitives/index.ts'))
+    const base: Placement = { page: { parent: { root: true }, name: 'Foo' }, nav: [{ parent: { root: true }, name: 'Foo' }] }
+    const out = layout({ kind: 'doc', decl: facade() }, { ...withIndex(index), default: () => base })!
+    // Left in place, the explicit nav would pin the row where the page no
+    // longer is — the same reason `Place.folder` drops it.
+    expect(out.nav).toBeUndefined()
+    expect(out.page?.parent).toEqual({ decl: 7 })
+  })
+
+  it('reports an unresolvable target and leaves the source alone', () => {
+    const index = indexOf([{ id: 7, name: 'other', file: 'src/other.ts' }])
+    const codes: string[] = []
+    const layout = Place.into(Match.all(), Match.file('src/nope/**'))
+    const out = layout(
+      { kind: 'doc', decl: facade() },
+      { ...withIndex(index), default: () => page(), emit: (d) => codes.push(d.code) },
+    )!
+    expect(out.page?.parent).toEqual({ root: true })
+    expect(codes).toEqual(['missing-parent'])
+  })
+
+  it('Place.keep revives a source an earlier layer excluded', () => {
+    const index = indexOf([])
+    const layout = Place.compose(
+      Place.filter(Match.any()), // excludes everything
+      Place.keep(Match.name('Foo')),
+    )
+    const kept = layout({ kind: 'doc', decl: facade({ name: 'Foo' }) }, { ...withIndex(index), default: () => page() })!
+    expect(kept.page).not.toBeNull()
+    const dropped = layout(
+      { kind: 'doc', decl: facade({ name: 'Bar' }) },
+      { ...withIndex(index), default: () => page() },
+    )!
+    expect(dropped.page).toBeNull()
+  })
+
+  it('leaves a placement a lower layer already made', () => {
+    const index = indexOf([])
+    const layout = Place.compose(Place.rename(Match.all(), 'Renamed'), Place.keep(Match.all()))
+    const out = layout({ kind: 'doc', decl: facade() }, { ...withIndex(index), default: () => page('Foo') })!
+    expect(out.page?.name).toBe('Renamed')
+  })
+})
+
+describe('Match.entry', () => {
+  it('matches an entrypoint by its configured label, which `name` cannot', () => {
+    const ui = facade({ isEntry: () => true, kind: 'module', name: 'unknown', entry: () => ({ as: './ui', index: 0 }) } as any)
+    expect(Match.entry('ui')(ui)).toBe(true)
+    expect(Match.entry('config')(ui)).toBe(false)
+    expect(Match.entry()(ui)).toBe(true) // any entrypoint
+    expect(Match.name('ui')(ui)).toBe(false) // a file has no intrinsic name
+    expect(Match.entry('ui')(facade())).toBe(false)
   })
 })

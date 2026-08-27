@@ -31,6 +31,7 @@ const DocsContext = createContext<{
  * every page — reads from this context, so it must wrap any use of the docs
  * UI. Pass the generated `project.json` directly, or a `DocsJson` describing
  * several versions; loaded versions are cached for the session.
+  * @group providers
  */
 export const DocsProvider: ParentComponent<{ value: DocsInput }> = (p) => (
   <DocsContext.Provider value={{ docs: createMemo(() => resolveDocs(p.value)), cache: new Map() }}>

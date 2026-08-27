@@ -38,7 +38,7 @@ export const buildTree = (
   // ── Phase 1: run the layout for every source ──────────────────────────
   const resolved: Resolved[] = []
   for (const source of sources) {
-    const placement = placeOne(source, layout, baseCx)
+    const placement = placeOne(source, layout, baseCx, undefined, emit)
     const id = source.kind === 'doc' ? source.decl.id : null
     if (placement.page !== null) resolved.push({ source, placement, id, slug: '' })
   }
@@ -433,11 +433,13 @@ export const placeOne = (
   layout: Layout,
   baseCx: BaseContext,
   trace?: LayoutContext['trace'],
+  emit?: LayoutContext['emit'],
 ): Placement => {
   const cx: LayoutContext = {
     default: () => defaultLayout(source, baseCx),
     index: baseCx.docs,
     name: baseCx.name,
+    ...(emit ? { emit } : {}),
     ...(trace ? { trace } : {}),
   }
   return layout(source, cx) ?? cx.default()

@@ -1,5 +1,8 @@
 import { defineConfig, Place, Match, Select, Outline, Transform } from './src/core/config/lib.ts'
 
+/** `export * from './primitives'` flattens this module away; the layout puts it back. */
+const PRIMITIVES = Match.file('src/ui/primitives/index.ts')
+
 export default defineConfig(() => ({
   name: '@lickle/docs',
   tsconfig: './tsconfig.esm.json',
@@ -14,44 +17,38 @@ export default defineConfig(() => ({
   components: './docs/components/index.tsx',
   layout: Place.compose(
     Place.defaultFilter,
-    // The fallback bucket for anything the outline doesn't name: an explicit
-    // `@group`, else the declaration's kind.
+    // Every declaration's bucket: an explicit `@group`, else its kind. The
+    // outline below only has to put those buckets in order.
     Place.bucket(Select.first(Select.tag('@group'), Select.kind)),
-    // The sidebar, in reading order. The first section to match a declaration
-    // claims it, so the specific ones lead and the sweep trails.
+    // The sidebar, in reading order. Sections that only position a bucket the
+    // layer above assigned are bare names; the rest say what they claim.
     Outline.of(
       { name: 'Guides', include: Match.file('docs/**') },
       // Entrypoints and the namespaces they expose stay navigable; anything
       // deeper reads on the page above it.
       { name: 'API', include: Match.isEntry(), depth: 2, beyond: 'inline' },
-      { name: 'modules' },
-      {
-        name: 'components',
-        include: Match.any(
-          Match.tag('@group', 'components'),
-          Match.kind('function', { signatures: { return: { reference: { name: 'Element' } } } }),
-          Match.kind('function', { signatures: { return: { reference: { name: 'Component' } } } }),
-          Match.kind('variable', { type: { reference: { name: 'Element' } } }),
-          Match.kind('variable', { type: { reference: { name: 'Component' } } }),
-        ),
-      },
-      { name: 'hooks', include: Match.tag('@group', 'hooks') },
+      // 55 presentational components, read on one page rather than as 55
+      // sidebar rows. `into` hosts them on the module that declares them.
+      { name: 'primitives', include: Match.tag('@group', 'primitives'), into: PRIMITIVES },
+      // Reading order: set the site up, render it, read from it, then customise.
+      'modules',
+      'providers',
+      'chrome',
+      'reflection',
+      'content',
+      'hooks',
+      'slots',
+      'previews',
+      'utilities',
       // Types keep their pages — signatures link to them — but stay out of the
       // sidebar, which is about what you'd go looking for.
       { name: 'types', include: Match.kinds('interface', 'type-alias'), nav: false },
-      { name: 'primitives', include: Match.tag('@group', 'primitives') },
       { name: /.+/ },
     ),
-    // Which declarations earn a page of their own; the rest read inline on their
-    // parent's page. The layout presets are the API this site is about, so they
-    // keep theirs.
-    Place.pagesFor(
-      Match.any(
-        Match.bucket('components', 'hooks', 'modules', 'types', 'primitives'),
-        Match.kinds('interface', 'type-alias'),
-        Match.file('src/core/layout/**/*.ts'),
-      ),
-    ),
+    // Where the primitives' host page itself sits. After the outline, which is
+    // what revived the module `export *` had flattened away.
+    Place.into(PRIMITIVES, Match.entry('ui')),
+    Place.rename(PRIMITIVES, 'primitives'),
   ),
   transform: Transform.stripTags('@group'),
 }))

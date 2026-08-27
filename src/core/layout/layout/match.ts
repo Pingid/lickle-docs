@@ -115,6 +115,27 @@ export const exposed = (): Match => match((d) => d.exposure.is())
 export const isEntry = (): Match => match((d) => d.isEntry())
 
 /**
+ * Match an entrypoint by the label the config gave it — `'.'` reads as the
+ * project name, `'./config'` as `config`.
+ *
+ * {@link name} cannot do this: a module's intrinsic name comes from its
+ * declaration, and a file has none, so every entrypoint answers to `'unknown'`.
+ * The label is the only handle a config actually knows.
+ *
+ * @example Everything the `ui` entrypoint exposes
+ * ```ts
+ * Match.under(Match.entry('ui'))
+ * ```
+ */
+export const entry = (...labels: (string | RegExp)[]): Match =>
+  match((d) => {
+    const as = d.entry()?.as
+    if (as === undefined) return false
+    const label = as.replace(/^\.\//, '')
+    return labels.length === 0 || labels.some((l) => label.match(l) !== null)
+  })
+
+/**
  * Match declarations by **exposure depth** — how many re-export hops separate
  * them from an entrypoint. An entrypoint is `0`, a declaration it exports
  * directly is `1`, a member of a namespace it exports is `2`, and so on; a

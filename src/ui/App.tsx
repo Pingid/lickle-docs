@@ -67,6 +67,7 @@ export interface AppProps {
  *   document.getElementById('root')!,
  * )
  * ```
+ * @group chrome
  */
 export const App = (p: AppProps) => {
   const Router = p.Router ?? HashRouter

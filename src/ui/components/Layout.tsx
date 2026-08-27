@@ -13,7 +13,7 @@ import { Sidebar } from './Sidebar.tsx'
  * {@link Sidebar} (a CSS-only drawer below the `lg` breakpoint), the search
  * palette (toggled with `⌘K` / `Ctrl K`) and the main content well.
  * Replaceable via the `layout` slot.
- * @group components
+ * @group chrome
  */
 export const Layout = createSlot('layout', (props) => {
   const [searchOpen, setSearchOpen] = createSignal(false)

@@ -12,6 +12,7 @@ import * as Type from './Type.tsx'
  * (not an `if`/`switch`) so the active sub-component swaps reactively when
  * `props.decl.kind` changes — otherwise navigating between pages of different
  * kinds would freeze on the original branch.
+ * @group reflection
  */
 export const Declaration = createSlot('declaration', (props) => (
   <Dynamic component={dispatch(props.decl.kind)} decl={props.decl} />
@@ -56,7 +57,7 @@ const DeclarationVariable = (props: { decl: Reflect.Declaration<'variable'> }) =
         <span class="font-semibold">{props.decl.name}</span>
         <Show when={!record()}>
           <Syntax.Punct>: </Syntax.Punct>
-          <Type.Type type={props.decl.type} />
+          <Type.TypeExpr type={props.decl.type} />
           <Show when={props.decl.defaultValue}>
             <Syntax.Punct>{` = ${props.decl.defaultValue}`}</Syntax.Punct>
           </Show>
@@ -90,7 +91,7 @@ const DeclarationTypeAlias = (props: { decl: Reflect.Declaration<'type-alias'> }
         <Type.Generics generics={props.decl.generics} />
         <Show when={!record()}>
           <Syntax.Punct> = </Syntax.Punct>
-          <Type.Type type={props.decl.type} />
+          <Type.TypeExpr type={props.decl.type} />
         </Show>
       </div>
       <Comment comment={props.decl.comment} />

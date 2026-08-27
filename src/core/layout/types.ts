@@ -1,5 +1,6 @@
 import type { DeclarationFacade } from './facade.ts'
 import type * as Reflect from '../reflect/index.ts'
+import type { Diagnostic } from '../diagnostic/types.ts'
 
 /**
  * What a layer can reach while placing one source: the placement the layers
@@ -13,6 +14,11 @@ export type LayoutContext = {
   index: Reflect.Index
   /** Project name, as the header shows it. */
   name: string
+  /**
+   * Report a problem from inside a layer — an unresolvable target, a
+   * contradiction in the config. Absent in bare harnesses, so call it optionally.
+   */
+  emit?: (d: Diagnostic) => void
   /** Set by `ldocs why`; each layer that changes the placement reports itself. */
   trace?: (entry: TraceEntry) => void
 }

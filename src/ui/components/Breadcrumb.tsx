@@ -17,7 +17,7 @@ import { A } from '../context/router/index.tsx'
  * <Breadcrumb items={[{ label: '@lickle/docs', href: '#' }, { label: 'ui', href: '#' }, { label: 'Breadcrumb' }]} />
  * ```
  *
- * @group components
+ * @group chrome
  */
 export const Breadcrumb = (props: { id?: number; items?: Crumb[]; class?: string }) => {
   const router = DocRouter.use()

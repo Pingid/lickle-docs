@@ -77,7 +77,7 @@ export const builder = (opts: ContextOptions) => {
       const trace: TraceEntry[] = []
       // Attribution is settled inside `Place.compose` (see `Place.label`'s
       // `transparent`), so what arrives here is already one entry per change.
-      const placement = placeOne(source, layout, baseCx, (e) => trace.push(e))
+      const placement = placeOne(source, layout, baseCx, (e) => trace.push(e), opts.emit)
       return { trace, placement }
     },
     build: (): SiteGraph => {

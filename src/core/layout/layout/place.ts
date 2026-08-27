@@ -1,4 +1,18 @@
-import type { Placement, Place, Parent, Alias, Layout, PageSource, DocSource, Rank, TraceEntry } from '../types.ts'
+import type {
+  Placement,
+  Place,
+  Parent,
+  Alias,
+  Layout,
+  LayoutContext,
+  PageSource,
+  DocSource,
+  Rank,
+  TraceEntry,
+} from '../types.ts'
+import type * as Reflect from '../../reflect/index.ts'
+import { createDeclarationFacade } from '../facade.ts'
+import { defaultLayout } from '../default.ts'
 import * as Select from './select.ts'
 import * as Match from './match.ts'
 
@@ -507,6 +521,113 @@ export const alias = (
     })),
   )
 
+/**
+ * Keep matching sources that an earlier layer excluded.
+ *
+ * The inverse of {@link filter}, and the reason a container that the public API
+ * doesn't expose can still be documented: `export * from './primitives'`
+ * flattens its members into the entrypoint and leaves the module itself
+ * unexposed, so `defaultFilter` drops it — and with it any chance of using it as
+ * a parent. Compose this after the filter to bring it back.
+ *
+ * Only revives what was dropped; it never changes a placement a lower layer
+ * already made.
+ *
+ * @example Document a module the entrypoint re-exports through
+ * ```ts
+ * Place.compose(
+ *   Place.defaultFilter,
+ *   Place.keep(Match.file('src/ui/primitives/index.ts')),
+ * )
+ * ```
+ */
+export const keep = (match: Match.Match): Layout =>
+  label('Place.keep', (source, cx) => {
+    const base = cx.default()
+    if (base.page !== null) return base
+    const hit = source.kind === 'doc' ? match(source.decl, base) : (match.page?.(source, base) ?? false)
+    // Excluded and wanted back: re-derive the framework default for it, which is
+    // the placement it would have had if nothing had dropped it.
+    return hit ? defaultLayout(source, { docs: cx.index, name: cx.name }) : base
+  })
+
+/**
+ * Nest matching sources under the declaration `target` matches — "put these
+ * there", where *there* is named by a predicate rather than an id a config
+ * cannot know.
+ *
+ * {@link folder} covers the synthetic case (a virtual section that exists only
+ * in the sidebar); this covers the real one, where the parent is a module,
+ * namespace or class that has a page of its own. Together they are what makes
+ * an arbitrary shape reachable: anything can be placed under anything.
+ *
+ * `target` is resolved once against the reflection index and the **first**
+ * match wins, so narrow it to one declaration — `Match.file(...)` on a module,
+ * or `Match.all(Match.isEntry(), Match.name('ui'))` on an entrypoint. An
+ * unresolvable target is reported and the source is left where it was.
+ *
+ * Like `folder`, this moves the sidebar row as well as the URL: the framework
+ * default pins an explicit `nav` at each exposing module, so setting only the
+ * content parent would change a page's path while its row stayed put.
+ *
+ * @example A page for a module the API flattens, with its members on it
+ * ```ts
+ * Place.compose(
+ *   Place.keep(Match.file('src/ui/primitives/index.ts')),
+ *   Place.into(Match.file('src/ui/primitives/index.ts'), Match.all(Match.isEntry(), Match.name('ui'))),
+ *   Place.into(Match.tag('@group', 'primitives'), Match.file('src/ui/primitives/index.ts')),
+ * )
+ * ```
+ */
+export const into = (match: Match.Match, target: Match.Match): Layout => {
+  // Resolved once per index — the scan is over every declaration, and a dev
+  // rebuild hands over a new index, so the cache is keyed on it rather than
+  // held in a closure that would go stale.
+  const cache = new WeakMap<object, Reflect.Id | null>()
+  const resolve = (cx: LayoutContext): Reflect.Id | null => {
+    const hit = cache.get(cx.index as object)
+    if (hit !== undefined) return hit
+    let found: Reflect.Id | null = null
+    for (const decl of cx.index.declarations()) {
+      const facade = createDeclarationFacade(cx.index, decl.id)
+      if (facade && target(facade)) {
+        found = decl.id
+        break
+      }
+    }
+    cache.set(cx.index as object, found)
+    if (found === null)
+      cx.emit?.({
+        level: 'warn',
+        code: 'missing-parent',
+        message: `Place.into found no declaration matching its target; sources stay where they were.`,
+      })
+    return found
+  }
+
+  return label('Place.into', (source, cx) => {
+    const base = cx.default()
+
+    // Naming a declaration as a parent asserts it belongs in the site, so the
+    // target revives itself. Without this, pointing children at a module the
+    // export graph flattened away — the usual reason to reach for `into` — left
+    // them parented to something that was never placed: every one detached to
+    // the root, rendered nowhere, and said so only in a warning per child.
+    if (source.kind === 'doc' && target(source.decl, base) && base.page === null)
+      return defaultLayout(source, { docs: cx.index, name: cx.name })
+
+    if (base.page === null) return base
+    const hit =
+      source.kind === 'doc' ? match(source.decl, base as Placed) : (match.page?.(source, base as Placed) ?? false)
+    if (!hit) return base
+
+    const parent = resolve(cx)
+    if (parent === null || (source.kind === 'doc' && source.decl.id === parent)) return base
+    const { nav: _derive, ...rest } = base as Placed
+    return { ...rest, page: { ...(base as Placed).page, parent: { decl: parent } } }
+  })
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Internal seams
 // ─────────────────────────────────────────────────────────────────────────
@@ -515,10 +636,10 @@ type Placed = Placement & { page: Place }
 
 /** Refine every source that still has a content home; pass excluded ones through. */
 const onPlaced =
-  (fn: (base: Placed, source: PageSource) => Placement): Layout =>
+  (fn: (base: Placed, source: PageSource, cx: LayoutContext) => Placement): Layout =>
   (source, cx) => {
     const base = cx.default()
-    return base.page === null ? base : fn(base as Placed, source)
+    return base.page === null ? base : fn(base as Placed, source, cx)
   }
 
 /** Refine placed **declarations** only, passing the source; standalone pages pass through. */
@@ -531,10 +652,13 @@ const onDoc = (fn: (base: Placed, source: DocSource) => Placement): Layout =>
  * when the match carries a page aspect, so declaration-only predicates never
  * disturb markdown.
  */
-const onMatch = (match: Match.Match, fn: (base: Placed, source: PageSource) => Placement): Layout =>
-  onPlaced((base, source) => {
+const onMatch = (
+  match: Match.Match,
+  fn: (base: Placed, source: PageSource, cx: LayoutContext) => Placement,
+): Layout =>
+  onPlaced((base, source, cx) => {
     const hit = source.kind === 'doc' ? match(source.decl, base) : (match.page?.(source, base) ?? false)
-    return hit ? fn(base, source) : base
+    return hit ? fn(base, source, cx) : base
   })
 
 /** Resolve a preset field. `Select`s only apply to declarations; pages take fixed values. */

@@ -33,12 +33,16 @@ const PagesContext = createContext<PageModules>({})
  * Supply the component modules that back `.tsx` pages. The generated client
  * passes the map the bundler produced; pass your own to render component pages
  * when embedding the UI by hand.
+  * @group providers
  */
 export const PagesProvider: ParentComponent<{ value?: PageModules }> = (p) => (
   <PagesContext.Provider value={p.value ?? {}}>{p.children}</PagesContext.Provider>
 )
 
-/** The component page modules in scope. */
+/**
+ * The component page modules in scope.
+ * @group hooks
+ */
 export const usePageModules = (): PageModules => useContext(PagesContext)
 
 // One `lazy` per module path: `lazy` memoises its own load, so re-creating it
@@ -50,6 +54,7 @@ const cache = new Map<PageModule, Component<PageProps>>()
  * `undefined` when no module is registered for that path — which is the normal
  * case for an older version's data, since a published `project.json` carries
  * page *paths* but not the code behind them.
+  * @group hooks
  */
 export const usePageComponent = (module: string): Component<PageProps> | undefined => {
   const entry = usePageModules()[module]

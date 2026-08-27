@@ -41,7 +41,7 @@ import * as Place from './place.ts'
  *    `{ name: 'functions' }` next to a `Place.bucket(Select.kind)` below, or a
  *    trailing `{ name: /.+/ }` to sweep the rest.
  */
-export type Section = SectionSpec | Placeholder
+export type Section = SectionSpec | Placeholder | string
 
 /** A section that claims sources of its own. */
 export type SectionSpec = {
@@ -68,6 +68,21 @@ export type SectionSpec = {
    * a heading and a folder, give the folder a different name from the section.
    */
   folder?: boolean | Select.Value<string>
+  /**
+   * Render this section's entries on the page of the declaration `into`
+   * matches, instead of giving each one a page of its own.
+   *
+   * The real-declaration counterpart to {@link folder}'s synthetic one: a
+   * folder is a sidebar node with no page, this is a page. Use it when a group
+   * belongs together on one screen — a set of primitives, a family of helpers —
+   * and the module that would host them is already in your source.
+   *
+   * Implies `render: 'inline'` and no sidebar rows for the entries; the host
+   * keeps its own row. The host is revived if the export graph flattened it
+   * away, but placing the *host* is still yours: say where it goes with a
+   * `Place.into` of its own, or let it fall where the default puts it.
+   */
+  into?: Match.Match
   /**
    * Order within the section. Each item is an exact display name, a `RegExp`
    * over it, or a {@link Match}; entries sort by the index of their first match,
@@ -104,8 +119,19 @@ export type SectionSpec = {
   layers?: Layout[]
 }
 
-/** A position in the running order for a bucket another layer assigns. */
+/**
+ * A position in the running order for a bucket another layer assigns.
+ *
+ * A bare string is the same thing: `'hooks'` and `{ name: 'hooks' }` are
+ * interchangeable. A run of sections whose names *are* the buckets a
+ * `Place.bucket(Select.tag('@group'))` already assigned then reads as the list
+ * it is, rather than as N copies of `{ name: X, include: Match.tag('@group', X) }`
+ * that have to be kept in step with each other.
+ */
 export type Placeholder = { name: string | RegExp }
+
+/** Normalize the bare-string form so the compiler sees one shape. */
+const asSection = (s: Section): SectionSpec | Placeholder => (typeof s === 'string' ? { name: s } : s)
 
 /**
  * Compile an outline into a {@link Layout}.
@@ -121,7 +147,8 @@ export type Placeholder = { name: string | RegExp }
  * per-section rules are wrapped in a {@link Place.within} scope. `ldocs why`
  * names the claiming section, so a surprising placement is still attributable.
  */
-export const of = (...sections: Section[]): Layout => {
+export const of = (...input: Section[]): Layout => {
+  const sections = input.map(asSection)
   const claim = claims(sections)
 
   return Place.label(
@@ -143,7 +170,7 @@ export const of = (...sections: Section[]): Layout => {
   )
 }
 
-const isSpec = (s: Section): s is SectionSpec => 'include' in s && s.include !== undefined
+const isSpec = (s: SectionSpec | Placeholder): s is SectionSpec => 'include' in s && s.include !== undefined
 const nonNull = <T>(x: T | null): x is T => x !== null
 
 /** Which section claims a source: its index in the list, or `-1` for none. */
@@ -157,7 +184,7 @@ type Claim = (source: PageSource, place?: Placement) => number
  * claim does not change during a build, so the cache is also what keeps those
  * two answers consistent.
  */
-const claims = (sections: Section[]): Claim => {
+const claims = (sections: (SectionSpec | Placeholder)[]): Claim => {
   const specs = sections.map((s, at) => ({ s, at })).filter((x): x is { s: SectionSpec; at: number } => isSpec(x.s))
   const cache = new Map<Reflect.Id | PageSource, number>()
 
@@ -179,7 +206,7 @@ const claims = (sections: Section[]): Claim => {
  * source under the first that accepts it. Labelled per source, so the trace
  * names the section rather than an anonymous `Place.bucket`.
  */
-const claimLayer = (sections: Section[], claim: Claim): Layout =>
+const claimLayer = (sections: (SectionSpec | Placeholder)[], claim: Claim): Layout =>
   Place.label(
     (source) => {
       const at = claim(source)
@@ -207,7 +234,7 @@ const claimedBy = (at: number, claim: Claim): Match.Match =>
  * label — otherwise every entry would sit under a heading inside a folder of
  * the same name.
  */
-const bucketNameOf = (s: Section): string | RegExp => (isSpec(s) ? claimedBucket(s) : (s.name ?? ''))
+const bucketNameOf = (s: SectionSpec | Placeholder): string | RegExp => (isSpec(s) ? claimedBucket(s) : (s.name ?? ''))
 
 /**
  * The bucket a *claiming* section puts its sources in. Always a string — only a
@@ -243,8 +270,26 @@ const CONTENT_BAND = 0
  */
 const sectionLayer = (s: SectionSpec, at: number, claim: Claim): Layout => {
   const mine = claimedBy(at, claim)
+  const unscoped: Layout[] = []
   const entries: Layout[] = []
   const subtree: Layout[] = []
+
+  // A host page absorbs the section: entries render on it, and their sidebar
+  // rows would duplicate what the host already shows.
+  //
+  // The host itself is *not* one of the section's entries, so the scoped layers
+  // below never see it — reviving it has to happen unscoped, or a module the
+  // export graph flattened away would still be missing and every entry would
+  // parent onto nothing.
+  if (s.into) {
+    unscoped.push(Place.keep(s.into))
+    entries.push(Place.into(Match.all(), s.into))
+    // `render: 'inline'` is the whole instruction — it already means no route
+    // and no sidebar row. Adding `nav: false` on top erases the nav edge that
+    // tells the sidebar builder these entries live *under the host*, and the
+    // host then looks like an empty container and is pruned away.
+    entries.push(Place.visibility(Match.all(), { render: 'inline' }))
+  }
 
   const folder = folderOf(s)
   // The folder carries the section's position itself, so its contents keep
@@ -260,7 +305,7 @@ const sectionLayer = (s: SectionSpec, at: number, claim: Claim): Layout => {
   if (s.depth !== undefined) subtree.push(Place.depth(s.depth, s.beyond ? { beyond: s.beyond } : undefined))
   if (s.layers?.length) subtree.push(...s.layers)
 
-  const layers: Layout[] = []
+  const layers: Layout[] = [...unscoped]
   if (entries.length) layers.push(Place.within(mine, ...entries))
   if (subtree.length) layers.push(Place.within(Match.any(mine, Match.under(mine)), ...subtree))
   return Place.label(`Outline.rules(${s.name ?? ''})`, Place.compose(...layers), { transparent: true })

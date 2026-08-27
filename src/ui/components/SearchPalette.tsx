@@ -4,6 +4,11 @@ import { useNavigate } from '../context/router/index.tsx'
 import { DocRouter, useSearch, type SearchHit } from '../hooks/index.ts'
 import { KindBadge, SearchIcon } from '../primitives/index.ts'
 
+/**
+ * The search dialog: fuzzy hits over every page, keyboard-driven. `Layout`
+ * mounts it and `Header` opens it; a custom `layout` slot has to do both.
+ * @group chrome
+ */
 export const SearchPalette = (props: { open: () => boolean; onClose: () => void }) => {
   const navigate = useNavigate()
   const router = DocRouter.use()

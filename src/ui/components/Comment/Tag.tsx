@@ -14,6 +14,7 @@ import { Link } from '../Link.tsx'
  * a code block, `@returns` an inline type, `@see` a link, …). Unknown tags
  * fall back to a generic markdown section. Replaceable via the `tag` slot —
  * the hook point for turning `@example` blocks into `LiveExample`s.
+ * @group reflection
  */
 export const Tag = createSlot('tag', (props: { tag: Reflect.CommentTag }) => {
   const renderer = createMemo(() => RENDERERS[props.tag.tag as keyof typeof RENDERERS] ?? TagOther)
@@ -29,6 +30,7 @@ export const Tag = createSlot('tag', (props: { tag: Reflect.CommentTag }) => {
  *   <p>Whatever the tag renders.</p>
  * </TagSection>
  * ```
+ * @group reflection
  */
 export const TagSection = (props: { tag: Reflect.CommentTag; description?: string; children: JSX.Element }) => (
   <Section
@@ -58,6 +60,7 @@ export const TagSection = (props: { tag: Reflect.CommentTag; description?: strin
  * ```tsx
  * <TagKind kind="@deprecated" />
  * ```
+ * @group reflection
  */
 export const TagKind = (p: { kind: string }) => <Eyebrow>{p.kind.replace(/^@/, '')}</Eyebrow>
 
@@ -110,7 +113,7 @@ const TagTemplate = (props: { tag: Reflect.CommentTagMap['@template'] }) => (
             <Show when={tp.constraint}>
               <>
                 <span class="text-accent">extends </span>
-                <Type.Type type={tp.constraint!} />
+                <Type.TypeExpr type={tp.constraint!} />
               </>
             </Show>
           </DescRow>

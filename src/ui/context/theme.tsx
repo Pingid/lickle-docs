@@ -29,6 +29,7 @@ const apply = (m: ThemeMode) => {
  * `localStorage` and applies it as `data-theme` on `<html>`, which the
  * stylesheet (`@lickle/docs/theme.css`) keys its dark variants on. Required
  * by {@link useTheme}; `App` includes it.
+  * @group providers
  */
 export const ThemeProvider = (props: { children: JSX.Element }) => {
   const [mode, set] = createSignal<ThemeMode>(read())

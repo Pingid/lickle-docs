@@ -26,6 +26,7 @@ let cached: { key: string; core: Promise<Core> } | undefined
  * Build a Shiki core for the given languages, memoized by language set. Shiki
  * is meant to be a singleton, so reuse the instance across SSR renders and
  * pre-build it (see `renderPage`) so the server can highlight synchronously.
+ * @group providers
  */
 export const loadHighlighter = (langs: Lang[]): Promise<Core> => {
   const key = langs.map((l) => l.name).join(',')
@@ -49,6 +50,7 @@ export const loadHighlighter = (langs: Lang[]): Promise<Core> => {
  * The highlighter is built on the client after hydration. For SSR, pass a
  * server-prebuilt `highlighter` (see {@link loadHighlighter}) so the first
  * paint is already highlighted.
+ * @group providers
  */
 export function LanguagesProvider(props: { langs: Accessor<Lang[]>; highlighter?: Core; children: JSX.Element }) {
   const avaliable = createMemo<Set<string>>(() => new Set(props.langs().map((l) => l.name)))

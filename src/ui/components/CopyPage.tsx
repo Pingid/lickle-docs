@@ -19,7 +19,7 @@ import { CheckIcon, CopyIcon, IconButton, Menu, MenuItem } from '../primitives/i
  * <CopyPageButton route={useRoute()()!} />
  * ```
  *
- * @group components
+ * @group chrome
  */
 export const CopyPageButton = clientOnly(() => (props: { route: DocRouter.PageNode; class?: string }) => {
   const router = DocRouter.use()

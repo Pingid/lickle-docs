@@ -12,7 +12,10 @@
  */
 export const BASE_URL: string = import.meta.env.BASE_URL.replace(/\/+$/, '')
 
-/** Resolve an app-absolute path (`/foo`) or asset name (`icons.svg`) against {@link BASE_URL}. */
+/**
+ * Resolve an app-absolute path (`/foo`) or asset name (`icons.svg`) against {@link BASE_URL}.
+ * @group utilities
+ */
 export const withBaseUrl = (path: string): string => `${BASE_URL}/${path.replace(/^\/+/, '')}`
 
 /**

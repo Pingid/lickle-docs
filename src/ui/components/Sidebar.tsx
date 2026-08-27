@@ -24,7 +24,7 @@ import { KindBadge, NavTree, findTreeTrail, type TreeGroup, type TreeNode } from
  * <Sidebar class="max-h-80 overflow-y-auto block" />
  * ```
  *
- * @group components
+ * @group chrome
  */
 export const Sidebar = createSlot('sidebar', (props) => {
   const router = DocRouter.use()

@@ -14,6 +14,7 @@ const ComponentsCtx = createContext<Accessor<Components>>(() => ({}))
  * `<ComponentsProvider>` the inner value is shallow-merged onto the outer one,
  * so a wrapper preset can establish defaults that an app extends without
  * losing the outer's entries.
+  * @group providers
  */
 export const ComponentsProvider = (props: { value?: Components; children: JSX.Element }) => {
   const outer = useContext(ComponentsCtx)
@@ -36,6 +37,7 @@ export const withComponents = (c: Components) => (props: { children: JSX.Element
  * forward `Default` so it can decorate, otherwise render the default. The
  * override and default share the same prop shape — that's what the
  * `WithDefault<P>` wrapper in {@link Components} pins down.
+  * @group slots
  */
 export const createSlot =
   <K extends keyof Components>(
@@ -118,5 +120,6 @@ type WithDefault<P extends Record<string, any>> = Component<P & { Default: Compo
  *   ),
  * })
  * ```
+  * @group slots
  */
 export const defineComponents = <C extends Components>(components: C) => components

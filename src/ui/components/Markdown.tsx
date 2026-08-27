@@ -14,9 +14,10 @@ import { staticComponent } from '../util/solid.tsx'
  * ```tsx
  * <Markdown source={'**Bold**, a list:\n\n- one\n- two\n\nand `Breadcrumb`, which links itself.'} />
  * ```
+ * @group content
  */
 export const Markdown: Component<{ source: string; class?: string }> = staticComponent((props) => {
-  const html = useRenderMarkdown(props.source)
+  const html = useRenderMarkdown(() => props.source)
   return <Show when={html()}>{(h) => <div class={cn('markdown', props.class)} innerHTML={h()} />}</Show>
 })
 
@@ -27,8 +28,9 @@ export const Markdown: Component<{ source: string; class?: string }> = staticCom
  * ```tsx
  * <MarkdownInline source={'No block margins — `useProject` sits inline with its text.'} />
  * ```
+ * @group content
  */
 export const MarkdownInline: Component<{ source?: string; class?: string }> = staticComponent((props) => {
-  const html = useRenderMarkdown(props.source ?? '')
+  const html = useRenderMarkdown(() => props.source ?? '')
   return <Show when={html()}>{(h) => <div class={cn('markdown-tight', props.class)} innerHTML={h()} />}</Show>
 })

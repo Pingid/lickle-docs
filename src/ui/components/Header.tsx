@@ -24,7 +24,7 @@ export const MENU_TOGGLE_ID = 'lickle-menu-toggle'
  * Top bar: project name, version switcher (when several versions are
  * configured), search trigger, the config's `links` and the theme toggle.
  * Replaceable via the `header` slot.
- * @group components
+ * @group chrome
  */
 export const Header = createSlot('header', (props) => {
   const docs = useDocs()

@@ -34,6 +34,7 @@ import { CodeEditor } from '../Code/index.tsx'
  *     ),
  * })
  * ```
+  * @group previews
  */
 export const LiveExample = (props: LiveExampleProps) => {
   const preview = useWithPreview(props)
