@@ -1,3 +1,4 @@
+import { bundledLanguagesInfo } from 'shiki/langs'
 import { v, type Valid } from '@lickle/is'
 
 import * as T from './types.ts'
@@ -76,62 +77,15 @@ export const schema = v.struct.match<Partial<T.UserConfig>>({
   versions: any,
 })
 
-const SHIKI_LANGUAGES = [
-  'angular',
-  'astro',
-  'blade',
-  'c',
-  'coffee',
-  'cpp',
-  'css',
-  'csv',
-  'glsl',
-  'graphql',
-  'haml',
-  'handlebars',
-  'html',
-  'html',
-  'http',
-  'hurl',
-  'imba',
-  'java',
-  'javascript',
-  'jinja',
-  'jison',
-  'json',
-  'json5',
-  'jsonc',
-  'jsonl',
-  'jsx',
-  'julia',
-  'less',
-  'markdown',
-  'marko',
-  'mdc',
-  'mdx',
-  'php',
-  'postcss',
-  'pug',
-  'python',
-  'r',
-  'regexp',
-  'sass',
-  'scss',
-  'shellscript',
-  'sql',
-  'stylus',
-  'svelte',
-  'ts',
-  'tsx',
-  'typescript',
-  'vue',
-  'vue',
-  'vue',
-  'wasm',
-  'wgsl',
-  'wit',
-  'xml',
-  'yaml',
-] as const
-
-export const SHIKI_LANGUAGES_SET = new Set<string>(SHIKI_LANGUAGES)
+/**
+ * Every language Shiki can load, **ids and aliases alike**, taken from Shiki's
+ * own bundle metadata rather than a list kept by hand.
+ *
+ * A hand-written list drifts: this one used to name `shellscript` but not its
+ * `bash` alias, so a config asking for `bash` had it silently dropped and every
+ * ```bash fence in the project rendered unhighlighted. `bundledLanguagesInfo`
+ * is metadata only — the grammars themselves stay lazy.
+ */
+export const SHIKI_LANGUAGES_SET = new Set<string>(
+  bundledLanguagesInfo.flatMap((lang) => [lang.id, ...(lang.aliases ?? [])]),
+)

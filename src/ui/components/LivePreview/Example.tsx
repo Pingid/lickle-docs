@@ -5,30 +5,9 @@ import type { Reflect } from '../../context/index.tsx'
 
 import { Sandbox, type SandboxIsolate } from './Sandbox.tsx'
 
+import { Panel } from '../../primitives/index.ts'
 import { TagSection } from '../Comment/index.tsx'
 import { CodeEditor } from '../Code/index.tsx'
-
-type ExampleTag = Reflect.CommentTag<'@example'>
-
-/** Executes already-compiled JS into the host; return a disposer to tear down. */
-export type ExampleRun = (src: string, host: HTMLElement) => void | (() => void)
-
-export type LiveExampleProps = {
-  /** The `@example` tag to render: its code seeds the editor, its caption becomes the section description. */
-  tag: ExampleTag
-  /** Executes the compiled code into the preview host. Return a disposer to clean up before the next run. */
-  run: ExampleRun
-  /** Compiles editor source to runnable JS. A function, or {@link TransformOptions} for the built-in sucrase pass (`{}` for the defaults). Unset means run the source as-is. */
-  transform?: Transformer
-  /** Editor highlighting language. Defaults to the example's fence language. */
-  language?: string
-  /** Isolation strategy for the preview container. Only `'inline'` ships today. */
-  isolate?: SandboxIsolate
-  /** Disable editing. */
-  readonly?: boolean
-  /** Called when compiling or running throws. Errors render in the preview area either way. */
-  onError?: (err: unknown) => void
-}
 
 /**
  * An editable, runnable rendering of an `@example` block: a {@link CodeEditor}
@@ -61,8 +40,8 @@ export const LiveExample = (props: LiveExampleProps) => {
 
   return (
     <TagSection tag={props.tag} description={props.tag.caption}>
-      <div class="rounded-lg border border-line">
-        <div class="p-4 bg-code-bg">
+      <Panel>
+        <div class="p-4 bg-code-bg rounded-t-lg">
           <CodeEditor
             lang={props.language ?? preview.lang}
             readonly={props.readonly}
@@ -70,25 +49,65 @@ export const LiveExample = (props: LiveExampleProps) => {
             onChange={preview.onChange}
           />
         </div>
+        {/* The preview and the error box overlap rather than stack: a failing
+            edit must not shift the page under the cursor mid-keystroke. */}
         <div class="relative min-h-12">
           <Sandbox class="border-t border-line p-4" isolate={props.isolate} ref={preview.onBind} />
           <Show when={preview.error()}>
             {(msg) => (
-              <div class="absolute inset-0 w-full h-full flex items-center justify-start p-4 text-xs text-red-500 border-t border-red-500/30 ">
-                <div class="flex gap-2">
-                  <span aria-hidden="true" class="select-none leading-5">
-                    ⚠
-                  </span>
-                  <pre class="overflow-x-auto whitespace-pre-wrap wrap-break-word font-mono leading-5">{msg()}</pre>
-                </div>
+              <div class="absolute inset-0 flex items-start gap-2 p-4 text-xs text-error bg-error-bg border-t border-error/30 overflow-auto">
+                <span aria-hidden="true" class="select-none leading-5">
+                  ⚠
+                </span>
+                <pre class="whitespace-pre-wrap wrap-break-word font-mono leading-5">{msg()}</pre>
               </div>
             )}
           </Show>
         </div>
-      </div>
+      </Panel>
     </TagSection>
   )
 }
+
+/** Executes already-compiled JS into the host; return a disposer to tear down. */
+export type ExampleRun = (src: string, host: HTMLElement) => void | (() => void)
+
+export type LiveExampleProps = {
+  /** The `@example` tag to render: its code seeds the editor, its caption becomes the section description. */
+  tag: ExampleTag
+  /** Executes the compiled code into the preview host. Return a disposer to clean up before the next run. */
+  run: ExampleRun
+  /** Compiles editor source to runnable JS. A function, or {@link TransformOptions} for the built-in sucrase pass (`{}` for the defaults). Unset means run the source as-is. */
+  transform?: Transformer
+  /** Editor highlighting language. Defaults to the example's fence language. */
+  language?: string
+  /** Isolation strategy for the preview container. Only `'inline'` ships today. */
+  isolate?: SandboxIsolate
+  /** Disable editing. */
+  readonly?: boolean
+  /** Called when compiling or running throws. Errors render in the preview area either way. */
+  onError?: (err: unknown) => void
+}
+
+export type Transformer = ((src: string) => string) | TransformOptions
+
+export type TransformOptions = {
+  /** Pre-transform hook. */
+  pre?: (src: string) => string
+  /** Sucrase transforms to apply. Default `['typescript', 'jsx']`. */
+  transforms?: Transform[]
+  /** JSX factory, e.g. `'h'`. Left to sucrase's default when unset. */
+  jsxPragma?: string
+  /** JSX fragment factory, e.g. `'Fragment'`. */
+  jsxFragmentPragma?: string
+  /** Production JSX output (no `__source`/`__self`). Default `true`. */
+  production?: boolean
+}
+
+// --- Internals: the edit → compile → run cycle, and the sucrase pass ---
+
+/** The `@example` tags {@link LiveExample} accepts. */
+type ExampleTag = Reflect.CommentTag<'@example'>
 
 const useWithPreview = (props: LiveExampleProps) => {
   const [host, setHost] = createSignal<HTMLElement | null>(null)
@@ -132,31 +151,11 @@ const useWithPreview = (props: LiveExampleProps) => {
   return { onBind, onChange, value, error, lang: props.tag.lang }
 }
 
-const messageOf = (err: unknown): string => {
-  if (err instanceof Error) return err.message || err.name
-  return String(err)
-}
-
 const getTransformer = (props: LiveExampleProps) => {
   const t = props.transform
   if (!t) return (src: string) => src
   if (typeof t === 'function') return t
   return (src: string) => transform(src, t)
-}
-
-export type Transformer = ((src: string) => string) | TransformOptions
-
-export type TransformOptions = {
-  /** Pre-transform hook. */
-  pre?: (src: string) => string
-  /** Sucrase transforms to apply. Default `['typescript', 'jsx']`. */
-  transforms?: Transform[]
-  /** JSX factory, e.g. `'h'`. Left to sucrase's default when unset. */
-  jsxPragma?: string
-  /** JSX fragment factory, e.g. `'Fragment'`. */
-  jsxFragmentPragma?: string
-  /** Production JSX output (no `__source`/`__self`). Default `true`. */
-  production?: boolean
 }
 
 /**
@@ -172,4 +171,9 @@ const transform = (src: string, options: TransformOptions = {}): string => {
     jsxFragmentPragma: options.jsxFragmentPragma,
     production: options.production ?? true,
   }).code
+}
+
+const messageOf = (err: unknown): string => {
+  if (err instanceof Error) return err.message || err.name
+  return String(err)
 }

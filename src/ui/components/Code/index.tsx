@@ -9,6 +9,11 @@ import { useCodeHighlight } from '../../hooks/index.ts'
  * Syntax-highlighted code, unstyled. Renders a plain escaped `<pre>` until
  * the highlighter from `LanguagesProvider` is ready, then swaps in the
  * highlighted markup. Use {@link CodeBlock} for the bordered presentation.
+ *
+ * @example preview
+ * ```tsx
+ * <Code lang="ts" code={`export const answer = 42`} />
+ * ```
  */
 export const Code = (props: { code: string; lang?: string; class?: string }) => {
   const html = useCodeHighlight(props.code, props.lang ?? 'text')
@@ -20,30 +25,41 @@ export const Code = (props: { code: string; lang?: string; class?: string }) => 
   )
 }
 
-const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-/** {@link Code} in the standard bordered block, as used for `@example` and fenced markdown code. */
+/**
+ * {@link Code} in the standard bordered block, as used for `@example` and fenced markdown code.
+ *
+ * @example preview
+ * ```tsx
+ * <CodeBlock lang="bash" code={`npx ldocs build --static`} />
+ * ```
+ */
 export const CodeBlock = (props: { code: string; lang?: string }) => (
   <div class="bg-code-bg border border-line rounded-lg p-4">
     <Code code={props.code} lang={props.lang} />
   </div>
 )
 
-export type CodeEditorProps = {
-  /** Language for highlighting. Defaults to plain text. */
-  lang?: string
-  /** Disable editing; the code still renders through the editor styling. */
-  readonly?: boolean
-  /** Current code. The editor follows external updates to this accessor. */
-  value: () => string
-  /** Called with the full text after each edit. */
-  onChange?: (code: string) => void
-}
-
 /**
  * An editable, syntax-highlighted code area (CodeJar under the hood —
  * loaded lazily on the client; SSR renders static {@link Code}). Drives the
  * editing half of `LiveExample`.
+ *
+ * Pass an accessor for `value` and the editor follows the signal rather than
+ * re-mounting on every keystroke; pass a plain string for a snippet nothing
+ * else writes to.
+ *
+ * @example preview
+ * ```tsx
+ * const [code, setCode] = createSignal('const answer = 42')
+ * return (
+ *   <Stack gap={2}>
+ *     <Panel tone="code" pad>
+ *       <CodeEditor lang="ts" value={code} onChange={setCode} />
+ *     </Panel>
+ *     <span class="text-xs text-mute">{() => `${code().length} characters`}</span>
+ *   </Stack>
+ * )
+ * ```
  */
 export const CodeEditor = (props: CodeEditorProps) => {
   const editor = useCodeEditor(props)
@@ -53,13 +69,27 @@ export const CodeEditor = (props: CodeEditorProps) => {
   return (
     <div class="grid grid-cols-1 grid-rows-1">
       <Show when={!editor.ready() || isServer}>
-        <Code code={props.value()} lang={props.lang} class="row-span-full col-span-full" />
+        <Code code={valueOf(props)} lang={props.lang} class="row-span-full col-span-full" />
       </Show>
       <Show when={!isServer}>
         <div ref={editor.onBind} spellcheck={false} class={showWhenReady()} />
       </Show>
     </div>
   )
+}
+
+export type CodeEditorProps = {
+  /** Language for highlighting. Defaults to plain text. */
+  lang?: string
+  /** Disable editing; the code still renders through the editor styling. */
+  readonly?: boolean
+  /**
+   * Current code. Pass an accessor and the editor follows it; pass a plain
+   * string for a fixed snippet.
+   */
+  value: string | (() => string)
+  /** Called with the full text after each edit. */
+  onChange?: (code: string) => void
 }
 
 type CodeJar = ReturnType<typeof import('codejar').CodeJar>
@@ -70,7 +100,7 @@ const useCodeEditor = (props: CodeEditorProps) => {
   let _jar: CodeJar | null = null
   let _host: HTMLElement | null = null
   let initialized = false
-  let current = props.value()
+  let current = valueOf(props)
 
   const [jar, setJar] = createSignal<CodeJar | null>(null)
 
@@ -118,7 +148,7 @@ const useCodeEditor = (props: CodeEditorProps) => {
   createEffect(init)
 
   createEffect(() => {
-    const v = props.value()
+    const v = valueOf(props)
     const j = jar()
     if (j && current !== v) {
       j.updateCode(v)
@@ -143,3 +173,10 @@ const useCodeEditor = (props: CodeEditorProps) => {
   }
   return { onBind, jar, ready }
 }
+
+// --- Helpers for the components above ---
+
+/** Read {@link CodeEditorProps.value} in either of its accepted forms. */
+const valueOf = (props: CodeEditorProps): string => (typeof props.value === 'function' ? props.value() : props.value)
+
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

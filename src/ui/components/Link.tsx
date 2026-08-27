@@ -1,10 +1,17 @@
 import { Show } from 'solid-js'
 
 import { useSlugFor } from '../hooks/index.ts'
-import { A } from '../util/router.tsx'
-import { Syntax } from './Syntax.tsx'
+import { A } from '../context/router/index.tsx'
+import * as Syntax from './Syntax/index.tsx'
 
-/** Router-aware underlined link for in-site navigation. `Link.Type` and `Link.ByName` resolve declarations to pages. */
+/**
+ * Router-aware underlined link for in-site navigation. `Link.Type` and `Link.ByName` resolve declarations to pages.
+ *
+ * @example preview
+ * ```tsx
+ * <Link href="/">Back to the overview</Link>
+ * ```
+ */
 export const Link = (props: { href: string; children: string }) => {
   const href = () => (props.href.startsWith('//') ? props.href.slice(1) : props.href === '' ? '/' : props.href)
 

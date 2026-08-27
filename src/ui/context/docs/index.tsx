@@ -8,7 +8,7 @@ import {
   type ParentComponent,
 } from 'solid-js'
 
-import { useLocation } from '../../util/router.tsx'
+import { useLocation } from '../router/index.tsx'
 import { stripBaseUrl } from '../../util/base.ts'
 
 import type * as Reflect from './types.ts'

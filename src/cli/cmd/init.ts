@@ -132,21 +132,22 @@ const gettingStarted = (name: string): string =>
     ``,
   ].join('\n')
 
-const components = `import { defineComponents, LiveExample } from '@lickle/docs/ui'
+const components = `import { defineComponents, LiveExample, createSolidRun } from '@lickle/docs/ui'
 
-// Execute compiled example JS into its live preview host. \`host\` is the DOM
-// node the example renders into.
-const run = (code: string, host: HTMLElement) => new Function('host', code)(host)
+// Everything passed here is in scope for an example by name, so
+// \`<Button>hi</Button>\` can be a whole preview on its own. Add your own
+// library: \`createSolidRun({ ...MyLib })\`.
+const run = createSolidRun()
 
-// Opt in to runnable \`@example\` blocks by overriding the \`tag\` slot: render
-// \`@example\` tags with an editable live preview (\`transform\` defaults to
-// TypeScript + JSX), and defer every other tag to the stock renderer.
+// Opt in to runnable \`@example\` blocks by overriding the \`tag\` slot. This only
+// upgrades examples captioned \`preview\` (\`@example preview\`), so the rest keep
+// rendering as plain code.
 export default defineComponents({
   tag: (props) =>
     // Narrow on \`kind\`, not \`tag\`: the catch-all tag shape types \`tag\` as
     // \`string\`, so comparing it never narrows the union.
-    props.tag.kind === '@example' ? (
-      <LiveExample tag={props.tag} run={run} transform={{}} />
+    props.tag.kind === '@example' && props.tag.caption?.includes('preview') ? (
+      <LiveExample tag={props.tag} run={run} transform={{ jsxPragma: 'h' }} />
     ) : (
       <props.Default {...props} />
     ),

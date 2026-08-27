@@ -35,6 +35,8 @@
  * ```
  */
 export {
+  LinkMapProvider,
+  useLinkMap,
   useDocActiveProject,
   useTheme,
   useComponents,
@@ -57,5 +59,6 @@ export {
 } from './context/index.tsx'
 export { useCodeHighlight, useSearch, useCommentMarkdown, useRoute, useProject, useDeclaration } from './hooks/index.ts'
 export { withBaseUrl } from './util/base.ts'
+export * from './primitives/index.ts'
 export * from './components/index.ts'
 export * from './App.tsx'

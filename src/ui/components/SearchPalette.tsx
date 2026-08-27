@@ -1,34 +1,8 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js'
-import { useNavigate } from '../util/router.tsx'
+import { useNavigate } from '../context/router/index.tsx'
 
 import { DocRouter, useSearch, type SearchHit } from '../hooks/index.ts'
-import { SearchIcon } from './icons.tsx'
-import * as Type from './Type.tsx'
-
-const DEBOUNCE_MS = 80
-// const DEFAULT_LIMIT = 12
-const RECENTS_KEY = 'lickle:recent-search'
-const RECENTS_MAX = 8
-
-/** Read the persisted recent selections, tolerating SSR and corrupt storage. */
-const loadRecents = (): SearchHit[] => {
-  if (typeof localStorage === 'undefined') return []
-  try {
-    const parsed = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')
-    return Array.isArray(parsed) ? (parsed as SearchHit[]) : []
-  } catch {
-    return []
-  }
-}
-
-const saveRecents = (hits: SearchHit[]): void => {
-  if (typeof localStorage === 'undefined') return
-  try {
-    localStorage.setItem(RECENTS_KEY, JSON.stringify(hits))
-  } catch {
-    // storage unavailable or over quota — recents are best-effort
-  }
-}
+import { KindBadge, SearchIcon } from '../primitives/index.ts'
 
 export const SearchPalette = (props: { open: () => boolean; onClose: () => void }) => {
   const navigate = useNavigate()
@@ -170,7 +144,7 @@ export const SearchPalette = (props: { open: () => boolean; onClose: () => void 
                       class="flex items-center justify-center w-6 h-6 rounded-md border border-line bg-hover/50 shrink-0"
                       classList={{ 'border-accent/40': i() === highlight() }}
                     >
-                      <Type.KindBadge kind={hit.kind} class="w-3.5" />
+                      <KindBadge kind={hit.kind} class="w-3.5" />
                     </span>
                     <span class="font-mono font-semibold text-sm shrink-0">{hit.name}</span>
                     <Show when={hit.group}>
@@ -268,3 +242,30 @@ const Spinner = () => (
     <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
   </svg>
 )
+
+// --- Recent-selection persistence ---
+
+const DEBOUNCE_MS = 80
+// const DEFAULT_LIMIT = 12
+const RECENTS_KEY = 'lickle:recent-search'
+const RECENTS_MAX = 8
+
+/** Read the persisted recent selections, tolerating SSR and corrupt storage. */
+const loadRecents = (): SearchHit[] => {
+  if (typeof localStorage === 'undefined') return []
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')
+    return Array.isArray(parsed) ? (parsed as SearchHit[]) : []
+  } catch {
+    return []
+  }
+}
+
+const saveRecents = (hits: SearchHit[]): void => {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(hits))
+  } catch {
+    // storage unavailable or over quota — recents are best-effort
+  }
+}

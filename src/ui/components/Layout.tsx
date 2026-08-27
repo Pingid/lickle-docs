@@ -2,15 +2,11 @@ import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import { cn } from '@lickle/cn'
 
 import { createSlot } from '../context/components.tsx'
-import { useLocation } from '../util/router.tsx'
+import { useLocation } from '../context/router/index.tsx'
 
 import { Header, MENU_TOGGLE_ID } from './Header.tsx'
 import { SearchPalette } from './SearchPalette.tsx'
 import { Sidebar } from './Sidebar.tsx'
-
-const SIDEBAR_MIN = 160
-const SIDEBAR_MAX = 480
-const SIDEBAR_STORE_KEY = 'lickle-docs:sidebar-width'
 
 /**
  * Page chrome around the content: sticky {@link Header}, responsive
@@ -121,3 +117,7 @@ export const Layout = createSlot('layout', (props) => {
     </div>
   )
 })
+
+const SIDEBAR_MIN = 160
+const SIDEBAR_MAX = 480
+const SIDEBAR_STORE_KEY = 'lickle-docs:sidebar-width'

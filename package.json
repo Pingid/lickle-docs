@@ -55,6 +55,7 @@
   ],
   "dependencies": {
     "@lickle/cn": "^0.0.1",
+    "@lickle/docs": "link:",
     "@lickle/is": "0.1.0-dev.14",
     "@orama/orama": "^3.1.18",
     "@solidjs/router": "^1.0.0",

@@ -1,17 +1,17 @@
 import { For, Show, createMemo, type Component } from 'solid-js'
-import { A } from '../util/router.tsx'
+import { A } from '../context/router/index.tsx'
 import { Dynamic } from 'solid-js/web'
 
 import { type Reflect } from '../context/index.tsx'
 
-import { type Kind, labelOf, shortOf } from '../util/kind.ts'
+import { ItemList, ItemRow } from '../primitives/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
 import { useSlugFor } from '../hooks/index.ts'
 
 import { staticComponent } from '../util/solid.tsx'
 import { MarkdownInline } from './Markdown.tsx'
 import { Comment } from './Comment/index.tsx'
-import { Syntax } from './Syntax.tsx'
+import * as Syntax from './Syntax/index.tsx'
 import { Link } from './Link.tsx'
 
 type T = Reflect.Type
@@ -523,23 +523,20 @@ const MemberExpr = (props: { unit: MemberUnit }) => {
  */
 export const Members = (props: { members: Reflect.Member[] }) => (
   <Show when={props.members.length}>
-    <ul class="mt-8 space-y-3">
+    <ItemList class="mt-8">
       <For each={memberUnits(props.members)}>
-        {(u) => {
-          const summary = commentSummaryText(u.sig?.comment ?? u.member.comment)
-          return (
-            <li>
-              <div class="font-mono text-sm leading-relaxed">
+        {(u) => (
+          <ItemRow
+            title={
+              <span class="font-mono text-sm leading-relaxed min-w-0">
                 <MemberExpr unit={u} />
-              </div>
-              <Show when={summary}>
-                <p class="text-sm text-mute mt-0.5 line-clamp-2">{summary}</p>
-              </Show>
-            </li>
-          )
-        }}
+              </span>
+            }
+            summary={commentSummaryText(u.sig?.comment ?? u.member.comment)}
+          />
+        )}
       </For>
-    </ul>
+    </ItemList>
   </Show>
 )
 
@@ -657,25 +654,6 @@ export const Inline = (props: { type?: Reflect.Type; text: string }) => (
       <MarkdownInline source={props.text} />
     </Show>
   </>
-)
-
-/**
- * Single-glyph badge for a declaration kind. Use in dense lists (sidebar,
- * member cards, search palette) where a `K` / `ƒ` cue is enough.
- * @internal
- */
-export const KindBadge = (props: { kind: Kind | string; class?: string }) => (
-  <span class={`font-mono text-xs text-mute text-center ${props.class ?? ''}`} title={labelOf(props.kind)}>
-    {shortOf(props.kind)}
-  </span>
-)
-
-/**
- * Tracked uppercase label for a declaration kind (`MODULE`, `FUNCTION`, …).
- * @internal
- */
-export const KindLabel = (props: { kind: Kind | string; class?: string }) => (
-  <span class={`text-xs uppercase tracking-wider text-mute ${props.class ?? ''}`}>{labelOf(props.kind)}</span>
 )
 
 /**

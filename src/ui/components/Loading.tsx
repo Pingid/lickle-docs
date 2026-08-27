@@ -1,13 +1,7 @@
-import { createSignal, onMount } from 'solid-js'
-import cn from '@lickle/cn'
+import { Spinner } from '../primitives/index.ts'
 
-export const Loading = () => {
-  const [show, setShow] = createSignal(false)
-  onMount(() => {
-    setTimeout(() => {
-      setShow(true)
-    }, 100)
-  })
-  const cls = () => cn('transition-opacity duration-200', show() && 'opacity-100', 'opacity-0')
-  return <div class={cls()}>Loading...</div>
-}
+/**
+ * The stock suspense fallback.
+ * @internal
+ */
+export const Loading = () => <Spinner />

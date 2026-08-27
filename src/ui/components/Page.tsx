@@ -6,10 +6,11 @@ import { DocRouter, useProject } from '../hooks/index.ts'
 import { commentSummaryText } from '../util/comment.ts'
 import { staticComponent } from '../util/solid.tsx'
 import { labelOf } from '../util/kind.ts'
-import { A } from '../util/router.tsx'
+import { A } from '../context/router/index.tsx'
+
+import { Badge, Heading, ItemList, ItemRow, KindBadge, KindLabel, Row, Section, Spinner } from '../primitives/index.ts'
 
 import { CopyPageButton } from './CopyPage.tsx'
-import { Loading } from './Loading.tsx'
 import { Declaration } from './Declaration.tsx'
 import { Breadcrumb } from './Breadcrumb.tsx'
 import { Markdown } from './Markdown.tsx'
@@ -49,50 +50,6 @@ export const Page = createSlot('page', (props) => {
 })
 
 /**
- * A `.tsx` page: its module is loaded on demand and rendered inside every
- * provider the stock pages use, so the page can call `useProject`, render
- * `<Markdown>` or `<Declaration>`, and read the theme like any other component.
- *
- * Falls back to the page title alone when no module is registered — the case
- * for an archived version, whose data records the page but not its code.
- */
-const ComponentBody = (props: { route: DocRouter.ComponentPage }) => {
-  const Body = createMemo(() => usePageComponent(props.route.module))
-  return (
-    <Suspense fallback={<Loading />}>
-      <Show when={Body()} fallback={<MissingModule route={props.route} />}>
-        {(Body) => <Dynamic component={Body()} route={props.route} />}
-      </Show>
-    </Suspense>
-  )
-}
-
-const MissingModule = (props: { route: DocRouter.ComponentPage }) => (
-  <>
-    <h1 class="text-2xl font-semibold tracking-tight">{props.route.title}</h1>
-    <p class="text-mute mt-2 text-sm">
-      This page is rendered from <code class="font-mono">{props.route.module}</code>, which isn't part of this build.
-    </p>
-  </>
-)
-
-/** A declaration page: header, the declaration itself, and its members. */
-const Statement = (props: { route: DocRouter.DocPage }) => {
-  const project = useProject()
-  const decl = createMemo(() => project()?.byId(props.route.decl))
-  return (
-    <Show when={decl()}>
-      {(d) => (
-        <>
-          <PageHeader decl={d()} route={props.route} />
-          <Declaration decl={d()} />
-        </>
-      )}
-    </Show>
-  )
-}
-
-/**
  * Title block of a declaration page: breadcrumb, name, kind label, a
  * deprecation marker when `@deprecated` is present, and the source link.
  * Replaceable via the `page.header` slot.
@@ -102,13 +59,15 @@ export const PageHeader = createSlot(
   (props: { decl: Reflect.Declaration; route: DocRouter.PageNode }) => (
     <header class="mb-5">
       <Breadcrumb id={props.decl.id} />
-      <div class="flex items-baseline gap-3 flex-wrap">
-        <h1 class="text-2xl font-semibold tracking-tight font-mono">{props.route.title}</h1>
-        <Type.KindLabel kind={props.decl.kind} />
+      <Row gap={3} align="baseline">
+        <Heading level={1} mono>
+          {props.route.title}
+        </Heading>
+        <KindLabel kind={props.decl.kind} />
         <Show when={props.decl.comment?.tags?.some((t: { tag: string }) => t.tag === '@deprecated')}>
-          <span class="text-xs uppercase tracking-wider text-mute">· deprecated</span>
+          <Badge tone="warn">deprecated</Badge>
         </Show>
-      </div>
+      </Row>
       <Source decl={props.decl} />
     </header>
   ),
@@ -144,114 +103,6 @@ export const Source: Component<{ decl: Reflect.Declaration }> = staticComponent(
 })
 
 /**
- * Members rendered inline on the parent page (full docs), before the link list
- * — the route's `render: 'inline'` children, which have no page of their own.
- */
-const InlineMembers = (props: { members?: DocRouter.DocLink[] }) => {
-  const project = useProject()
-  const groups = createMemo(() => DocRouter.groupItems(props.members ?? [], (m) => m.group))
-  return (
-    <For each={groups()}>
-      {(group) => (
-        <>
-          <Show when={group.group}>
-            <h2 class="text-sm font-semibold mt-8 mb-3 pb-1.5 border-b border-line capitalize">{group.group}</h2>
-          </Show>
-          <For each={group.items}>
-            {(m) => {
-              const decl = createMemo(() => project()?.byId(m.target))
-              return (
-                <Show when={decl()}>
-                  {(d) => (
-                    <section class="mt-8">
-                      <div class="flex items-baseline gap-3 flex-wrap mb-2">
-                        <h2 class="text-lg font-semibold font-mono">{m.alias}</h2>
-                        <Type.KindLabel kind={d().kind} />
-                      </div>
-                      <Declaration decl={d()} />
-                    </section>
-                  )}
-                </Show>
-              )
-            }}
-          </For>
-        </>
-      )}
-    </For>
-  )
-}
-
-/**
- * Member listing for a declaration page: the route's children grouped by kind,
- * exactly as the router lays them out. Each group becomes a titled section.
- */
-const Links = (props: { links: DocRouter.DocLink[] }) => {
-  const groups = createMemo(() => DocRouter.groupItems(props.links, (l) => l.group))
-  return (
-    <For each={groups()}>
-      {(group) => (
-        <section class="mt-8">
-          <Show when={group.group}>
-            <h2 class="text-sm font-semibold mb-3 pb-1.5 border-b border-line capitalize">{group.group}</h2>
-          </Show>
-          <ul class="space-y-3">
-            <For each={group.items}>{(l) => <LinkRow link={l} />}</For>
-          </ul>
-        </section>
-      )}
-    </For>
-  )
-}
-
-const LinkRow = (props: { link: DocRouter.DocLink }) => {
-  const project = useProject()
-  const router = DocRouter.use()
-  const route = () => {
-    const route = router()?.get({ id: props.link.target })
-    const decl = project()?.byId(props.link.target)
-    if (!decl || !route) return undefined
-    return { route, decl }
-  }
-  const summary = () => commentSummaryText(route()?.decl?.comment)
-  return (
-    <Show when={route()}>
-      {(r) => (
-        <li>
-          <div class="flex items-baseline gap-2.5 min-w-0">
-            <Type.KindBadge kind={r().decl.kind} class="w-3.5 shrink-0" />
-            <A href={r().route.slug} class="font-mono font-semibold text-sm hover:opacity-70">
-              {props.link.alias}
-            </A>
-            <Show when={r().decl}>{(d) => <Signature decl={d()} />}</Show>
-          </div>
-          <Show when={summary()}>
-            <p class="text-sm text-mute mt-1 pl-6 line-clamp-2">{summary()}</p>
-          </Show>
-        </li>
-      )}
-    </Show>
-  )
-}
-
-/** A terse inline type cue next to a member name (function params / variable type). */
-const Signature = (props: { decl: Reflect.Declaration }) => {
-  const d = props.decl
-  if (d.kind === 'function' && d.signatures[0])
-    return (
-      <span class="font-mono text-sm text-mute min-w-0 truncate">
-        <Type.SignatureExpr sig={d.signatures[0]} />
-      </span>
-    )
-  if (d.kind === 'variable')
-    return (
-      <span class="font-mono text-sm text-mute min-w-0 truncate">
-        : <Type.Type type={d.type} />
-      </span>
-    )
-  return null
-}
-
-/**
  * "Referenced In" backlinks from the route's `referenced` refs, grouped and
  * ordered with the same {@link groupItems} the sidebar and member lists use.
  */
@@ -277,6 +128,157 @@ export const References: Component<{ referenced: DocRouter.DocLink[] }> = static
     </Show>
   )
 })
+
+// --- Sub-renderers of the page body ---
+
+/**
+ * A `.tsx` page: its module is loaded on demand and rendered inside every
+ * provider the stock pages use, so the page can call `useProject`, render
+ * `<Markdown>` or `<Declaration>`, and read the theme like any other component.
+ *
+ * Falls back to the page title alone when no module is registered — the case
+ * for an archived version, whose data records the page but not its code.
+ */
+const ComponentBody = (props: { route: DocRouter.ComponentPage }) => {
+  const Body = createMemo(() => usePageComponent(props.route.module))
+  return (
+    <Suspense fallback={<Spinner />}>
+      <Show when={Body()} fallback={<MissingModule route={props.route} />}>
+        {(Body) => <Dynamic component={Body()} route={props.route} />}
+      </Show>
+    </Suspense>
+  )
+}
+
+const MissingModule = (props: { route: DocRouter.ComponentPage }) => (
+  <>
+    <h1 class="text-2xl font-semibold tracking-tight">{props.route.title}</h1>
+    <p class="text-mute mt-2 text-sm">
+      This page is rendered from <code class="font-mono">{props.route.module}</code>, which isn't part of this build.
+    </p>
+  </>
+)
+
+/** A declaration page: header, the declaration itself, and its members. */
+const Statement = (props: { route: DocRouter.DocPage }) => {
+  const project = useProject()
+  const decl = createMemo(() => project()?.byId(props.route.decl))
+  return (
+    <Show when={decl()}>
+      {(d) => (
+        <>
+          <PageHeader decl={d()} route={props.route} />
+          <Declaration decl={d()} />
+        </>
+      )}
+    </Show>
+  )
+}
+
+/**
+ * Members rendered inline on the parent page (full docs), before the link list
+ * — the route's `render: 'inline'` children, which have no page of their own.
+ */
+const InlineMembers = (props: { members?: DocRouter.DocLink[] }) => {
+  const project = useProject()
+  const groups = createMemo(() => DocRouter.groupItems(props.members ?? [], (m) => m.group))
+  return (
+    <For each={groups()}>
+      {(group) => (
+        <>
+          <Show when={group.group}>
+            <h2 class="text-sm font-semibold mt-8 mb-3 pb-1.5 border-b border-line capitalize">{group.group}</h2>
+          </Show>
+          <For each={group.items}>
+            {(m) => {
+              const decl = createMemo(() => project()?.byId(m.target))
+              return (
+                <Show when={decl()}>
+                  {(d) => (
+                    <section class="mt-8">
+                      <Row gap={3} align="baseline" class="mb-2">
+                        <Heading level={2} mono>
+                          {m.alias}
+                        </Heading>
+                        <KindLabel kind={d().kind} />
+                      </Row>
+                      <Declaration decl={d()} />
+                    </section>
+                  )}
+                </Show>
+              )
+            }}
+          </For>
+        </>
+      )}
+    </For>
+  )
+}
+
+/**
+ * Member listing for a declaration page: the route's children grouped by kind,
+ * exactly as the router lays them out. Each group becomes a titled section.
+ */
+const Links = (props: { links: DocRouter.DocLink[] }) => {
+  const groups = createMemo(() => DocRouter.groupItems(props.links, (l) => l.group))
+  return (
+    <For each={groups()}>
+      {(group) => (
+        <Section title={group.group}>
+          <ItemList>
+            <For each={group.items}>{(l) => <LinkRow link={l} />}</For>
+          </ItemList>
+        </Section>
+      )}
+    </For>
+  )
+}
+
+const LinkRow = (props: { link: DocRouter.DocLink }) => {
+  const project = useProject()
+  const router = DocRouter.use()
+  const route = () => {
+    const route = router()?.get({ id: props.link.target })
+    const decl = project()?.byId(props.link.target)
+    if (!decl || !route) return undefined
+    return { route, decl }
+  }
+  const summary = () => commentSummaryText(route()?.decl?.comment)
+  return (
+    <Show when={route()}>
+      {(r) => (
+        <ItemRow
+          badge={<KindBadge kind={r().decl.kind} class="w-3.5 shrink-0" />}
+          title={
+            <A href={r().route.slug} class="font-mono font-semibold text-sm hover:opacity-70">
+              {props.link.alias}
+            </A>
+          }
+          meta={<Signature decl={r().decl} />}
+          summary={summary()}
+        />
+      )}
+    </Show>
+  )
+}
+
+/** A terse inline type cue next to a member name (function params / variable type). */
+const Signature = (props: { decl: Reflect.Declaration }) => {
+  const d = props.decl
+  if (d.kind === 'function' && d.signatures[0])
+    return (
+      <span class="font-mono text-sm text-mute">
+        <Type.SignatureExpr sig={d.signatures[0]} />
+      </span>
+    )
+  if (d.kind === 'variable')
+    return (
+      <span class="font-mono text-sm text-mute">
+        : <Type.Type type={d.type} />
+      </span>
+    )
+  return null
+}
 
 const ReferenceRow = (props: { typeRef: DocRouter.DocLink }) => {
   const project = useProject()

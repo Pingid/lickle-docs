@@ -4,8 +4,9 @@ import { createSlot, type Reflect } from '../../context/index.tsx'
 import { useCommentMarkdown } from '../../hooks/index.ts'
 import { staticComponent } from '../../util/solid.tsx'
 
+import { DescList, DescRow, Eyebrow, Section } from '../../primitives/index.ts'
 import { Markdown, MarkdownInline } from '../Markdown.tsx'
-import { Tag, TagKind } from './Tag.tsx'
+import { Tag } from './Tag.tsx'
 import { Type } from '../Type.tsx'
 
 export * from './Tag.tsx'
@@ -18,6 +19,24 @@ export * from './Tag.tsx'
  * Per-tag rendering goes through the component registry — `defaults` from
  * `theme/tags/`, with user overrides taking precedence. Unknown tags fall
  * through to {@link UnknownTag}.
+ *
+ * The example builds a comment by hand rather than passing the current page's:
+ * this block *is* one of that comment's tags, so rendering it would nest a
+ * preview inside itself, and again inside that, until the tab gave up.
+ *
+ * @example preview
+ * ```tsx
+ * <Comment
+ *   comment={{
+ *     parts: [{ kind: 'text', text: 'Adds two numbers.' }],
+ *     tags: [
+ *       { tag: '@param', kind: '@param', name: 'a', text: 'the first addend' },
+ *       { tag: '@param', kind: '@param', name: 'b', text: 'the second addend' },
+ *       { tag: '@returns', kind: '@returns', text: 'their sum' },
+ *     ],
+ *   }}
+ * />
+ * ```
  */
 export const Comment = createSlot('comment', (props) => {
   const summary = useCommentMarkdown(() => props.comment)
@@ -42,42 +61,40 @@ export const Comment = createSlot('comment', (props) => {
 const NamedTable = staticComponent(
   (props: { title: string; tags: Reflect.CommentTagMap['@property'][] | Reflect.CommentTagMap['@param'][] }) => {
     return (
-      <section class="mt-6">
-        <div class="flex items-baseline gap-2 mb-2">
-          <TagKind kind={props.title} />
-        </div>
-        <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
+      <Section class="mt-6" title={<Eyebrow>{props.title}</Eyebrow>} plain>
+        <DescList>
           <For each={props.tags}>{(it) => <NamedRow item={it} />}</For>
-        </dl>
-      </section>
+        </DescList>
+      </Section>
     )
   },
 )
 
 const NamedRow = staticComponent(
   (props: { item: Reflect.CommentTagMap['@property'] | Reflect.CommentTagMap['@param'] }) => (
-    <>
-      <dt class="font-mono text-sm whitespace-nowrap">
-        <span class="font-semibold">{props.item.name}</span>
-        <Show when={props.item.optional}>
-          <span class="text-mute">?</span>
-        </Show>
-        <Show when={props.item.type}>
-          <>
-            <span class="text-mute">: </span>
-            <Type type={props.item.type!} />
-          </>
-        </Show>
-        <Show when={props.item.default}>
-          <span class="text-mute"> = {props.item.default}</span>
-        </Show>
-      </dt>
-      <dd class="text-sm text-mute min-w-0">
-        <Show when={trimLead(props.item.text)}>
-          <MarkdownInline source={trimLead(props.item.text)} />
-        </Show>
-      </dd>
-    </>
+    <DescRow
+      term={
+        <>
+          <span class="font-semibold">{props.item.name}</span>
+          <Show when={props.item.optional}>
+            <span class="text-mute">?</span>
+          </Show>
+          <Show when={props.item.type}>
+            <>
+              <span class="text-mute">: </span>
+              <Type type={props.item.type!} />
+            </>
+          </Show>
+          <Show when={props.item.default}>
+            <span class="text-mute"> = {props.item.default}</span>
+          </Show>
+        </>
+      }
+    >
+      <Show when={trimLead(props.item.text)}>
+        <MarkdownInline source={trimLead(props.item.text)} />
+      </Show>
+    </DescRow>
   ),
 )
 

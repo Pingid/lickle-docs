@@ -9,12 +9,10 @@ import {
   useLoadVersion,
   useDocs,
 } from '../context/index.tsx'
-import { LinkButton, SearchIcon, ChevronIcon } from './icons.tsx'
-import { A, useNavigate } from '../util/router.tsx'
+import { ChevronIcon, Kbd, LinkButton, MenuIcon, SearchIcon } from '../primitives/index.ts'
+import { A, useNavigate } from '../context/router/index.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
 import { clientOnly } from '../util/solid.tsx'
-
-const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')
 
 /**
  * id of the CSS-only drawer toggle checkbox; the mobile menu `<label>` targets it.
@@ -38,17 +36,7 @@ export const Header = createSlot('header', (props) => {
           aria-label="Toggle menu"
           class="lg:hidden p-1.5 rounded hover:bg-hover cursor-pointer"
         >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-          >
-            <path d="M4 7h16M4 12h16M4 17h16" />
-          </svg>
+          <MenuIcon size={18} />
         </label>
         <Show when={docs.name()}>
           {(name) => (
@@ -154,7 +142,9 @@ const SearchButton = clientOnly(() => (props: { onSearch?: () => void }) => {
     >
       <SearchIcon size={13} />
       <span class="hidden sm:inline pr-3">Search</span>
-      <kbd class="font-mono text-[0.65rem] text-mute mr-1">{searchHint()}</kbd>
+      <Kbd class="mr-1 border-0 px-0">{searchHint()}</Kbd>
     </button>
   )
 })
+
+const isMac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent || '')

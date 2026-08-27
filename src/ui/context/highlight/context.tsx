@@ -42,7 +42,7 @@ export const loadHighlighter = (langs: Lang[]): Promise<Core> => {
 
 /**
  * Provide syntax highlighting for the given languages. All code rendering —
- * fenced markdown blocks, `@example` blocks, signatures, the live-example
+ * fenced markdown blocks, \`@example\` blocks, signatures, the live-example
  * editor — reads the highlighter from this context; without it, code renders
  * as plain text. The grammar set comes from the config's `languages` field.
  *

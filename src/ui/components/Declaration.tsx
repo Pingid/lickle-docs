@@ -2,8 +2,9 @@ import { For, Show, type Component } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 
 import { createSlot, type Reflect } from '../context/index.tsx'
+import { Section } from '../primitives/index.ts'
 import { Comment } from './Comment/index.tsx'
-import { Syntax } from './Syntax.tsx'
+import * as Syntax from './Syntax/index.tsx'
 import * as Type from './Type.tsx'
 
 /**
@@ -117,23 +118,13 @@ const DeclarationInterface = (props: { decl: Reflect.Declaration<'interface'> })
   </div>
 )
 
-/** Section heading matching the module-children layout in `Page.tsx`. */
-const MemberSection = (props: { title: string; when: unknown; children: any }) => (
-  <Show when={props.when}>
-    <section class="mt-8">
-      <h2 class="text-sm font-semibold mb-3 pb-1.5 border-b border-line capitalize">{props.title}</h2>
-      {props.children}
-    </section>
-  </Show>
-)
-
 /** Enum page body: doc block plus the member table. */
 const DeclarationEnum = (props: { decl: Reflect.Declaration<'enum'> }) => (
   <div>
     <Comment comment={props.decl.comment} />
-    <MemberSection title="Members" when={props.decl.members?.length}>
+    <Section title="Members" when={props.decl.members?.length}>
       <For each={props.decl.members}>{(m) => <EnumMemberRow member={m} />}</For>
-    </MemberSection>
+    </Section>
   </div>
 )
 

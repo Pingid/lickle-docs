@@ -10,12 +10,18 @@ export const shiki = (opts: ViteContext): vite.Plugin => {
     id: 'virtual:lickle/shiki',
     path: clientFiles.virtuals.languages,
     content: async () => {
-      const langs = await opts
-        .current()
-        .then((c) =>
-          Array.from(new Set([...c.languages, ...(c.config.languages ?? []), 'ts'])).filter((l) =>
-            SHIKI_LANGUAGES_SET.has(l),
-          ),
+      const c = await opts.current()
+      const wanted = Array.from(new Set([...c.languages, ...(c.config.languages ?? []), 'ts']))
+      const langs = wanted.filter((l) => SHIKI_LANGUAGES_SET.has(l))
+
+      // Say so rather than dropping it: an unhighlighted fence looks like a
+      // theme problem, not a config one, so a silent filter here is expensive
+      // to track down.
+      const unknown = wanted.filter((l) => !SHIKI_LANGUAGES_SET.has(l))
+      if (unknown.length)
+        console.warn(
+          `[shiki] Unknown language${unknown.length > 1 ? 's' : ''} ${unknown.map((l) => `'${l}'`).join(', ')} — ` +
+            `code in ${unknown.length > 1 ? 'those languages' : 'that language'} will render unhighlighted.`,
         )
 
       return `

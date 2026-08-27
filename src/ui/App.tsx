@@ -11,7 +11,7 @@ import {
   type Reflect,
 } from './context/index.tsx'
 import { DocsProvider, useDocActiveProject, type DocsInput } from './context/docs/index.tsx'
-import { Route, useParams, Navigate, HashRouter } from './util/router.tsx'
+import { Route, useParams, Navigate, HashRouter } from './context/router/index.tsx'
 import { Link, Page, Layout } from './components/index.ts'
 import { Loading } from './components/Loading.tsx'
 import { DocRouter } from './hooks/index.ts'

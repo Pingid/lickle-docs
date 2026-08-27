@@ -3,6 +3,7 @@ import type { JSX } from 'solid-js/jsx-runtime'
 import { Dynamic } from 'solid-js/web'
 
 import { createSlot, type Reflect } from '../../context/index.tsx'
+import { DescList, DescRow, Eyebrow, Section } from '../../primitives/index.ts'
 import { CodeBlock } from '../Code/index.tsx'
 import { Markdown, MarkdownInline } from '../Markdown.tsx'
 import * as Type from '../Type.tsx'
@@ -19,29 +20,46 @@ export const Tag = createSlot('tag', (props: { tag: Reflect.CommentTag }) => {
   return <Dynamic component={renderer() as any} {...props} />
 })
 
-/** Section frame shared across tag renderers: the tag's heading, an optional markdown description, then the body. Use it to keep custom tag renderers visually consistent. */
-export const TagSection = (props: { tag: Reflect.CommentTag; description?: string; children: JSX.Element }) => {
-  return (
-    <section class="mt-6 [&>*:not(:first-child)>p]:mt-0">
-      <div class="flex items-baseline gap-2">
+/**
+ * Section frame shared across tag renderers: the tag's heading, an optional markdown description, then the body. Use it to keep custom tag renderers visually consistent.
+ *
+ * @example preview
+ * ```tsx
+ * <TagSection tag={{ tag: '@see', kind: '@see', text: '' }} description="an optional caption">
+ *   <p>Whatever the tag renders.</p>
+ * </TagSection>
+ * ```
+ */
+export const TagSection = (props: { tag: Reflect.CommentTag; description?: string; children: JSX.Element }) => (
+  <Section
+    plain
+    class="mt-6 [&>*:not(:first-child)>p]:mt-0"
+    title={
+      <span class="flex items-baseline gap-2">
         <TagKind kind={props.tag.tag} />
         <Show when={props.description}>
           {(description) => (
-            <div class="text-xs text-mute min-w-0">
+            <span class="text-xs text-mute font-normal normal-case min-w-0">
               <MarkdownInline source={description()} />
-            </div>
+            </span>
           )}
         </Show>
-      </div>
-      {props.children}
-    </section>
-  )
-}
-
-/** The small uppercase heading of a tag section: `'@example'` → "example". */
-export const TagKind = (p: { kind: string }) => (
-  <h4 class="text-mute text-[0.7rem] font-semibold tracking-wider mb-1">{p.kind.replace(/^@/, '')}</h4>
+      </span>
+    }
+  >
+    {props.children}
+  </Section>
 )
+
+/**
+ * The small uppercase heading of a tag section: `'@example'` → "example".
+ *
+ * @example preview
+ * ```tsx
+ * <TagKind kind="@deprecated" />
+ * ```
+ */
+export const TagKind = (p: { kind: string }) => <Eyebrow>{p.kind.replace(/^@/, '')}</Eyebrow>
 
 const TagReturns = (props: { tag: Reflect.CommentTagMap['@returns'] }) => (
   <TagSection tag={props.tag}>
@@ -85,23 +103,20 @@ const TagSee = (props: { tag: Reflect.CommentTagMap['@see'] }) => (
 
 const TagTemplate = (props: { tag: Reflect.CommentTagMap['@template'] }) => (
   <TagSection tag={props.tag}>
-    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline">
+    <DescList>
       <For each={props.tag.generics}>
         {(tp) => (
-          <>
-            <dt class="font-mono text-sm font-semibold">{tp.name}</dt>
-            <dd class="text-sm text-mute">
-              <Show when={tp.constraint}>
-                <>
-                  <span class="text-accent">extends </span>
-                  <Type.Type type={tp.constraint!} />
-                </>
-              </Show>
-            </dd>
-          </>
+          <DescRow term={<span class="font-semibold">{tp.name}</span>}>
+            <Show when={tp.constraint}>
+              <>
+                <span class="text-accent">extends </span>
+                <Type.Type type={tp.constraint!} />
+              </>
+            </Show>
+          </DescRow>
         )}
       </For>
-    </dl>
+    </DescList>
     <Show when={props.tag.text?.trim()}>
       <div class="mt-2">
         <MarkdownInline source={props.tag.text} />

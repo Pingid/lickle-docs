@@ -11,6 +11,7 @@ export default defineConfig(() => ({
     { glob: './docs/guides/*.md', group: 'Guides', folder: false },
     { title: 'Layout playground', content: './docs/playground/index.tsx', group: 'Guides', order: 99 },
   ],
+  components: './docs/components/index.tsx',
   layout: Place.compose(
     Place.defaultFilter,
     // The fallback bucket for anything the outline doesn't name: an explicit
@@ -38,6 +39,7 @@ export default defineConfig(() => ({
       // Types keep their pages — signatures link to them — but stay out of the
       // sidebar, which is about what you'd go looking for.
       { name: 'types', include: Match.kinds('interface', 'type-alias'), nav: false },
+      { name: 'primitives', include: Match.tag('@group', 'primitives') },
       { name: /.+/ },
     ),
     // Which declarations earn a page of their own; the rest read inline on their
@@ -45,7 +47,7 @@ export default defineConfig(() => ({
     // keep theirs.
     Place.pagesFor(
       Match.any(
-        Match.bucket('components', 'hooks', 'modules', 'types'),
+        Match.bucket('components', 'hooks', 'modules', 'types', 'primitives'),
         Match.kinds('interface', 'type-alias'),
         Match.file('src/core/layout/**/*.ts'),
       ),
