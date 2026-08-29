@@ -16,7 +16,7 @@ const repo = v.struct.match<T.Repo>({
   fileUrl: v.or(v.string, v.undefined),
 })
 
-const page = v.struct.match<T.Page>({
+const page = v.struct.match<T.PageSpec>({
   title: v.string,
   slug: v.or(v.string, v.undefined),
   content: v.string,

@@ -22,7 +22,7 @@ export default defineConfig({
 })
 ```
 
-Four vocabularies combine:
+Five vocabularies combine:
 
 | Namespace | Answers | Example |
 | --- | --- | --- |
@@ -30,10 +30,11 @@ Four vocabularies combine:
 | `Select` | *what* — a value derived per declaration | `Select.tag('@group')` |
 | `Place` | *do* — a layer that refines the placement | `Place.folder(…, 'Types')`, `Place.into(…, Match.entry('ui'))` |
 | `Outline` | *shape* — the whole sidebar as an ordered list | `Outline.of({ name: 'API', … })` |
+| `Page` | *shape* — the whole sidebar as a nested tree | `Page.roots(Page.nav('API', …))` |
 
-`Outline` is the declarative face of the other three: start there if you know
-what the sidebar should look like, and drop to `Place` layers for the parts an
-outline doesn't say.
+`Page` and `Outline` are the declarative faces of the other three: start with
+`Page.roots` if you know what the sidebar should look like, and drop to `Place`
+layers for the parts a tree doesn't say.
 
 Two rules explain most surprises:
 
@@ -43,12 +44,71 @@ Two rules explain most surprises:
 2. **Supplying a layout replaces the default entirely** — filtering included.
    Compose `Place.defaultFilter` back in to keep the stock behaviour.
 
+## The tree: the definition mirrors the site
+
+A composed chain is a sequence of *edits*, which is the right shape when you
+are refining one thing and an indirect one when what you want to state is the
+shape of the site. `Page.roots` states the shape as a tree — the nesting of the
+definition **is** the nesting of the generated sidebar:
+
+```ts
+import { defineConfig, Place, Match, Select, Page } from '@lickle/docs/config'
+
+export default defineConfig({
+  name: 'My Library',
+  layout: Place.compose(
+    Place.defaultFilter,
+    Page.roots(
+      Page.nav('Overview', Match.file('README.md')),
+      Page.section('Guides', Page.children(Match.file('docs/guides/**'))),
+      Page.nav('API', Match.file('src/core.ts'), Page.bucket(Select.tag('@group'))),
+      Page.nav('String', Match.file('src/string.ts'), Page.bucket(Select.tag('@group')), Page.inline),
+    ),
+  ),
+})
+```
+
+Three words, three sidebar shapes, plus a gatherer:
+
+| Part | Is |
+| --- | --- |
+| `Page.nav(label, match, …parts)` | a **row** — the one source the `Match` names, renamed to the label, its members nested beneath it |
+| `Page.section(label, …parts)` | a **heading** grouping its child rows |
+| `Page.folder(label, …parts)` | a **collapsible folder** with no page of its own |
+| `Page.children(match)` | a **set** gathered under the enclosing node, keeping their own names and order |
+
+The rest of a `nav`'s parts are modifiers over everything beneath it:
+`Page.bucket` groups the members under headings, `Page.inline` renders them on
+the node's page, `Page.order` pins their order, `Page.depth(n, beyond?)` cuts
+the expansion, and `Page.layer(…)` scopes any raw `Place` layer to the subtree.
+(`Page.compose(…)` bundles parts into one value when you want to build them up
+separately.)
+
+Three properties make a tree predictable:
+
+1. **List order is display order**, at every level.
+2. **The first part to name a source owns it** — two overlapping matches never
+   fight, exactly as an ordered list reads.
+3. **The tree is total over the sidebar**: a source it doesn't reach — not a
+   row, not gathered, not exposed beneath a row — keeps its page and simply
+   gets no sidebar row. Which pages *exist* is still the filter's call
+   (`Place.defaultFilter` above).
+
+A row's identity `Match` names **one** source. Where it matches several —
+`Match.file('src/string.ts')` matches the module *and* everything declared in
+that file — the row is the container (an entrypoint, else a module or
+namespace), and the file-mates are simply reached by the tree. Naming a row
+also revives it if a filter or `export *` flattening dropped it, which is what
+lets a module the export graph erased host a page again.
+
+This site is built with a `Page.roots` tree — see `lickle.ts` in the
+repository root for the real thing, including a nested `nav` that gathers 55
+presentational components onto one inlined page.
+
 ## The outline: the site as a list
 
-A composed chain is a sequence of *edits*, which is the right shape when you are
-refining one thing and an indirect one when what you want to state is the shape
-of the site. `Outline.of` states the shape — an ordered list of sections, each
-saying what is in it, in what order, and how deep it goes:
+`Outline.of` states one level of the same thing — an ordered list of sections,
+each saying what is in it, in what order, and how deep it goes:
 
 ```ts
 import { defineConfig, Place, Match, Outline } from '@lickle/docs/config'

@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto'
-
 import type { DeepMerge } from '../t.ts'
 
 type Fn = (...args: any[]) => any
@@ -65,4 +63,4 @@ export const deepMerge = <T, U>(a: T, b: U): DeepMerge<T, U> => {
 const isObject = (obj: any): obj is Record<string, any> =>
   obj !== null && typeof obj === 'object' && !Array.isArray(obj)
 
-export const hash = (str: string) => createHash('sha256').update(str).digest('hex')
+// export const hash = (str: string) => createHash('sha256').update(str).digest('hex')

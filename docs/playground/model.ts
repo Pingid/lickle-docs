@@ -18,10 +18,38 @@ import * as Place from '../../src/core/layout/layout/place.ts'
 import * as Match from '../../src/core/layout/layout/match.ts'
 import * as Select from '../../src/core/layout/layout/select.ts'
 import * as Outline from '../../src/core/layout/layout/outline.ts'
+import * as Page from '../../src/core/layout/layout/page.ts'
 import { buildTree } from '../../src/core/layout/tree.ts'
 import type { DeclarationFacade } from '../../src/core/layout/facade.ts'
 import type { GroupedItems, Layout, PageSource, SidebarNode, ContentSource } from '../../src/core/layout/types.ts'
 import type * as Reflect from '../../src/core/reflect/index.ts'
+
+/**
+ * Compile the editor's expression to a {@link Layout} and run the real tree
+ * builder over the corpus.
+ *
+ * The source is wrapped in a `const` so sucrase sees a whole program — that way
+ * a typed arrow (`(d: DeclarationFacade) => …`) compiles like it would in a
+ * config file, rather than being a syntax error.
+ */
+export const run = (source: string): Result => {
+  const js = transform(`const __layout = (\n${source}\n)`, { transforms: ['typescript'] }).code
+  const layout = new Function(
+    'Place',
+    'Match',
+    'Select',
+    'Outline',
+    'Page',
+    `${js}
+  return __layout`,
+  )(Place, Match, Select, Outline, Page) as Layout
+  if (typeof layout !== 'function') throw new Error('Expected a Layout — did you forget `Place.compose(...)`?')
+
+  const warnings: string[] = []
+  const tree = buildTree(SOURCES, layout, { docs: index, name: 'my-library' }, (d) => warnings.push(d.message))
+  const pages = tree.resolved.filter((r) => (r.placement.page?.render ?? 'page') === 'page').length
+  return { sidebar: tree.sidebar, slugs: tree.slugOf, pages, warnings }
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // The corpus
@@ -73,8 +101,7 @@ const specById = new Map<number, Spec>([[MODULE_ID, MODULE]])
 SPECS.forEach((s, i) => specById.set(MODULE_ID + 1 + i, s))
 
 /** Id of the declaration named `name`, for resolving a spec's `ns`. */
-const idOf = (name: string): number | undefined =>
-  [...specById.entries()].find(([, spec]) => spec.name === name)?.[0]
+const idOf = (name: string): number | undefined => [...specById.entries()].find(([, spec]) => spec.name === name)?.[0]
 /** The namespace that exposes `id`, if any — otherwise the entry module does. */
 const exposerOf = (id: number): number | undefined => {
   const ns = specById.get(id)?.ns
@@ -268,6 +295,24 @@ export const PRESETS: { name: string; blurb: string; code: string }[] = [
 )`,
   },
   {
+    name: 'Page tree',
+    blurb:
+      'The tree-shaped form: the nesting of the definition is the nesting of the sidebar, and what the tree doesn’t name gets no row.',
+    code: `Place.compose(
+  Place.defaultFilter,
+  Page.roots(
+    Page.nav('Overview', Match.file('README.md')),
+    Page.section('Guides', Page.children(Match.page())),
+    Page.section('API',
+      Page.nav('my-library', Match.isEntry(),
+        Page.bucket(Select.first(Select.tag('@group'), Select.kind)),
+        Page.depth(1, 'inline'),
+      ),
+    ),
+  ),
+)`,
+  },
+  {
     name: 'Rename and order',
     blurb: 'Pin the guides above everything generated, and give a declaration a friendlier label.',
     code: `Place.compose(
@@ -295,29 +340,4 @@ export type Result = {
   slugs: Map<number, string>
   pages: number
   warnings: string[]
-}
-
-/**
- * Compile the editor's expression to a {@link Layout} and run the real tree
- * builder over the corpus.
- *
- * The source is wrapped in a `const` so sucrase sees a whole program — that way
- * a typed arrow (`(d: DeclarationFacade) => …`) compiles like it would in a
- * config file, rather than being a syntax error.
- */
-export const run = (source: string): Result => {
-  const js = transform(`const __layout = (\n${source}\n)`, { transforms: ['typescript'] }).code
-  const layout = new Function(
-    'Place',
-    'Match',
-    'Select',
-    'Outline',
-    `${js}\nreturn __layout`,
-  )(Place, Match, Select, Outline) as Layout
-  if (typeof layout !== 'function') throw new Error('Expected a Layout — did you forget `Place.compose(...)`?')
-
-  const warnings: string[] = []
-  const tree = buildTree(SOURCES, layout, { docs: index, name: 'my-library' }, (d) => warnings.push(d.message))
-  const pages = tree.resolved.filter((r) => (r.placement.page?.render ?? 'page') === 'page').length
-  return { sidebar: tree.sidebar, slugs: tree.slugOf, pages, warnings }
 }

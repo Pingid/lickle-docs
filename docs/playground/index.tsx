@@ -43,8 +43,8 @@ export default function LayoutPlayground(props: PageProps) {
       <p class="text-mute mt-2">
         Every combinator below runs through the same <code class="font-mono">buildTree</code> the build uses, over a
         small synthetic project. Pick a preset or edit the code — the sidebar on the right rebuilds as you type.{' '}
-        <code class="font-mono">Place</code>, <code class="font-mono">Match</code>, <code class="font-mono">Select</code>{' '}
-        and <code class="font-mono">Outline</code> are all in scope.
+        <code class="font-mono">Place</code>, <code class="font-mono">Match</code>, <code class="font-mono">Select</code>,{' '}
+        <code class="font-mono">Outline</code> and <code class="font-mono">Page</code> are all in scope.
       </p>
 
       <div class="flex flex-wrap gap-1.5 mt-6">

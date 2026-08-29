@@ -652,10 +652,7 @@ const onDoc = (fn: (base: Placed, source: DocSource) => Placement): Layout =>
  * when the match carries a page aspect, so declaration-only predicates never
  * disturb markdown.
  */
-const onMatch = (
-  match: Match.Match,
-  fn: (base: Placed, source: PageSource, cx: LayoutContext) => Placement,
-): Layout =>
+const onMatch = (match: Match.Match, fn: (base: Placed, source: PageSource, cx: LayoutContext) => Placement): Layout =>
   onPlaced((base, source, cx) => {
     const hit = source.kind === 'doc' ? match(source.decl, base) : (match.page?.(source, base) ?? false)
     return hit ? fn(base, source, cx) : base

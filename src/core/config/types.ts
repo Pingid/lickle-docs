@@ -177,7 +177,7 @@ export interface ConfigJson {
    * Standalone pages shown alongside the generated API pages. Defaults to
    * `README.md` as the home page.
    *
-   * Each entry is either a glob string or a {@link Page} object:
+   * Each entry is either a glob string or a {@link PageSpec} object:
    *
    * - `'./docs/guides/**\/*.md'` — every match becomes a page. The title comes
    *   from YAML frontmatter, else the first `# heading`, else the filename; the
@@ -287,7 +287,7 @@ export interface ConfigVersion {
 }
 
 /** One `pages` entry: an explicit page, a bare glob, or a glob with options. */
-export type PageEntry = Page | GlobEntry | string
+export type PageEntry = PageSpec | GlobEntry | string
 
 /**
  * A glob of page files plus how they attach to the sidebar. The bare-string
@@ -316,7 +316,7 @@ export interface GlobEntry {
 }
 
 /** A standalone page — markdown, or a SolidJS component module. */
-export interface Page {
+export interface PageSpec {
   /** Page title shown in the sidebar. */
   title: string
   /** URL path of the page. Defaults to a slug derived from the title; `/` is the home page. */

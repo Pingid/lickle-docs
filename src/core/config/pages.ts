@@ -4,7 +4,7 @@ import fg from 'fast-glob'
 import { Node, Frontmatter } from '../../_lib/index.ts'
 import type { ContentSource } from '../layout/types.ts'
 import type { Diagnostic } from '../diagnostic/types.ts'
-import type { GlobEntry, Page, PageEntry } from './types.ts'
+import type { GlobEntry, PageSpec, PageEntry } from './types.ts'
 
 /** Extensions treated as a SolidJS component module rather than markdown. */
 const COMPONENT_EXT = new Set(['.tsx', '.jsx', '.ts', '.js', '.mts', '.mjs'])
@@ -63,7 +63,7 @@ export const resolvePages = async (
       continue
     }
 
-    const explicit = entry as Page
+    const explicit = entry as PageSpec
     const ext = path.extname(explicit.content).toLowerCase()
     const looksLikePath = MARKDOWN_EXT.has(ext) || COMPONENT_EXT.has(ext)
     if (!looksLikePath) {
@@ -119,8 +119,8 @@ const folderFor = (glob: GlobEntry, derived?: string): string | undefined => {
   return derived ? `${glob.folder}/${derived}` : glob.folder
 }
 
-/** The explicit fields a `Page` contributes, minus its `content`. */
-const fields = (p: Partial<Page>) => ({
+/** The explicit fields a `PageSpec` contributes, minus its `content`. */
+const fields = (p: Partial<PageSpec>) => ({
   title: p.title ?? 'Untitled',
   slug: p.slug,
   folder: p.folder,
@@ -149,7 +149,7 @@ const expand = async (dir: string, pattern: string): Promise<{ path: string; fol
 const fromFile = async (
   dir: string,
   abs: string,
-  defaults: Partial<Page> & { folder?: string; position?: number },
+  defaults: Partial<PageSpec> & { folder?: string; position?: number },
   emit: (d: Diagnostic) => void,
 ): Promise<ContentSource | undefined> => {
   const rel = posix(path.relative(dir, abs))

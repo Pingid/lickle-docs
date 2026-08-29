@@ -1,6 +1,6 @@
-import { defineConfig, Place, Match, Select, Outline, Transform } from './src/core/config/lib.ts'
+import { defineConfig, Page, Place, Match, Select, Transform } from './src/core/config/lib.ts'
 
-/** `export * from './primitives'` flattens this module away; the layout puts it back. */
+/** `export * from './primitives'` flattens this module away; naming it as a row puts it back. */
 const PRIMITIVES = Match.file('src/ui/primitives/index.ts')
 
 export default defineConfig(() => ({
@@ -11,44 +11,57 @@ export default defineConfig(() => ({
   versions: './docs/version/*.json',
   pages: [
     { title: 'Overview', content: './README.md', slug: '/' },
-    { glob: './docs/guides/*.md', group: 'Guides', folder: false },
-    { title: 'Layout playground', content: './docs/playground/index.tsx', group: 'Guides', order: 99 },
+    { glob: './docs/guides/*.md', folder: false },
+    { title: 'Layout playground', content: './docs/playground/index.tsx', order: 99 },
   ],
   components: './docs/components/index.tsx',
+  // The tree IS the sidebar: what is written here, in this order, is what
+  // renders. Sources the tree doesn't reach keep their pages but no rows;
+  // which pages exist at all is still `defaultFilter`'s call.
   layout: Place.compose(
     Place.defaultFilter,
-    // Every declaration's bucket: an explicit `@group`, else its kind. The
-    // outline below only has to put those buckets in order.
-    Place.bucket(Select.first(Select.tag('@group'), Select.kind)),
-    // The sidebar, in reading order. Sections that only position a bucket the
-    // layer above assigned are bare names; the rest say what they claim.
-    Outline.of(
-      { name: 'Guides', include: Match.file('docs/**') },
-      // Entrypoints and the namespaces they expose stay navigable; anything
-      // deeper reads on the page above it.
-      { name: 'API', include: Match.isEntry(), depth: 2, beyond: 'inline' },
-      // 55 presentational components, read on one page rather than as 55
-      // sidebar rows. `into` hosts them on the module that declares them.
-      { name: 'primitives', include: Match.tag('@group', 'primitives'), into: PRIMITIVES },
-      // Reading order: set the site up, render it, read from it, then customise.
-      'modules',
-      'providers',
-      'chrome',
-      'reflection',
-      'content',
-      'hooks',
-      'slots',
-      'previews',
-      'utilities',
-      // Types keep their pages — signatures link to them — but stay out of the
-      // sidebar, which is about what you'd go looking for.
-      { name: 'types', include: Match.kinds('interface', 'type-alias'), nav: false },
-      { name: /.+/ },
+    Page.roots(
+      Page.nav('Overview', Match.file('README.md')),
+      Page.section('Guides', Page.children(Match.file('docs/**'))),
+      Page.section(
+        'API',
+        Page.nav(
+          'config',
+          Match.entry('config'),
+          Page.bucket(Select.kind),
+          // Namespaces and their members stay navigable; anything deeper
+          // reads on the page above it.
+          Page.depth(2, 'inline'),
+        ),
+        Page.nav(
+          'ui',
+          Match.entry('ui'),
+          // 55 presentational components, read on one page rather than as 55
+          // sidebar rows: gathered onto the revived primitives module.
+          Page.nav('primitives', PRIMITIVES, Page.children(Match.tag('@group', 'primitives')), Page.inline),
+          // Reading order: set the site up, render it, read from it, then customise.
+          Page.bucket(Select.first(Select.tag('@group'), Select.kind)),
+          Page.layer(
+            Place.bucketOrder(
+              'modules',
+              'providers',
+              'chrome',
+              'reflection',
+              'content',
+              'hooks',
+              'slots',
+              'previews',
+              'utilities',
+              /.+/,
+            ),
+          ),
+          Page.depth(2, 'inline'),
+        ),
+      ),
     ),
-    // Where the primitives' host page itself sits. After the outline, which is
-    // what revived the module `export *` had flattened away.
-    Place.into(PRIMITIVES, Match.entry('ui')),
-    Place.rename(PRIMITIVES, 'primitives'),
+    // Types keep their pages — signatures link to them — but stay out of the
+    // sidebar, which is about what you'd go looking for.
+    Place.visibility(Match.kinds('interface', 'type-alias'), { nav: false }),
   ),
   transform: Transform.stripTags('@group'),
 }))

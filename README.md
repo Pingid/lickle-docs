@@ -162,7 +162,7 @@ Reference below.
 | `repository` | git metadata | Drives the "view source" links |
 | `languages` | `['ts']` | Shiki grammars for fenced code and `@example` |
 | `components` | — | Path to a `defineComponents(...)` file |
-| `layout` | bucket by kind | The whole page-generation policy — layers, or an `Outline` |
+| `layout` | bucket by kind | The whole page-generation policy — a `Page` tree, an `Outline`, or layers |
 | `refine` | — | A pass over every placement once they are all decided |
 | `transform` | — | Runs over each declaration after layout |
 | `versions` | — | Glob of `project.json` files from earlier releases |
@@ -227,30 +227,47 @@ The layout is the whole page-generation policy — which declarations get pages,
 what they're called, where they live, how the sidebar groups them. Filtering,
 folders and ordering are all part of it, not separate fields.
 
-Say it as a **list** when you know what the sidebar should look like:
+Say it as a **tree** when you know what the sidebar should look like — the
+nesting of the definition is the nesting of the site:
 
 ```ts
-import { defineConfig, Place, Match, Outline } from '@lickle/docs/config'
+import { defineConfig, Place, Match, Select, Page } from '@lickle/docs/config'
 
 export default defineConfig({
   name: 'My Library',
   layout: Place.compose(
     Place.defaultFilter, // exposed, minus @internal
-    Outline.of(
-      { name: 'Guides', include: Match.file('docs/guides/**'), order: ['Getting started'] },
-      { name: 'API', include: Match.isEntry(), depth: 2, beyond: 'inline' },
-      { name: 'components', include: Match.tag('@group', 'components') },
-      { name: 'types', include: Match.kinds('interface', 'type-alias'), nav: false },
-      { name: /.+/ }, // then everything else
+    Page.roots(
+      Page.nav('Overview', Match.file('README.md')),
+      Page.section('Guides', Page.children(Match.file('docs/guides/**'))),
+      Page.nav('API', Match.file('src/core.ts'), Page.bucket(Select.tag('@group'))),
+      Page.nav('String', Match.file('src/string.ts'), Page.bucket(Select.tag('@group')), Page.inline),
     ),
   ),
 })
 ```
 
-The list order is the sidebar order, the first section to match a source claims
-it, and each section says how deep it expands (`depth`), what happens past that
-(`beyond`), and how its entries render. It compiles to the layers below, so
-`ldocs why` still attributes every decision.
+A `nav` is a row (the source its `Match` names, renamed to the label), a
+`section` is a heading, a `folder` collapses, `children` gathers a set, and the
+modifiers — `bucket`, `inline`, `order`, `depth`, `layer` — apply to everything
+beneath their node. The tree is the whole sidebar: what it doesn't reach keeps
+its page but gets no row. It compiles to the layers below, so `ldocs why`
+still attributes every decision.
+
+Or as a flat **list** (`Outline.of`), where the first section to match a source
+claims it and each section says how deep it expands:
+
+```ts
+Place.compose(
+  Place.defaultFilter,
+  Outline.of(
+    { name: 'Guides', include: Match.file('docs/guides/**'), order: ['Getting started'] },
+    { name: 'API', include: Match.isEntry(), depth: 2, beyond: 'inline' },
+    { name: 'types', include: Match.kinds('interface', 'type-alias'), nav: false },
+    { name: /.+/ }, // then everything else
+  ),
+)
+```
 
 Or say it as **layers** when you're refining one thing:
 
@@ -273,12 +290,13 @@ Place.compose(
 | `Select` | *what* — a value per declaration | `Select.tag('@group')` |
 | `Place` | *do* — a layer that refines placement | `Place.folder(…, 'Types')` |
 | `Outline` | *shape* — the sidebar as an ordered list | `Outline.of({ name: 'API', … })` |
+| `Page` | *shape* — the sidebar as a nested tree | `Page.roots(Page.nav('API', …))` |
 
 Two rules explain most surprises:
 
 1. **Later layers win.** `compose` applies left to right; a second `Place.bucket`
-   overrides the first. (Inside an outline it's the other way round — the *first*
-   matching section claims a source, as an ordered list reads.)
+   overrides the first. (Inside an outline or a page tree it's the other way
+   round — the *first* part to name a source claims it, as an ordered list reads.)
 2. **A layout replaces the default entirely**, filtering included.
 
 Anywhere a preset takes a string it takes a `Select`:
